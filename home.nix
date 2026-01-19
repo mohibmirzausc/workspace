@@ -6,6 +6,7 @@
     ./programs/karabiner.nix
     ./programs/raycast/raycast.nix
     ./programs/ghostty.nix
+    ./programs/ticktick-sdk-config.nix
   ];
 
   # Note: nixpkgs configuration is now handled by darwin.nix when using nix-darwin
@@ -50,6 +51,11 @@
     pre-commit     # Git pre-commit hooks
     (callPackage ./programs/beads.nix {} )
     # direnv already configured in programs.direnv
+
+    # Python with ticktick-sdk
+    (python3.withPackages (ps: with ps; [
+      (callPackage ./programs/ticktick-sdk.nix {})
+    ]))
   ] ++ [
     # # It is sometimes useful to fine-tune packages, for example, by applying
     # # overrides. You can do that directly here, just don't forget the
@@ -121,7 +127,6 @@
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
-
   programs.direnv = {
     enable = true;
     enableZshIntegration=true;
@@ -134,6 +139,11 @@
       if [ -e $HOME/.profile ]; then . $HOME/.profile; fi
       export NIXPKGS_ALLOW_UNFREE=1
       export AUTO_ENABLE_FLAKES=true
+
+      # Source TickTick secrets if the file exists
+      if [ -f $HOME/.ticktick-secrets ]; then
+        source $HOME/.ticktick-secrets
+      fi
 
       # Function instead of alias so it works with sudo
       homeswitch() {
