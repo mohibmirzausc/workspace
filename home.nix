@@ -6,7 +6,7 @@
     ./programs/karabiner.nix
     ./programs/raycast/raycast.nix
     ./programs/ghostty.nix
-    ./programs/ticktick-sdk-config.nix
+    ./programs/ticktick-sdk/config.nix
   ];
 
   # Note: nixpkgs configuration is now handled by darwin.nix when using nix-darwin
@@ -54,7 +54,7 @@
 
     # Python with ticktick-sdk
     (python3.withPackages (ps: with ps; [
-      (callPackage ./programs/ticktick-sdk.nix {})
+      (callPackage ./programs/ticktick-sdk/package.nix {})
     ]))
   ] ++ [
     # # It is sometimes useful to fine-tune packages, for example, by applying
@@ -73,6 +73,7 @@
     raycast
     coder
     ghostty-bin
+    opencode
   ] else []);
 
   # Home Manager is pretty good at managing dotfiles. The primary way to manage

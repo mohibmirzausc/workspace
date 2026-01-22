@@ -74,7 +74,20 @@
               type = "standard";
             };
           };
+          # Disable "Show Desktop" gesture (clicking desktop to hide windows)
+          "36" = {
+            enabled = false;
+          };
+          "37" = {
+            enabled = false;
+          };
         };
+      };
+      # Disable Stage Manager if on macOS Ventura or later
+      "com.apple.WindowManager" = {
+        GloballyEnabled = false;
+        AutoHide = false;
+        StageManagerHideWidgets = false;
       };
     };
   };
@@ -115,6 +128,7 @@
       "karabiner-elements"
       "superwhisper"
       "raycast"
+      "ticktick"
     ];
   };
 
