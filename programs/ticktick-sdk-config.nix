@@ -18,4 +18,3 @@ TICKTICK_EOF
     fi
   '';
 }
-

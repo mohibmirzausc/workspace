@@ -55,12 +55,45 @@
       AppleInterfaceStyle = "Dark";
       # Automatically switch between light and dark mode
       AppleInterfaceStyleSwitchesAutomatically = true;
+      # Speed up key repeat rate (lower = faster, range 2-120, default 6)
+      KeyRepeat = 2;
+      # Reduce initial delay before key repeat (lower = faster, range 15-120, default 68)
+      InitialKeyRepeat = 15;
     };
 
-    # Keyboard settings
-    # Note: Disabling Spotlight's Command+Space via symbolichotkeys requires
-    # additional configuration that may need to be done manually or via
-    # a custom plist activation script
+    # Spotlight settings - disable the default Command+Space shortcut
+    # This disables the Spotlight search keyboard shortcut
+    CustomUserPreferences = {
+      "com.apple.symbolichotkeys" = {
+        AppleSymbolicHotKeys = {
+          # Disable Spotlight search (Command+Space)
+          "64" = {
+            enabled = false;
+            value = {
+              parameters = [ 32 49 1048576 ];
+              type = "standard";
+            };
+          };
+        };
+      };
+    };
+  };
+
+  # Swap Control and Command keys system-wide
+  system.keyboard = {
+    enableKeyMapping = true;
+    remapCapsLockToControl = false;  # Set to true if you want Caps Lock → Control
+    # Swap modifier keys: Control ↔ Command
+    userKeyMapping = [
+      {
+        HIDKeyboardModifierMappingSrc = 30064771296;  # Control
+        HIDKeyboardModifierMappingDst = 30064771299;  # Command
+      }
+      {
+        HIDKeyboardModifierMappingSrc = 30064771299;  # Command
+        HIDKeyboardModifierMappingDst = 30064771296;  # Control
+      }
+    ];
   };
 
   # Enable Touch ID for sudo
@@ -81,6 +114,7 @@
       "gcloud-cli"
       "karabiner-elements"
       "superwhisper"
+      "raycast"
     ];
   };
 
