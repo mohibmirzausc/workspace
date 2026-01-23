@@ -92,23 +92,6 @@
     };
   };
 
-  # Swap Control and Command keys system-wide
-  system.keyboard = {
-    enableKeyMapping = true;
-    remapCapsLockToControl = false;  # Set to true if you want Caps Lock → Control
-    # Swap modifier keys: Control ↔ Command
-    userKeyMapping = [
-      {
-        HIDKeyboardModifierMappingSrc = 30064771296;  # Control
-        HIDKeyboardModifierMappingDst = 30064771299;  # Command
-      }
-      {
-        HIDKeyboardModifierMappingSrc = 30064771299;  # Command
-        HIDKeyboardModifierMappingDst = 30064771296;  # Control
-      }
-    ];
-  };
-
   # Enable Touch ID for sudo
   security.pam.services.sudo_local.touchIdAuth = true;
 
