@@ -103,6 +103,11 @@
       source = ./programs/claude/hooks;
       force = true;
     };
+    ".claude/commands" = {
+      source = ./programs/claude/commands;
+      recursive = true;
+      force = true;
+    };
   };
 
   # Home Manager can also manage your environment variables through
