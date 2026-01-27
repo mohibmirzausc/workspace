@@ -41,6 +41,7 @@
     nushell
     atuin          # Shell history tool
     carapace       # Multi-shell completion generator
+    fastfetch      # System information tool
     mitmproxy
 
     # Development tools (previously via Homebrew)
@@ -232,6 +233,13 @@
     enable = true;
     enableZshIntegration = true;
     enableBashIntegration = true;
+  };
+
+  programs.nushell = {
+    enable = true;
+    environmentVariables = {
+      # Add any env vars if needed
+    };
   };
 
   programs.zoxide = {
