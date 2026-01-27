@@ -143,6 +143,11 @@
     enable = true;
     autosuggestion.enable = true;
     initExtra = ''
+      # Source home-manager session vars (needed on Linux)
+      if [ -f ~/.nix-profile/etc/profile.d/hm-session-vars.sh ]; then
+        source ~/.nix-profile/etc/profile.d/hm-session-vars.sh
+      fi
+
       if [ -e $HOME/.profile ]; then . $HOME/.profile; fi
       export NIXPKGS_ALLOW_UNFREE=1
       export AUTO_ENABLE_FLAKES=true
