@@ -36,5 +36,9 @@
     "superpowers@superpowers-marketplace": true,
     "beads@beads-marketplace": true
   },
-  "alwaysThinkingEnabled": false
+  "alwaysThinkingEnabled": false,
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/hooks/statusline.sh"
+  }
 }
