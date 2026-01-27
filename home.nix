@@ -143,6 +143,16 @@
     enable = true;
     autosuggestion.enable = true;
     initExtra = ''
+      # Add Nix profile to PATH (needed on Linux)
+      if [ -d ~/.nix-profile/bin ]; then
+        export PATH="$HOME/.nix-profile/bin:$PATH"
+      fi
+
+      # Source home-manager session vars
+      if [ -f ~/.nix-profile/etc/profile.d/hm-session-vars.sh ]; then
+        source ~/.nix-profile/etc/profile.d/hm-session-vars.sh
+      fi
+
       if [ -e $HOME/.profile ]; then . $HOME/.profile; fi
       export NIXPKGS_ALLOW_UNFREE=1
       export AUTO_ENABLE_FLAKES=true
