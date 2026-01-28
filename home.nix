@@ -143,7 +143,12 @@
     enable = true;
     autosuggestion.enable = true;
     initExtra = ''
-      # Source home-manager session vars (needed on Linux)
+      # Add Nix profile to PATH (needed on Linux)
+      if [ -d ~/.nix-profile/bin ]; then
+        export PATH="$HOME/.nix-profile/bin:$PATH"
+      fi
+
+      # Source home-manager session vars
       if [ -f ~/.nix-profile/etc/profile.d/hm-session-vars.sh ]; then
         source ~/.nix-profile/etc/profile.d/hm-session-vars.sh
       fi
