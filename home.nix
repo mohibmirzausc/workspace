@@ -137,7 +137,11 @@
 
     if [ ! -d "$LOGS_DIR/.git" ]; then
       $DRY_RUN_CMD mkdir -p "$HOME/.claude/claude_accessible"
-      $DRY_RUN_CMD ${pkgs.git}/bin/git clone git@github.com:mohibmirzausc/agentic-practice-logs.git "$LOGS_DIR" 2>/dev/null || true
+      if ! $DRY_RUN_CMD ${pkgs.git}/bin/git clone git@github.com:mohibmirzausc/agentic-practice-logs.git "$LOGS_DIR" 2>&1; then
+        echo "Warning: Failed to clone agentic-practice-logs repository."
+        echo "This is expected if you don't have SSH keys set up for GitHub."
+        echo "You can manually clone it later or set up SSH keys."
+      fi
     fi
   '';
 
