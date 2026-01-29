@@ -131,6 +131,16 @@
     # EDITOR = "emacs";
   };
 
+  # Clone agentic practice logs repository if it doesn't exist
+  home.activation.cloneLogsRepo = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    LOGS_DIR="$HOME/.claude/claude_accessible/agentic-practice-logs"
+
+    if [ ! -d "$LOGS_DIR/.git" ]; then
+      $DRY_RUN_CMD mkdir -p "$HOME/.claude/claude_accessible"
+      $DRY_RUN_CMD ${pkgs.git}/bin/git clone git@github.com:mohibmirzausc/agentic-practice-logs.git "$LOGS_DIR" 2>/dev/null || true
+    fi
+  '';
+
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
