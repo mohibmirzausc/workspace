@@ -134,13 +134,25 @@
   # Clone agentic practice logs repository if it doesn't exist
   home.activation.cloneLogsRepo = lib.hm.dag.entryAfter ["writeBoundary"] ''
     LOGS_DIR="$HOME/.claude/claude_accessible/agentic-practice-logs"
+    REPO_URL="git@github.com:mohibmirzausc/agentic-practice-logs.git"
 
     if [ ! -d "$LOGS_DIR/.git" ]; then
+      # Directory doesn't exist or isn't a git repo - clone fresh
+      $DRY_RUN_CMD rm -rf "$LOGS_DIR" 2>/dev/null || true
       $DRY_RUN_CMD mkdir -p "$HOME/.claude/claude_accessible"
-      if ! $DRY_RUN_CMD ${pkgs.git}/bin/git clone git@github.com:mohibmirzausc/agentic-practice-logs.git "$LOGS_DIR" 2>&1; then
+      if ! $DRY_RUN_CMD ${pkgs.git}/bin/git clone "$REPO_URL" "$LOGS_DIR" 2>&1; then
         echo "Warning: Failed to clone agentic-practice-logs repository."
         echo "This is expected if you don't have SSH keys set up for GitHub."
         echo "You can manually clone it later or set up SSH keys."
+      fi
+    elif [ -d "$LOGS_DIR/.git" ]; then
+      # Git repo exists - ensure remote is configured correctly
+      cd "$LOGS_DIR"
+      CURRENT_REMOTE=$(${pkgs.git}/bin/git remote get-url origin 2>/dev/null || echo "")
+      if [ "$CURRENT_REMOTE" != "$REPO_URL" ]; then
+        echo "Fixing agentic-practice-logs remote..."
+        $DRY_RUN_CMD ${pkgs.git}/bin/git remote remove origin 2>/dev/null || true
+        $DRY_RUN_CMD ${pkgs.git}/bin/git remote add origin "$REPO_URL"
       fi
     fi
   '';
