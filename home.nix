@@ -51,6 +51,7 @@
     nodejs         # Node.js runtime
     pre-commit     # Git pre-commit hooks
     (callPackage ./programs/beads.nix {} )
+    (callPackage ./programs/git-worktree-switcher.nix {} )
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
