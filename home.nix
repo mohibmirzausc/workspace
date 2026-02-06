@@ -54,7 +54,6 @@
     (callPackage ./programs/beads.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
     ((callPackage ./programs/worktree-tools/package.nix {}).tree-me)
-    ((callPackage ./programs/worktree-tools/package.nix {}).git-clone-wt)
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
@@ -242,7 +241,6 @@
       source <(tree-me shellenv)
 
       # Convenient aliases for worktree workflow
-      alias gcwt='git-clone-wt'
       alias tm='tree-me'
     '';
     history = {
