@@ -248,6 +248,9 @@ EOF
                 (cd "$path" && git branch --set-upstream-to="origin/$branch" "$branch" 2>/dev/null || true)
             fi
 
+            # Ensure push is enabled for worktree (in case parent has it disabled)
+            (cd "$path" && git config remote.origin.pushurl "$(git remote get-url origin)" 2>/dev/null || true)
+
             # Track with Graphite if available (use --force to auto-detect parent)
             (cd "$path" && graphite_track "$branch" "")
 
@@ -283,6 +286,9 @@ EOF
             # The new branch tracks the remote base branch initially
             (cd "$path" && git branch --set-upstream-to="origin/$base" "$branch" 2>/dev/null || true)
         fi
+
+        # Ensure push is enabled for worktree
+        (cd "$path" && git config remote.origin.pushurl "$(git remote get-url origin)" 2>/dev/null || true)
 
         # Track with Graphite if available
         (cd "$path" && graphite_track "$branch" "$base")
@@ -321,6 +327,9 @@ EOF
 
         # Note: PR branches don't typically have tracking set up since they're fetched from pull refs
         # Users can manually set tracking if needed with: git branch --set-upstream-to=origin/branch-name
+
+        # Ensure push is enabled for worktree
+        (cd "$path" && git config remote.origin.pushurl "$(git remote get-url origin)" 2>/dev/null || true)
 
         # Track with Graphite if available (use --force to auto-detect parent)
         (cd "$path" && graphite_track "$branch" "")

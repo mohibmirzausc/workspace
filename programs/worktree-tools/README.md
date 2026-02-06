@@ -27,12 +27,16 @@ tree-me switch main
 **Directory structure:**
 ```
 ~/src.wt/
-  repo/
-    main/          # Default branch
-    feature-x/     # Feature branch
-    feature-y/     # Another feature
-    .git/          # Shared git directory
+  repo/                    # Parent directory (detached HEAD - don't work here!)
+    main/                  # Default branch - work here
+    feature-x/             # Feature branch - work here
+    feature-y/             # Another feature - work here
+    .git/                  # Shared git directory
+    .gitignore             # Ignores all branch directories
+    README-WORKTREE.md     # Explanation of the structure
 ```
+
+**Important:** The parent directory (`repo/`) will show a detached HEAD - this is normal and expected! Always work inside the branch directories (`main/`, `feature-x/`, etc.).
 
 ## Tools Overview
 

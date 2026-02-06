@@ -104,6 +104,11 @@ echo "Default branch detected: $DEFAULT_BRANCH"
 # Configure it as a non-bare repo
 git config --unset core.bare
 
+# CRITICAL SAFETY: Disable pushing from the parent directory
+# This prevents accidentally pushing deletions from the repo root
+git config remote.origin.pushurl "DISABLED-USE-WORKTREE-DIRECTORIES"
+git config --add remote.origin.pushurl ""  # This makes push fail with clear error
+
 # Set up remote tracking refs (needed for tree-me to work properly)
 git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
 
@@ -124,15 +129,66 @@ git worktree add "$DEFAULT_BRANCH" "$DEFAULT_BRANCH"
 # Set up tracking for the default branch
 cd "$DEFAULT_BRANCH"
 git branch --set-upstream-to="origin/$DEFAULT_BRANCH" "$DEFAULT_BRANCH" 2>/dev/null || true
+
+# Re-enable pushing for worktree directories
+git config remote.origin.pushurl "$REPO_URL"
+
 cd ..
 
-# Optional: Create .gitignore to ignore all directories except .git
+# Create .gitignore to ignore all directories except .git
+# This makes it clear the parent directory is not a working directory
 cat > .gitignore << 'GITIGNORE'
-# Worktree structure: ignore all directories except .git
+# Worktree structure: ignore all branch directories
+# Only .git/ should be tracked here - all work happens in worktree subdirectories
 /*
 !/.git
 !/.gitignore
 GITIGNORE
+
+# Create a README to explain the structure
+cat > README-WORKTREE.md << 'README'
+# Worktree Repository Structure
+
+This directory is organized using git worktrees. **Do not work directly in this directory.**
+
+## Structure
+```
+workspace/
+  .git/           # Shared git directory
+  main/           # Main branch worktree - work here
+  feature-x/      # Feature branch worktree - work here
+  feature-y/      # Another feature worktree - work here
+```
+
+## Working with this repo
+- Always `cd` into a branch directory (e.g., `cd main/`)
+- Use `tree-me` commands to create/switch branches
+- Each directory is a full working copy of that branch
+
+## Commands
+- `tree-me create <branch>` - Create new branch
+- `tree-me switch <branch>` - Switch to existing branch
+- `tree-me list` - List all worktrees
+- `tree-me remove <branch>` - Remove a worktree
+
+⚠️ **Never run `git push` from this parent directory** - it's disabled for safety.
+Always push from within a branch directory.
+README
+
+# Create a pre-commit hook to prevent accidental commits in parent directory
+mkdir -p .git/hooks
+cat > .git/hooks/pre-commit << 'HOOK'
+#!/bin/sh
+# Prevent commits in the worktree parent directory
+echo "ERROR: You are trying to commit in the worktree parent directory!"
+echo "This directory is only for organizing worktrees."
+echo ""
+echo "Please cd into a branch directory and commit there:"
+echo "  cd main/    (or whichever branch you want to work on)"
+echo ""
+exit 1
+HOOK
+chmod +x .git/hooks/pre-commit
 
 echo ""
 echo "✓ Repository cloned successfully!"
