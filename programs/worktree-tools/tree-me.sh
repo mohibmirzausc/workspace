@@ -243,6 +243,11 @@ EOF
             git worktree add "$path" "$branch"
             echo "✓ Worktree created at: $path"
 
+            # Set up tracking if remote branch exists
+            if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+                (cd "$path" && git branch --set-upstream-to="origin/$branch" "$branch" 2>/dev/null || true)
+            fi
+
             # Track with Graphite if available (use --force to auto-detect parent)
             (cd "$path" && graphite_track "$branch" "")
 
@@ -272,6 +277,12 @@ EOF
         # Create new branch
         git worktree add "$path" -b "$branch" "$base"
         echo "✓ Worktree created at: $path"
+
+        # Set up tracking if base branch has a remote
+        if git show-ref --verify --quiet "refs/remotes/origin/$base"; then
+            # The new branch tracks the remote base branch initially
+            (cd "$path" && git branch --set-upstream-to="origin/$base" "$branch" 2>/dev/null || true)
+        fi
 
         # Track with Graphite if available
         (cd "$path" && graphite_track "$branch" "$base")
@@ -307,6 +318,9 @@ EOF
         git fetch origin "pull/$pr_number/head:$branch" 2>/dev/null || true
         git worktree add "$path" "$branch"
         echo "✓ PR #$pr_number checked out at: $path"
+
+        # Note: PR branches don't typically have tracking set up since they're fetched from pull refs
+        # Users can manually set tracking if needed with: git branch --set-upstream-to=origin/branch-name
 
         # Track with Graphite if available (use --force to auto-detect parent)
         (cd "$path" && graphite_track "$branch" "")

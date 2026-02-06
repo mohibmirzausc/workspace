@@ -121,6 +121,11 @@ echo "$COMMIT" > .git/HEAD
 # Now create worktree for default branch
 git worktree add "$DEFAULT_BRANCH" "$DEFAULT_BRANCH"
 
+# Set up tracking for the default branch
+cd "$DEFAULT_BRANCH"
+git branch --set-upstream-to="origin/$DEFAULT_BRANCH" "$DEFAULT_BRANCH" 2>/dev/null || true
+cd ..
+
 # Optional: Create .gitignore to ignore all directories except .git
 cat > .gitignore << 'GITIGNORE'
 # Worktree structure: ignore all directories except .git
