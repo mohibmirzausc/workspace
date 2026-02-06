@@ -46,12 +46,15 @@
 
     # Development tools (previously via Homebrew)
     gh             # GitHub CLI
+    graphite-cli   # Graphite stacked diffs
     kubectl        # Kubernetes CLI
     minikube       # Local Kubernetes
     nodejs         # Node.js runtime
     pre-commit     # Git pre-commit hooks
     (callPackage ./programs/beads.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
+    ((callPackage ./programs/worktree-tools/package.nix {}).tree-me)
+    ((callPackage ./programs/worktree-tools/package.nix {}).git-clone-wt)
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
@@ -233,33 +236,14 @@
         fi
       }
 
-      # Git worktree helper functions
-      wtadd() {
-        # wtadd <name> [branch]
-        local name="$1"
-        local branch="''${2:-$1}"
-        local root
-        root="$(git rev-parse --show-toplevel)" || return 1
-        local repo="$(basename "$root")"
-        local wtbase="$(dirname "$root")/''${repo}.wt"
-        mkdir -p "$wtbase"
-        git worktree add "$wtbase/$name" -b "$branch"
-      }
+      # Git worktree tools
+      # tree-me: Command-line worktree management with auto-cd and Graphite integration
+      export WORKTREE_ROOT="$HOME/src.wt"
+      source <(tree-me shellenv)
 
-      wtls() {
-        git worktree list
-      }
-
-      wtrm() {
-        # wtrm <path-or-name>
-        local root
-        root="$(git rev-parse --show-toplevel)" || return 1
-        local repo="$(basename "$root")"
-        local wtbase="$(dirname "$root")/''${repo}.wt"
-        local target="$1"
-        [ -d "$target" ] || target="$wtbase/$target"
-        git worktree remove "$target"
-      }
+      # Convenient aliases for worktree workflow
+      alias gcwt='git-clone-wt'
+      alias tm='tree-me'
     '';
     history = {
       ignoreSpace = true;
@@ -294,37 +278,10 @@
       # Add any env vars if needed
     };
     extraConfig = ''
-      # Git worktree helper functions
-      def wtadd [
-        name: string        # worktree name
-        branch?: string     # branch name (defaults to name)
-      ] {
-        let branch = if ($branch == null) { $name } else { $branch }
-        let root = (git rev-parse --show-toplevel | str trim)
-        let repo = ($root | path basename)
-        let wtbase = ([$root, "..", $"($repo).wt"] | path join)
-
-        mkdir $wtbase
-        git worktree add $"($wtbase)/($name)" -b $branch
-      }
-
-      def wtls [] {
-        git worktree list
-      }
-
-      def wtrm [target: string] {
-        let root = (git rev-parse --show-toplevel | str trim)
-        let repo = ($root | path basename)
-        let wtbase = ([$root, "..", $"($repo).wt"] | path join)
-
-        let path = if ($target | path exists) {
-          $target
-        } else {
-          $"($wtbase)/($target)"
-        }
-
-        git worktree remove $path
-      }
+      # Git worktree tools
+      # Note: tree-me and gw are available as commands but designed for bash/zsh
+      # For nushell, you can call them directly: `tree-me list`, `tree-me create mybranch`, etc.
+      # The auto-cd and interactive TUI features work best in bash/zsh shells
     '';
   };
 
