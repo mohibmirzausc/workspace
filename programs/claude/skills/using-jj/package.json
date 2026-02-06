@@ -1,0 +1,16 @@
+{
+  "name": "jj-tool-api",
+  "version": "0.1.0",
+  "description": "TypeScript API for jj-tool MCP server",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0"
+  }
+}

@@ -216,7 +216,6 @@ case "$command" in
         # CRITICAL SAFETY: Disable pushing from the parent directory
         # This prevents accidentally pushing deletions from the repo root
         git config remote.origin.pushurl "DISABLED-USE-WORKTREE-DIRECTORIES"
-        git config --add remote.origin.pushurl ""  # This makes push fail with clear error
 
         # Set up remote tracking refs (needed for tree-me to work properly)
         git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
@@ -289,13 +288,29 @@ README
         cat > .git/hooks/pre-commit << 'HOOK'
 #!/bin/sh
 # Prevent commits in the worktree parent directory
-echo "ERROR: You are trying to commit in the worktree parent directory!"
-echo "This directory is only for organizing worktrees."
-echo ""
-echo "Please cd into a branch directory and commit there:"
-echo "  cd main/    (or whichever branch you want to work on)"
-echo ""
-exit 1
+# Only block if we're in the parent (not in a worktree subdirectory)
+
+# Get the git common directory (where .git actually lives)
+GIT_COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null)"
+
+# Get the current directory
+CURRENT_DIR="$(pwd)"
+
+# If we're in the same directory as the git common dir's parent, we're in the parent directory
+PARENT_DIR="$(dirname "$GIT_COMMON_DIR")"
+
+if [ "$CURRENT_DIR" = "$PARENT_DIR" ]; then
+    echo "ERROR: You are trying to commit in the worktree parent directory!"
+    echo "This directory is only for organizing worktrees."
+    echo ""
+    echo "Please cd into a branch directory and commit there:"
+    echo "  cd main/    (or whichever branch you want to work on)"
+    echo ""
+    exit 1
+fi
+
+# We're in a worktree directory, allow the commit
+exit 0
 HOOK
         chmod +x .git/hooks/pre-commit
 
@@ -450,11 +465,9 @@ EOF
         git worktree add "$path" -b "$branch" "$base"
         echo "✓ Worktree created at: $path"
 
-        # Set up tracking if base branch has a remote
-        if git show-ref --verify --quiet "refs/remotes/origin/$base"; then
-            # The new branch tracks the remote base branch initially
-            (cd "$path" && git branch --set-upstream-to="origin/$base" "$branch" 2>/dev/null || true)
-        fi
+        # DON'T set up tracking for new branches
+        # This allows git to give helpful push messages like:
+        #   git push --set-upstream origin branch-name
 
         # Ensure push is enabled for worktree
         (cd "$path" && git config remote.origin.pushurl "$(git remote get-url origin)" 2>/dev/null || true)
@@ -462,6 +475,10 @@ EOF
         # Track with Graphite if available
         (cd "$path" && graphite_track "$branch" "$base")
 
+        echo ""
+        echo "📝 To push this new branch to remote:"
+        echo "   git push -u origin $branch"
+        echo ""
         echo "TREE_ME_CD:$path"
         ;;
 

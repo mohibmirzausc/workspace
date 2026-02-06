@@ -112,6 +112,12 @@
       recursive = true;
       force = true;
     };
+    # Symlink all skills from workspace
+    ".claude/skills" = {
+      source = ./programs/claude/skills;
+      recursive = true;
+      force = true;
+    };
   };
 
   # Home Manager can also manage your environment variables through
