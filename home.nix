@@ -232,6 +232,34 @@
           echo "Claude Code beep: ENABLED (default)"
         fi
       }
+
+      # Git worktree helper functions
+      wtadd() {
+        # wtadd <name> [branch]
+        local name="$1"
+        local branch="''${2:-$1}"
+        local root
+        root="$(git rev-parse --show-toplevel)" || return 1
+        local repo="$(basename "$root")"
+        local wtbase="$(dirname "$root")/''${repo}.wt"
+        mkdir -p "$wtbase"
+        git worktree add "$wtbase/$name" -b "$branch"
+      }
+
+      wtls() {
+        git worktree list
+      }
+
+      wtrm() {
+        # wtrm <path-or-name>
+        local root
+        root="$(git rev-parse --show-toplevel)" || return 1
+        local repo="$(basename "$root")"
+        local wtbase="$(dirname "$root")/''${repo}.wt"
+        local target="$1"
+        [ -d "$target" ] || target="$wtbase/$target"
+        git worktree remove "$target"
+      }
     '';
     history = {
       ignoreSpace = true;
@@ -265,6 +293,39 @@
     environmentVariables = {
       # Add any env vars if needed
     };
+    extraConfig = ''
+      # Git worktree helper functions
+      def wtadd [
+        name: string        # worktree name
+        branch?: string     # branch name (defaults to name)
+      ] {
+        let branch = if ($branch == null) { $name } else { $branch }
+        let root = (git rev-parse --show-toplevel | str trim)
+        let repo = ($root | path basename)
+        let wtbase = ([$root, "..", $"($repo).wt"] | path join)
+
+        mkdir $wtbase
+        git worktree add $"($wtbase)/($name)" -b $branch
+      }
+
+      def wtls [] {
+        git worktree list
+      }
+
+      def wtrm [target: string] {
+        let root = (git rev-parse --show-toplevel | str trim)
+        let repo = ($root | path basename)
+        let wtbase = ([$root, "..", $"($repo).wt"] | path join)
+
+        let path = if ($target | path exists) {
+          $target
+        } else {
+          $"($wtbase)/($target)"
+        }
+
+        git worktree remove $path
+      }
+    '';
   };
 
   programs.zoxide = {
