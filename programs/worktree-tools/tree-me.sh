@@ -53,6 +53,22 @@ graphite_track() {
     fi
 }
 
+# Track recently visited worktrees
+track_recent_worktree() {
+    local wt_path="$1"
+    local recent_file="$HOME/.tree-me-recent"
+
+    # Remove this path if it already exists (to move it to top)
+    if [ -f "$recent_file" ]; then
+        grep -v "^${wt_path}$" "$recent_file" > "${recent_file}.tmp" 2>/dev/null || true
+        mv "${recent_file}.tmp" "$recent_file" 2>/dev/null || true
+    fi
+
+    # Add to top of recent list (keep last 10)
+    (echo "$wt_path"; cat "$recent_file" 2>/dev/null || true) | head -10 > "${recent_file}.tmp"
+    mv "${recent_file}.tmp" "$recent_file"
+}
+
 # Show help if no arguments
 show_help() {
     cat << 'EOF'
@@ -67,6 +83,9 @@ Commands:
   create <branch> [base]        Create new branch in worktree (default: main/master)
   pr <number|url>               Checkout GitHub PR in worktree (uses gh)
   list, ls                      List all worktrees
+  status, st                    Show status of all worktrees
+  recent                        Switch to recently used worktrees
+  clean                         Interactively remove merged branches
   remove, rm <branch>           Remove a worktree
   prune                         Remove worktree administrative files
   shellenv                      Output shell function for auto-cd (source this)
@@ -327,6 +346,7 @@ HOOK
         echo "  tree-me create feature-x    # Creates $TARGET_DIR/feature-x/"
         echo "  tree-me switch $DEFAULT_BRANCH      # Switches to $TARGET_DIR/$DEFAULT_BRANCH/"
         echo ""
+        track_recent_worktree "$TARGET_DIR/$DEFAULT_BRANCH"
         echo "TREE_ME_CD:$TARGET_DIR/$DEFAULT_BRANCH"
         ;;
 
@@ -351,7 +371,7 @@ if [ -n "$BASH_VERSION" ]; then
         COMPREPLY=()
         cur="${COMP_WORDS[COMP_CWORD]}"
         prev="${COMP_WORDS[COMP_CWORD-1]}"
-        commands="clone switch sw create pr list ls remove rm prune help shellenv"
+        commands="clone switch sw create pr list ls status st recent clean remove rm prune help shellenv"
 
         # Complete commands if first argument
         if [ $COMP_CWORD -eq 1 ]; then
@@ -384,6 +404,10 @@ if [ -n "$ZSH_VERSION" ]; then
             'pr:Checkout GitHub PR in worktree'
             'list:List all worktrees'
             'ls:List all worktrees'
+            'status:Show status of all worktrees'
+            'st:Show status of all worktrees'
+            'recent:Switch to recently used worktrees'
+            'clean:Interactively remove merged branches'
             'remove:Remove a worktree'
             'rm:Remove a worktree'
             'prune:Remove worktree administrative files'
@@ -417,6 +441,7 @@ EOF
         if git worktree list | grep -q "\[$branch\]"; then
             existing=$(git worktree list | grep "\[$branch\]" | awk '{print $1}')
             echo "✓ Worktree already exists: $existing"
+            track_recent_worktree "$existing"
             echo "TREE_ME_CD:$existing"
             exit 0
         fi
@@ -438,6 +463,7 @@ EOF
             # Track with Graphite if available (use --force to auto-detect parent)
             (cd "$path" && graphite_track "$branch" "")
 
+            track_recent_worktree "$path"
             echo "TREE_ME_CD:$path"
         else
             echo "Error: Branch '$branch' does not exist" >&2
@@ -457,6 +483,7 @@ EOF
         if git worktree list | grep -q "\[$branch\]"; then
             existing=$(git worktree list | grep "\[$branch\]" | awk '{print $1}')
             echo "✓ Worktree already exists: $existing"
+            track_recent_worktree "$existing"
             echo "TREE_ME_CD:$existing"
             exit 0
         fi
@@ -479,6 +506,7 @@ EOF
         echo "📝 To push this new branch to remote:"
         echo "   git push -u origin $branch"
         echo ""
+        track_recent_worktree "$path"
         echo "TREE_ME_CD:$path"
         ;;
 
@@ -502,6 +530,7 @@ EOF
         if git worktree list | grep -q "\[$branch\]"; then
             existing=$(git worktree list | grep "\[$branch\]" | awk '{print $1}')
             echo "✓ Worktree already exists: $existing"
+            track_recent_worktree "$existing"
             echo "TREE_ME_CD:$existing"
             exit 0
         fi
@@ -520,6 +549,7 @@ EOF
         # Track with Graphite if available (use --force to auto-detect parent)
         (cd "$path" && graphite_track "$branch" "")
 
+        track_recent_worktree "$path"
         echo "TREE_ME_CD:$path"
         ;;
 
@@ -541,6 +571,157 @@ EOF
     prune)
         git worktree prune
         echo "✓ Pruned stale worktree administrative files"
+        ;;
+
+    status|st)
+        echo "Worktree Status Overview"
+        echo ""
+
+        # Get all worktrees
+        git worktree list --porcelain | while IFS= read -r line; do
+            if [[ "$line" =~ ^worktree\ (.+)$ ]]; then
+                wt_path="${BASH_REMATCH[1]}"
+                # Read next lines for branch info
+                read -r branch_line
+                if [[ "$branch_line" =~ ^branch\ refs/heads/(.+)$ ]]; then
+                    branch="${BASH_REMATCH[1]}"
+                elif [[ "$branch_line" == "HEAD"* ]] || [[ "$branch_line" == "detached" ]]; then
+                    # Skip parent directory with detached HEAD
+                    continue
+                else
+                    branch="unknown"
+                fi
+
+                # Get status for this worktree
+                (
+                    cd "$wt_path" 2>/dev/null || exit 1
+
+                    # Get git status
+                    if git diff-index --quiet HEAD -- 2>/dev/null; then
+                        if git diff --cached --quiet 2>/dev/null; then
+                            status="clean"
+                            icon="✓"
+                        else
+                            status="staged"
+                            icon="⚠"
+                        fi
+                    else
+                        status="dirty"
+                        icon="⚠"
+                    fi
+
+                    # Get ahead/behind info
+                    ahead_behind=$(git rev-list --left-right --count @{upstream}...HEAD 2>/dev/null || echo "")
+                    if [ -n "$ahead_behind" ]; then
+                        behind=$(echo "$ahead_behind" | awk '{print $1}')
+                        ahead=$(echo "$ahead_behind" | awk '{print $2}')
+
+                        if [ "$behind" -gt 0 ] && [ "$ahead" -gt 0 ]; then
+                            sync_info="behind $behind, ahead $ahead"
+                        elif [ "$behind" -gt 0 ]; then
+                            sync_info="behind $behind"
+                        elif [ "$ahead" -gt 0 ]; then
+                            sync_info="ahead $ahead"
+                        else
+                            sync_info="up to date"
+                        fi
+                    else
+                        sync_info="no upstream"
+                    fi
+
+                    printf "%-30s %s %s\n" "$branch ($status)" "$icon" "$sync_info"
+                )
+            fi
+        done
+        ;;
+
+    recent)
+        recent_file="$HOME/.tree-me-recent"
+
+        if [ ! -f "$recent_file" ] || [ ! -s "$recent_file" ]; then
+            echo "No recent worktrees"
+            exit 0
+        fi
+
+        echo "Recent worktrees:"
+        echo ""
+
+        # Build array of valid worktrees
+        declare -a valid_worktrees
+        declare -a valid_branches
+        i=1
+
+        while IFS= read -r wt_path; do
+            if [ -d "$wt_path" ]; then
+                branch=$(cd "$wt_path" 2>/dev/null && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+                if [ "$branch" != "HEAD" ] && [ "$branch" != "unknown" ]; then
+                    valid_worktrees+=("$wt_path")
+                    valid_branches+=("$branch")
+                    echo "  $i) $branch"
+                    i=$((i + 1))
+                fi
+            fi
+        done < "$recent_file"
+
+        if [ ${#valid_worktrees[@]} -eq 0 ]; then
+            echo "No recent worktrees found"
+            exit 0
+        fi
+
+        echo ""
+        echo -n "Switch to which? (1-${#valid_worktrees[@]}, or 0 to cancel): "
+        read -r choice
+
+        if [ "$choice" -gt 0 ] 2>/dev/null && [ "$choice" -le "${#valid_worktrees[@]}" ]; then
+            target="${valid_worktrees[$((choice - 1))]}"
+            if [ -d "$target" ]; then
+                echo "TREE_ME_CD:$target"
+            fi
+        fi
+        ;;
+
+    clean)
+        # Get default branch
+        default=$(get_default_base)
+
+        echo "Checking for merged branches..."
+        echo ""
+
+        # Find merged branches (excluding default and current)
+        merged_branches=$(git branch --merged "$default" 2>/dev/null | grep -v "\*" | grep -v "^\s*${default}$" | sed 's/^[* ]*//' || true)
+
+        if [ -z "$merged_branches" ]; then
+            echo "✓ No merged branches to clean up!"
+            exit 0
+        fi
+
+        echo "The following branches are fully merged into $default:"
+        echo ""
+        echo "$merged_branches" | while read -r branch; do
+            echo "  • $branch"
+        done
+        echo ""
+        echo -n "Remove these worktrees? [y/N]: "
+        read -r response
+
+        if [ "$response" = "y" ] || [ "$response" = "Y" ]; then
+            echo ""
+            echo "$merged_branches" | while read -r branch; do
+                # Find worktree path for this branch
+                wt_path=$(git worktree list | grep "\[$branch\]" | awk '{print $1}')
+                if [ -n "$wt_path" ]; then
+                    echo "Removing $branch..."
+                    git worktree remove "$wt_path" 2>/dev/null || echo "  ⚠ Failed to remove $branch"
+                else
+                    echo "  ℹ No worktree found for $branch (branch only)"
+                fi
+            done
+            git worktree prune
+            echo ""
+            echo "✓ Cleanup complete"
+        else
+            echo "Cancelled"
+        fi
         ;;
 
     help|--help|-h)
