@@ -43,6 +43,7 @@
     carapace       # Multi-shell completion generator
     fastfetch      # System information tool
     mitmproxy
+    tmux           # Terminal multiplexer (for claude-session)
 
     # Development tools (previously via Homebrew)
     gh             # GitHub CLI
@@ -54,6 +55,7 @@
     (callPackage ./programs/beads.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
     ((callPackage ./programs/worktree-tools/package.nix {}).tree-me)
+    (callPackage ./programs/claude-session.nix {} )
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
