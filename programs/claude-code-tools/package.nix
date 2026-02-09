@@ -81,7 +81,15 @@ in pkgs.stdenv.mkDerivation {
     mkdir -p $TMPDIR/venv
     cp -r ${venvDeps}/* $TMPDIR/venv/
 
-    # Extract the wheel (which includes node_modules) into the venv's site-packages
+    # Make site-packages writable so we can replace claude-code-tools
+    chmod -R +w $TMPDIR/venv/lib/python*/site-packages
+
+    # Remove the old claude-code-tools 1.10.2 (from git source)
+    rm -rf $TMPDIR/venv/lib/python*/site-packages/claude_code_tools*
+    rm -rf $TMPDIR/venv/lib/python*/site-packages/node_ui
+    rm -rf $TMPDIR/venv/lib/python*/site-packages/docs
+
+    # Extract the PyPI wheel (1.10.3 with node_modules) into the venv's site-packages
     ${python}/bin/python -m zipfile -e ${claudeCodeToolsWheel} $TMPDIR/wheel-extract
     cp -r $TMPDIR/wheel-extract/* $TMPDIR/venv/lib/python*/site-packages/
   '';
