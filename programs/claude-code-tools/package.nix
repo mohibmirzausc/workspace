@@ -101,6 +101,12 @@ in pkgs.stdenv.mkDerivation {
     # Copy the complete venv (now with claude-code-tools from PyPI wheel)
     cp -r $TMPDIR/venv $out/lib/venv
 
+    # Fix pyvenv.cfg to point to the new location instead of the old deps-env
+    if [ -f $out/lib/venv/pyvenv.cfg ]; then
+      sed -i "s|${venvDeps}|$out/lib/venv|g" $out/lib/venv/pyvenv.cfg
+      sed -i "s|claude-code-tools-deps-env|claude-code-tools-env|g" $out/lib/venv/pyvenv.cfg
+    fi
+
     # Only expose the claude-code-tools commands by creating wrapper scripts
     for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
       if [ -f $out/lib/venv/bin/$cmd ]; then
