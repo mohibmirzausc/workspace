@@ -4,6 +4,7 @@
 , uv2nix
 , pyproject-build-systems
 , nodejs
+, nodePackages
 , makeWrapper
 }:
 
@@ -49,22 +50,51 @@ let
   # Build the virtual environment
   venv = pythonSet.mkVirtualEnv "claude-code-tools-env" workspace.deps.default;
 
+  # Build node_modules for the Node UI using buildNpmPackage
+  nodeUI = pkgs.buildNpmPackage {
+    pname = "claude-code-tools-node-ui";
+    version = "1.10.3";
+
+    src = ./source/node_ui;
+
+    npmDepsHash = "sha256-cGtWyx4Bv7L58NsftwUFusgZMY1Y7UrlkHhsH2q9mxc=";
+
+    dontNpmBuild = true;
+
+    installPhase = ''
+      mkdir -p $out
+      cp -r node_modules $out/
+    '';
+  };
+
 in pkgs.stdenv.mkDerivation {
   pname = "claude-code-tools";
   version = "1.10.3";
 
   dontUnpack = true;
-  dontBuild = true;
 
   nativeBuildInputs = [ makeWrapper ];
 
+  buildPhase = ''
+    # Copy the venv and add node_modules
+    mkdir -p $TMPDIR/venv
+    cp -r ${venv}/* $TMPDIR/venv/
+    chmod -R +w $TMPDIR/venv
+
+    # Link node_modules into the Python site-packages node_ui directory
+    ln -sf ${nodeUI}/node_modules $TMPDIR/venv/lib/python*/site-packages/node_ui/node_modules
+  '';
+
   installPhase = ''
-    mkdir -p $out/bin
+    mkdir -p $out/bin $out/lib
+
+    # Copy the modified venv
+    cp -r $TMPDIR/venv/* $out/
 
     # Only expose the claude-code-tools commands, not all python packages
     for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
-      if [ -f ${venv}/bin/$cmd ]; then
-        makeWrapper ${venv}/bin/$cmd $out/bin/$cmd \
+      if [ -f $out/bin/$cmd ]; then
+        wrapProgram $out/bin/$cmd \
           --prefix PATH : ${lib.makeBinPath [ nodejs ]}
       fi
     done
