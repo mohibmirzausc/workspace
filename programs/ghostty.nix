@@ -52,14 +52,25 @@
       keybind = super+shift+d=unbind
       keybind = super+left_bracket=unbind
       keybind = super+right_bracket=unbind
+      keybind = super+shift+left_bracket=unbind
+      keybind = super+shift+right_bracket=unbind
+      keybind = super+alt+left_bracket=unbind
+      keybind = super+alt+right_bracket=unbind
       keybind = super+shift+enter=unbind
       keybind = super+k=unbind
       keybind = super+f=unbind
+      keybind = super+shift+f=unbind
+      keybind = super+shift+b=unbind
+      keybind = super+e=unbind
       keybind = super+p=unbind
       keybind = super+r=unbind
       keybind = super+s=unbind
       keybind = super+shift+c=unbind
       keybind = super+shift+s=unbind
+      keybind = super+shift+left=unbind
+      keybind = super+shift+right=unbind
+      keybind = super+shift+up=unbind
+      keybind = super+shift+down=unbind
       keybind = super+1=unbind
       keybind = super+2=unbind
       keybind = super+3=unbind

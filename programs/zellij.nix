@@ -23,12 +23,31 @@
           bind "Super 8" { GoToTab 8; }
           bind "Super 9" { GoToTab 9; }
 
+          // Tab navigation (since Cmd+1-9 often doesn't work on macOS)
+          bind "Super Shift [" { GoToPreviousTab; }
+          bind "Super Shift ]" { GoToNextTab; }
+
+          // Tab organization
+          bind "Super e" { SwitchToMode "RenameTab"; TabNameInput 0; }
+          bind "Super Alt [" { MoveTab "Left"; }
+          bind "Super Alt ]" { MoveTab "Right"; }
+
+          // Tab cycling (alternative to Shift+[/])
+          bind "Super Shift Up" { GoToPreviousTab; }
+          bind "Super Shift Down" { GoToNextTab; }
+
+          // Pane cycling (alternative to [/])
+          bind "Super Shift Left" { FocusPreviousPane; }
+          bind "Super Shift Right" { FocusNextPane; }
+
           // Pane management
           bind "Super d" { NewPane "Right"; }
           bind "Super Shift d" { NewPane "Down"; }
           bind "Super [" { FocusPreviousPane; }
           bind "Super ]" { FocusNextPane; }
           bind "Super Shift Enter" { ToggleFocusFullscreen; }
+          bind "Super Shift b" { BreakPane; }
+          bind "Super Shift f" { ToggleFloatingPanes; }
 
           // Enter pane mode for moving panes
           bind "Super p" { SwitchToMode "Pane"; }
@@ -160,6 +179,13 @@
           bind "-" { Resize "Decrease"; }
         }
 
+        // Rename tab mode - for renaming the current tab
+        renametab {
+          bind "Enter" { SwitchToMode "Normal"; }
+          bind "Esc" { UndoRenameTab; SwitchToMode "Normal"; }
+          bind "Ctrl c" { UndoRenameTab; SwitchToMode "Normal"; }
+        }
+
         // Shared bindings across all modes
         shared {
           bind "Super q" { Quit; }
@@ -170,8 +196,8 @@
       pane_frames false
       default_layout "compact"
 
-      // Theme (optional - uses terminal colors by default)
-      // theme "catppuccin-mocha"
+      // Theme
+      theme "tokyo-night-storm"
     '';
   };
 }
