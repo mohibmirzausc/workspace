@@ -1,118 +1,38 @@
 { lib
-, pkgs
-, pyproject-nix
-, uv2nix
-, pyproject-build-systems
+, python3
+, fetchurl
 , nodejs
-, nodePackages
 , makeWrapper
-, fetchFromGitHub
 }:
 
-let
+python3.pkgs.buildPythonApplication rec {
+  pname = "claude-code-tools";
   version = "1.10.3";
+  format = "wheel";
 
-  # Fetch source from GitHub instead of vendoring
-  src = fetchFromGitHub {
-    owner = "pchalasani";
-    repo = "claude-code-tools";
-    rev = "v${version}";
-    hash = "sha256-/ht0Xt+Pm8MICiSWhrsFBsLmHA/JdfaYGCq8DdANRkg=";
-  };
-
-  # Load the workspace from the fetched source
-  workspace = uv2nix.lib.workspace.loadWorkspace {
-    workspaceRoot = src;
-  };
-
-  # Create overlay from uv.lock
-  overlay = workspace.mkPyprojectOverlay {
-    sourcePreference = "wheel"; # Use wheels when available for faster builds
-  };
-
-  # Get compatible Python interpreter
-  python = lib.head (
-    lib.filter (p: lib.versionAtLeast p.version "3.11") [
-      pkgs.python311
-      pkgs.python312
-      pkgs.python313
-    ]
-  );
-
-  # Build Python base set with overrides for packages missing build dependencies
-  pythonSet =
-    (pkgs.callPackage pyproject-nix.build.packages {
-      inherit python;
-    }).overrideScope (
-      lib.composeManyExtensions [
-        pyproject-build-systems.overlays.default
-        overlay
-        # Add build dependencies for packages that don't declare them properly
-        (final: prev: {
-          fire = prev.fire.overrideAttrs (old: {
-            nativeBuildInputs = (old.nativeBuildInputs or []) ++ [
-              final.setuptools
-            ];
-          });
-        })
-      ]
-    );
-
-  # Build the virtual environment with all dependencies from workspace
-  # This includes claude-code-tools 1.10.2 from source, but we'll replace it with the PyPI wheel
-  venvDeps = pythonSet.mkVirtualEnv "claude-code-tools-deps-env" workspace.deps.default;
-
-  # Fetch the PyPI wheel which includes node_modules
-  claudeCodeToolsWheel = pkgs.fetchurl {
-    url = "https://files.pythonhosted.org/packages/e3/5e/5f84d9f3b54c5e530d19d52dd8363e3d5f65eb284f38d5d82d0c87b78b9b/claude_code_tools-1.10.3-py3-none-any.whl";
+  src = fetchurl {
+    url = "https://files.pythonhosted.org/packages/e3/5e/5f84d9f3b54c5e530d19d52dd8363e3d5f65eb284f38d5d82d0c87b78b9b/claude_code_tools-${version}-py3-none-any.whl";
     hash = "sha256-pnudEbKaBB+eH1TEV+VQUC5iGX07iZp1H1O9SDquwhA=";
   };
 
-in pkgs.stdenv.mkDerivation {
-  pname = "claude-code-tools";
-  inherit version;
+  nativeBuildInputs = [ makeWrapper ];
 
-  dontUnpack = true;
+  propagatedBuildInputs = with python3.pkgs; [
+    click
+    pyyaml
+    rich
+    tqdm
+  ];
 
-  nativeBuildInputs = [ makeWrapper python ];
-
-  buildPhase = ''
-    # Create a new site-packages with all dependencies
-    mkdir -p $TMPDIR/site-packages
-
-    # Copy ALL packages from the deps venv EXCEPT claude-code-tools, dereferencing symlinks
-    for pkg in ${venvDeps}/lib/python3.11/site-packages/*; do
-      pkgname=$(basename "$pkg")
-      # Skip claude-code-tools, node_ui, and docs since we'll install from PyPI wheel
-      if [[ ! "$pkgname" =~ ^(claude_code_tools|node_ui|docs) ]]; then
-        cp -rL "$pkg" $TMPDIR/site-packages/
-      fi
-    done
-
-    # Extract the PyPI wheel (1.10.3 with node_modules) into site-packages
-    ${python}/bin/python -m zipfile -e ${claudeCodeToolsWheel} $TMPDIR/wheel-extract
-    cp -r $TMPDIR/wheel-extract/* $TMPDIR/site-packages/
-  '';
-
-  installPhase = ''
-    mkdir -p $out/bin $out/lib
-
-    # Install the site-packages with all dependencies including node_modules
-    cp -r $TMPDIR/site-packages $out/lib/site-packages
-
-    # Create wrapper scripts for each claude-code-tools command
-    # These use the system Python with PYTHONPATH set to our site-packages
-    for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
-      # Find the script in the original venv
-      if [ -f ${venvDeps}/bin/$cmd ]; then
-        # Create a wrapper that sets PYTHONPATH and runs with system Python
-        makeWrapper ${python}/bin/python $out/bin/$cmd \
-          --add-flags "-m claude_code_tools.$cmd" \
-          --set PYTHONPATH "$out/lib/site-packages" \
-          --prefix PATH : ${lib.makeBinPath [ nodejs ]}
-      fi
+  # Wrap commands to include nodejs in PATH for interactive menus
+  postInstall = ''
+    for cmd in $out/bin/*; do
+      wrapProgram $cmd --prefix PATH : ${lib.makeBinPath [ nodejs ]}
     done
   '';
+
+  # Don't check - tests require API keys
+  doCheck = false;
 
   meta = with lib; {
     description = "Collection of tools for working with Claude Code";

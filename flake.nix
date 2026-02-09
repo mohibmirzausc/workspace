@@ -11,24 +11,9 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    pyproject-nix = {
-      url = "github:pyproject-nix/pyproject.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    uv2nix = {
-      url = "github:pyproject-nix/uv2nix";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    pyproject-build-systems = {
-      url = "github:pyproject-nix/build-system-pkgs";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-      inputs.uv2nix.follows = "uv2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, pyproject-nix, uv2nix, pyproject-build-systems, ... }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, ... }:
     {
       # Darwin configuration for macOS
       darwinConfigurations."Mohibs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
@@ -43,7 +28,6 @@
             home-manager.extraSpecialArgs = {
               user = "mohib";
               home = "/Users/mohib";
-              inherit pyproject-nix uv2nix pyproject-build-systems;
             };
           }
         ];
@@ -59,7 +43,6 @@
         extraSpecialArgs = {
           user = "coder";
           home = "/home/coder";
-          inherit pyproject-nix uv2nix pyproject-build-systems;
         };
       };
 
@@ -72,7 +55,6 @@
         extraSpecialArgs = {
           user = "mohib";
           home = "/home/mohib";
-          inherit pyproject-nix uv2nix pyproject-build-systems;
         };
       };
     };

@@ -1,4 +1,4 @@
-{ config, pkgs, lib, user, home, pyproject-nix, uv2nix, pyproject-build-systems, ... }:
+{ config, pkgs, lib, user, home, ... }:
 
 {
   # Import additional modules
@@ -58,9 +58,7 @@
     ((callPackage ./programs/worktree-tools/package.nix {}).tree-me)
     (callPackage ./programs/claude-session.nix {} )
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
-    (callPackage ./programs/claude-code-tools/package.nix {
-      inherit pyproject-nix uv2nix pyproject-build-systems;
-    })
+    (callPackage ./programs/claude-code-tools/package.nix {} )
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
