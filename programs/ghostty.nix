@@ -43,17 +43,33 @@
       # clipboard-read = allow
       # clipboard-write = allow
       # clipboard-paste-protection = false
-      
-      # Keybindings (can be customized)
-      # keybind = ctrl+shift+c=copy_to_clipboard
-      # keybind = ctrl+shift+v=paste_from_clipboard
-      # keybind = ctrl+shift+n=new_window
-      # keybind = ctrl+shift+t=new_tab
-      # keybind = ctrl+shift+w=close_surface
-      # keybind = ctrl+shift+equal=increase_font_size:1
-      # keybind = ctrl+shift+minus=decrease_font_size:1
-      # keybind = ctrl+shift+zero=reset_font_size
-      
+
+      # Unbind keys that Zellij uses (so Zellij can intercept them)
+      # These won't work in Ghostty when not using Zellij
+      keybind = super+t=unbind
+      keybind = super+w=unbind
+      keybind = super+d=unbind
+      keybind = super+shift+d=unbind
+      keybind = super+left_bracket=unbind
+      keybind = super+right_bracket=unbind
+      keybind = super+shift+enter=unbind
+      keybind = super+k=unbind
+      keybind = super+f=unbind
+      keybind = super+p=unbind
+      keybind = super+r=unbind
+      keybind = super+s=unbind
+      keybind = super+shift+c=unbind
+      keybind = super+shift+s=unbind
+      keybind = super+1=unbind
+      keybind = super+2=unbind
+      keybind = super+3=unbind
+      keybind = super+4=unbind
+      keybind = super+5=unbind
+      keybind = super+6=unbind
+      keybind = super+7=unbind
+      keybind = super+8=unbind
+      keybind = super+9=unbind
+
       # Tab bar
       # window-step-resize = true
       

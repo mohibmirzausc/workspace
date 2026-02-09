@@ -6,6 +6,7 @@
     ./programs/karabiner.nix
     ./programs/raycast/raycast.nix
     ./programs/ghostty.nix
+    ./programs/zellij.nix
     ./programs/ticktick-sdk/config.nix
   ];
 
