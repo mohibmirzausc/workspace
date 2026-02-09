@@ -77,22 +77,33 @@ in pkgs.stdenv.mkDerivation {
   nativeBuildInputs = [ makeWrapper python ];
 
   buildPhase = ''
-    # Copy the dependencies venv, dereferencing all symlinks (-L)
-    # This is critical because the venv has symlinks to nix store paths that include the old claude-code-tools
-    mkdir -p $TMPDIR/venv
-    cp -rL ${venvDeps}/* $TMPDIR/venv/
+    # Create a new venv structure instead of copying the old one
+    mkdir -p $TMPDIR/venv/lib/python3.11/site-packages
+    mkdir -p $TMPDIR/venv/bin
 
-    # Make site-packages writable so we can replace claude-code-tools
-    chmod -R +w $TMPDIR/venv/lib/python*/site-packages
+    # Copy ALL packages from the deps venv EXCEPT claude-code-tools, dereferencing symlinks
+    for pkg in ${venvDeps}/lib/python3.11/site-packages/*; do
+      pkgname=$(basename "$pkg")
+      # Skip claude-code-tools, node_ui, and docs since we'll install from PyPI wheel
+      if [[ ! "$pkgname" =~ ^(claude_code_tools|node_ui|docs) ]]; then
+        cp -rL "$pkg" $TMPDIR/venv/lib/python3.11/site-packages/
+      fi
+    done
 
-    # Remove the old claude-code-tools 1.10.2 (from git source)
-    rm -rf $TMPDIR/venv/lib/python*/site-packages/claude_code_tools*
-    rm -rf $TMPDIR/venv/lib/python*/site-packages/node_ui
-    rm -rf $TMPDIR/venv/lib/python*/site-packages/docs
+    # Copy bin scripts
+    cp -rL ${venvDeps}/bin/* $TMPDIR/venv/bin/ || true
 
     # Extract the PyPI wheel (1.10.3 with node_modules) into the venv's site-packages
     ${python}/bin/python -m zipfile -e ${claudeCodeToolsWheel} $TMPDIR/wheel-extract
-    cp -r $TMPDIR/wheel-extract/* $TMPDIR/venv/lib/python*/site-packages/
+    cp -r $TMPDIR/wheel-extract/* $TMPDIR/venv/lib/python3.11/site-packages/
+
+    # Create a minimal pyvenv.cfg that points to the output location
+    cat > $TMPDIR/venv/pyvenv.cfg << EOF
+home = ${python}/bin
+include-system-site-packages = false
+version = 3.11.14
+prompt = 'claude-code-tools-env'
+EOF
   '';
 
   installPhase = ''
@@ -100,12 +111,6 @@ in pkgs.stdenv.mkDerivation {
 
     # Copy the complete venv (now with claude-code-tools from PyPI wheel)
     cp -r $TMPDIR/venv $out/lib/venv
-
-    # Fix pyvenv.cfg to point to the new location instead of the old deps-env
-    if [ -f $out/lib/venv/pyvenv.cfg ]; then
-      sed -i "s|${venvDeps}|$out/lib/venv|g" $out/lib/venv/pyvenv.cfg
-      sed -i "s|claude-code-tools-deps-env|claude-code-tools-env|g" $out/lib/venv/pyvenv.cfg
-    fi
 
     # Only expose the claude-code-tools commands by creating wrapper scripts
     for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
