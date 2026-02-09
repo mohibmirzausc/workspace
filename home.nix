@@ -45,6 +45,7 @@
     fastfetch      # System information tool
     mitmproxy
     tmux           # Terminal multiplexer (for claude-session)
+    uv             # Python package and tool manager (for claude-code-tools)
 
     # Development tools (previously via Homebrew)
     gh             # GitHub CLI
@@ -57,6 +58,7 @@
     (callPackage ./programs/git-worktree-switcher.nix {} )
     ((callPackage ./programs/worktree-tools/package.nix {}).tree-me)
     (callPackage ./programs/claude-session.nix {} )
+    (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
@@ -157,6 +159,17 @@
     fi
   '';
 
+  # Install claude-code-tools via uv
+  home.activation.installClaudeCodeTools = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    if [ ! -f "$HOME/.local/bin/aichat" ]; then
+      echo "Installing claude-code-tools via uv..."
+      $DRY_RUN_CMD ${pkgs.uv}/bin/uv tool install claude-code-tools
+      echo "claude-code-tools installed successfully!"
+    else
+      echo "claude-code-tools already installed, skipping..."
+    fi
+  '';
+
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
@@ -172,6 +185,11 @@
       # Add Nix profile to PATH (needed on Linux)
       if [ -d ~/.nix-profile/bin ]; then
         export PATH="$HOME/.nix-profile/bin:$PATH"
+      fi
+
+      # Add uv tools to PATH (claude-code-tools)
+      if [ -d ~/.local/bin ]; then
+        export PATH="$HOME/.local/bin:$PATH"
       fi
 
       # Source home-manager session vars
