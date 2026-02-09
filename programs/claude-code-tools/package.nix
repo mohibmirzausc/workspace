@@ -98,17 +98,12 @@ in pkgs.stdenv.mkDerivation {
   nativeBuildInputs = [ makeWrapper ];
 
   buildPhase = ''
-    # Copy the venv
+    # Copy the venv with --no-preserve=mode to avoid read-only issues
     mkdir -p $TMPDIR/venv
-    cp -r ${venv}/* $TMPDIR/venv/
-
-    # Make everything writable, especially the node_ui directory
-    chmod -R u+w $TMPDIR/venv
-    find $TMPDIR/venv -type d -exec chmod u+w {} \;
+    cp -r --no-preserve=mode,ownership ${venv}/* $TMPDIR/venv/
 
     # Link node_modules into the Python site-packages node_ui directory while still in TMPDIR
     for node_ui_dir in $TMPDIR/venv/lib/python*/site-packages/node_ui; do
-      chmod u+w "$node_ui_dir"
       ln -sf ${nodeUI}/node_modules "$node_ui_dir/node_modules"
     done
   '';
