@@ -102,9 +102,9 @@ in pkgs.stdenv.mkDerivation {
     mkdir -p $TMPDIR/venv
     cp -r --no-preserve=mode,ownership ${venv}/* $TMPDIR/venv/
 
-    # Link node_modules into the Python site-packages node_ui directory while still in TMPDIR
+    # Copy node_modules into the Python site-packages node_ui directory
     for node_ui_dir in $TMPDIR/venv/lib/python*/site-packages/node_ui; do
-      ln -sf ${nodeUI}/node_modules "$node_ui_dir/node_modules"
+      cp -r --no-preserve=mode,ownership ${nodeUI}/node_modules "$node_ui_dir/"
     done
   '';
 
