@@ -21,6 +21,7 @@ python3.pkgs.buildPythonApplication rec {
     click
     pyyaml
     rich
+    tantivy
     tqdm
   ];
 
