@@ -54,23 +54,21 @@ let
               final.setuptools
             ];
           });
-          # Force claude-code-tools to use the PyPI wheel (1.10.3) instead of building from source (1.10.2)
-          # The uv.lock in the git repo is outdated and points to 1.10.2, but PyPI has the correct 1.10.3 wheel with node_modules
-          claude-code-tools = prev.claude-code-tools.overrideAttrs (old: {
-            # Force wheel installation
-            format = "wheel";
-            # Fetch the wheel directly from PyPI
-            src = pkgs.fetchurl {
-              url = "https://files.pythonhosted.org/packages/9e/2e/d8ffc99c74bd4afa6e54c798c8f4f5ddad7f6f6869ccd8aecb37b6d087d2/claude_code_tools-1.10.3-py3-none-any.whl";
-              hash = "sha256-Z3Dj1VLiLPzHKqYfh5O9iSKlQ8HdWx5kEIk8gGfqHVs=";
-            };
-          });
         })
       ]
     );
 
-  # Build the virtual environment
-  venv = pythonSet.mkVirtualEnv "claude-code-tools-env" workspace.deps.default;
+  # Build the virtual environment with dependencies (excluding claude-code-tools itself)
+  # We'll install claude-code-tools from the PyPI wheel separately
+  venvDeps = pythonSet.mkVirtualEnv "claude-code-tools-deps-env" (
+    builtins.filter (dep: dep.name or "" != "claude-code-tools") workspace.deps.default
+  );
+
+  # Fetch the PyPI wheel which includes node_modules
+  claudeCodeToolsWheel = pkgs.fetchurl {
+    url = "https://files.pythonhosted.org/packages/9e/2e/d8ffc99c74bd4afa6e54c798c8f4f5ddad7f6f6869ccd8aecb37b6d087d2/claude_code_tools-1.10.3-py3-none-any.whl";
+    hash = "sha256-Z3Dj1VLiLPzHKqYfh5O9iSKlQ8HdWx5kEIk8gGfqHVs=";
+  };
 
 in pkgs.stdenv.mkDerivation {
   pname = "claude-code-tools";
@@ -78,14 +76,22 @@ in pkgs.stdenv.mkDerivation {
 
   dontUnpack = true;
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [ makeWrapper python ];
+
+  buildPhase = ''
+    # Copy the dependencies venv
+    mkdir -p $TMPDIR/venv
+    cp -r ${venvDeps}/* $TMPDIR/venv/
+
+    # Install the claude-code-tools wheel (which includes node_modules) into the venv
+    $TMPDIR/venv/bin/pip install --no-deps ${claudeCodeToolsWheel}
+  '';
 
   installPhase = ''
     mkdir -p $out/bin $out/lib
 
-    # Copy the entire venv to a lib directory (for runtime dependencies)
-    # The Python wheel already contains node_modules in node_ui/
-    cp -r ${venv} $out/lib/venv
+    # Copy the complete venv (now with claude-code-tools from PyPI wheel)
+    cp -r $TMPDIR/venv $out/lib/venv
 
     # Only expose the claude-code-tools commands by creating wrapper scripts
     for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
