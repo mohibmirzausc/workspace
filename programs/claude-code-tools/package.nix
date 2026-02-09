@@ -77,45 +77,38 @@ in pkgs.stdenv.mkDerivation {
   nativeBuildInputs = [ makeWrapper python ];
 
   buildPhase = ''
-    # Create a new venv structure instead of copying the old one
-    mkdir -p $TMPDIR/venv/lib/python3.11/site-packages
-    mkdir -p $TMPDIR/venv/bin
+    # Create a new site-packages with all dependencies
+    mkdir -p $TMPDIR/site-packages
 
     # Copy ALL packages from the deps venv EXCEPT claude-code-tools, dereferencing symlinks
     for pkg in ${venvDeps}/lib/python3.11/site-packages/*; do
       pkgname=$(basename "$pkg")
       # Skip claude-code-tools, node_ui, and docs since we'll install from PyPI wheel
       if [[ ! "$pkgname" =~ ^(claude_code_tools|node_ui|docs) ]]; then
-        cp -rL "$pkg" $TMPDIR/venv/lib/python3.11/site-packages/
+        cp -rL "$pkg" $TMPDIR/site-packages/
       fi
     done
 
-    # Copy bin scripts
-    cp -rL ${venvDeps}/bin/* $TMPDIR/venv/bin/ || true
-
-    # Extract the PyPI wheel (1.10.3 with node_modules) into the venv's site-packages
+    # Extract the PyPI wheel (1.10.3 with node_modules) into site-packages
     ${python}/bin/python -m zipfile -e ${claudeCodeToolsWheel} $TMPDIR/wheel-extract
-    cp -r $TMPDIR/wheel-extract/* $TMPDIR/venv/lib/python3.11/site-packages/
-
-    # Create a minimal pyvenv.cfg that points to the output location
-    cat > $TMPDIR/venv/pyvenv.cfg << EOF
-home = ${python}/bin
-include-system-site-packages = false
-version = 3.11.14
-prompt = 'claude-code-tools-env'
-EOF
+    cp -r $TMPDIR/wheel-extract/* $TMPDIR/site-packages/
   '';
 
   installPhase = ''
     mkdir -p $out/bin $out/lib
 
-    # Copy the complete venv (now with claude-code-tools from PyPI wheel)
-    cp -r $TMPDIR/venv $out/lib/venv
+    # Install the site-packages with all dependencies including node_modules
+    cp -r $TMPDIR/site-packages $out/lib/site-packages
 
-    # Only expose the claude-code-tools commands by creating wrapper scripts
+    # Create wrapper scripts for each claude-code-tools command
+    # These use the system Python with PYTHONPATH set to our site-packages
     for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
-      if [ -f $out/lib/venv/bin/$cmd ]; then
-        makeWrapper $out/lib/venv/bin/$cmd $out/bin/$cmd \
+      # Find the script in the original venv
+      if [ -f ${venvDeps}/bin/$cmd ]; then
+        # Create a wrapper that sets PYTHONPATH and runs with system Python
+        makeWrapper ${python}/bin/python $out/bin/$cmd \
+          --add-flags "-m claude_code_tools.$cmd" \
+          --set PYTHONPATH "$out/lib/site-packages" \
           --prefix PATH : ${lib.makeBinPath [ nodejs ]}
       fi
     done
