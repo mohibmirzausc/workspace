@@ -6,12 +6,23 @@
 , nodejs
 , nodePackages
 , makeWrapper
+, fetchFromGitHub
 }:
 
 let
-  # Load the workspace from the source directory
+  version = "1.10.3";
+
+  # Fetch source from GitHub instead of vendoring
+  src = fetchFromGitHub {
+    owner = "pchalasani";
+    repo = "claude-code-tools";
+    rev = "v${version}";
+    hash = "sha256-/ht0Xt+Pm8MICiSWhrsFBsLmHA/JdfaYGCq8DdANRkg=";
+  };
+
+  # Load the workspace from the fetched source
   workspace = uv2nix.lib.workspace.loadWorkspace {
-    workspaceRoot = ./source;
+    workspaceRoot = src;
   };
 
   # Create overlay from uv.lock
@@ -53,9 +64,9 @@ let
   # Build node_modules for the Node UI using buildNpmPackage
   nodeUI = pkgs.buildNpmPackage {
     pname = "claude-code-tools-node-ui";
-    version = "1.10.3";
+    inherit version;
 
-    src = ./source/node_ui;
+    src = "${src}/node_ui";
 
     npmDepsHash = "sha256-cGtWyx4Bv7L58NsftwUFusgZMY1Y7UrlkHhsH2q9mxc=";
 
@@ -69,7 +80,7 @@ let
 
 in pkgs.stdenv.mkDerivation {
   pname = "claude-code-tools";
-  version = "1.10.3";
+  inherit version;
 
   dontUnpack = true;
 

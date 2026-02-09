@@ -1,8 +1,0 @@
-{
-  "name": "voice",
-  "version": "1.10.3",
-  "description": "Audio feedback when Claude Code agent completes tasks using pocket-tts",
-  "author": {
-    "name": "pchalasani"
-  }
-}
