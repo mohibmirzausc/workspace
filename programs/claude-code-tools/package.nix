@@ -58,11 +58,9 @@ let
       ]
     );
 
-  # Build the virtual environment with dependencies (excluding claude-code-tools itself)
-  # We'll install claude-code-tools from the PyPI wheel separately
-  venvDeps = pythonSet.mkVirtualEnv "claude-code-tools-deps-env" (
-    builtins.filter (dep: dep.name or "" != "claude-code-tools") workspace.deps.default
-  );
+  # Build the virtual environment with all dependencies from workspace
+  # This includes claude-code-tools 1.10.2 from source, but we'll replace it with the PyPI wheel
+  venvDeps = pythonSet.mkVirtualEnv "claude-code-tools-deps-env" workspace.deps.default;
 
   # Fetch the PyPI wheel which includes node_modules
   claudeCodeToolsWheel = pkgs.fetchurl {
