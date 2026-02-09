@@ -77,9 +77,10 @@ in pkgs.stdenv.mkDerivation {
   nativeBuildInputs = [ makeWrapper python ];
 
   buildPhase = ''
-    # Copy the dependencies venv
+    # Copy the dependencies venv, dereferencing all symlinks (-L)
+    # This is critical because the venv has symlinks to nix store paths that include the old claude-code-tools
     mkdir -p $TMPDIR/venv
-    cp -r ${venvDeps}/* $TMPDIR/venv/
+    cp -rL ${venvDeps}/* $TMPDIR/venv/
 
     # Make site-packages writable so we can replace claude-code-tools
     chmod -R +w $TMPDIR/venv/lib/python*/site-packages
