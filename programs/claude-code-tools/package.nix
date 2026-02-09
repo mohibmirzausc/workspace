@@ -111,7 +111,9 @@ in pkgs.stdenv.mkDerivation {
     cp -r $TMPDIR/venv $out/lib/venv
 
     # Link node_modules into the Python site-packages node_ui directory with absolute path
-    ln -sf ${nodeUI}/node_modules $out/lib/venv/lib/python*/site-packages/node_ui/node_modules
+    for node_ui_dir in $out/lib/venv/lib/python*/site-packages/node_ui; do
+      ln -sf ${nodeUI}/node_modules "$node_ui_dir/node_modules"
+    done
 
     # Only expose the claude-code-tools commands by creating wrapper scripts
     for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
