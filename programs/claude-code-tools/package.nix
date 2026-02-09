@@ -81,8 +81,9 @@ in pkgs.stdenv.mkDerivation {
     mkdir -p $TMPDIR/venv
     cp -r ${venvDeps}/* $TMPDIR/venv/
 
-    # Install the claude-code-tools wheel (which includes node_modules) into the venv
-    $TMPDIR/venv/bin/pip install --no-deps ${claudeCodeToolsWheel}
+    # Extract the wheel (which includes node_modules) into the venv's site-packages
+    ${python}/bin/python -m zipfile -e ${claudeCodeToolsWheel} $TMPDIR/wheel-extract
+    cp -r $TMPDIR/wheel-extract/* $TMPDIR/venv/lib/python*/site-packages/
   '';
 
   installPhase = ''
