@@ -4,6 +4,7 @@
 , uv2nix
 , pyproject-build-systems
 , nodejs
+, makeWrapper
 }:
 
 let
@@ -45,4 +46,34 @@ let
       ]
     );
 
-in pythonSet.mkVirtualEnv "claude-code-tools-env" workspace.deps.default
+  # Build the virtual environment
+  venv = pythonSet.mkVirtualEnv "claude-code-tools-env" workspace.deps.default;
+
+in pkgs.stdenv.mkDerivation {
+  pname = "claude-code-tools";
+  version = "1.10.3";
+
+  dontUnpack = true;
+  dontBuild = true;
+
+  nativeBuildInputs = [ makeWrapper ];
+
+  installPhase = ''
+    mkdir -p $out/bin
+
+    # Only expose the claude-code-tools commands, not all python packages
+    for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
+      if [ -f ${venv}/bin/$cmd ]; then
+        makeWrapper ${venv}/bin/$cmd $out/bin/$cmd \
+          --prefix PATH : ${lib.makeBinPath [ nodejs ]}
+      fi
+    done
+  '';
+
+  meta = with lib; {
+    description = "Collection of tools for working with Claude Code";
+    homepage = "https://github.com/pchalasani/claude-code-tools";
+    license = licenses.mit;
+    maintainers = [ ];
+  };
+}
