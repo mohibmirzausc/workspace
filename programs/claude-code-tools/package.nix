@@ -98,13 +98,16 @@ in pkgs.stdenv.mkDerivation {
   nativeBuildInputs = [ makeWrapper ];
 
   buildPhase = ''
-    # Copy the venv with --no-preserve=mode to avoid read-only issues
+    # Copy the venv
     mkdir -p $TMPDIR/venv
-    cp -r --no-preserve=mode,ownership ${venv}/* $TMPDIR/venv/
+    cp -r ${venv}/* $TMPDIR/venv/
+
+    # Make directories writable before copying node_modules
+    find $TMPDIR/venv -type d -exec chmod u+w {} +
 
     # Copy node_modules into the Python site-packages node_ui directory
     for node_ui_dir in $TMPDIR/venv/lib/python*/site-packages/node_ui; do
-      cp -r --no-preserve=mode,ownership ${nodeUI}/node_modules "$node_ui_dir/"
+      cp -r ${nodeUI}/node_modules "$node_ui_dir/"
     done
   '';
 
