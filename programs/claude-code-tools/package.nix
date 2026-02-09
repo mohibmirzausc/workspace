@@ -109,6 +109,7 @@ in pkgs.stdenv.mkDerivation {
 
     # Copy the entire venv to a lib directory (for runtime dependencies)
     cp -r $TMPDIR/venv $out/lib/venv
+    chmod -R +w $out/lib/venv
 
     # Link node_modules into the Python site-packages node_ui directory with absolute path
     for node_ui_dir in $out/lib/venv/lib/python*/site-packages/node_ui; do
