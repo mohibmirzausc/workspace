@@ -101,10 +101,14 @@ in pkgs.stdenv.mkDerivation {
     # Copy the venv
     mkdir -p $TMPDIR/venv
     cp -r ${venv}/* $TMPDIR/venv/
-    chmod -R +w $TMPDIR/venv
+
+    # Make everything writable, especially the node_ui directory
+    chmod -R u+w $TMPDIR/venv
+    find $TMPDIR/venv -type d -exec chmod u+w {} \;
 
     # Link node_modules into the Python site-packages node_ui directory while still in TMPDIR
     for node_ui_dir in $TMPDIR/venv/lib/python*/site-packages/node_ui; do
+      chmod u+w "$node_ui_dir"
       ln -sf ${nodeUI}/node_modules "$node_ui_dir/node_modules"
     done
   '';
