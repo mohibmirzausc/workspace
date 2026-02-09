@@ -8,7 +8,7 @@ let
   sources = {
     aarch64-darwin = {
       url = "https://github.com/pchalasani/claude-code-tools/releases/download/rust-v0.3.0/aichat-search-macos-arm64.tar.gz";
-      sha256 = "sha256-sc339EzaQamUb/m6PDUu/dv/0eO3l81Irhy59gTpmaQ=";
+      sha256 = "sha256-5ZY2FV56E7+HLqlJYXD2rVcY8KOiBKGIBB7b7YtgXqo=";
     };
     x86_64-darwin = {
       url = "https://github.com/pchalasani/claude-code-tools/releases/download/rust-v0.3.0/aichat-search-macos-intel.tar.gz";
