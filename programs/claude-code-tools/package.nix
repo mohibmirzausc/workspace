@@ -70,6 +70,10 @@ let
 
     nativeBuildInputs = [ nodejs ];
 
+    # Required for npm to verify SSL certificates in sandbox
+    SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+    NODE_EXTRA_CA_CERTS = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+
     buildPhase = ''
       export HOME=$TMPDIR
       npm install --omit=dev --prefer-offline --no-audit
