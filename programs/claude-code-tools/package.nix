@@ -64,8 +64,8 @@ let
 
   # Fetch the PyPI wheel which includes node_modules
   claudeCodeToolsWheel = pkgs.fetchurl {
-    url = "https://files.pythonhosted.org/packages/9e/2e/d8ffc99c74bd4afa6e54c798c8f4f5ddad7f6f6869ccd8aecb37b6d087d2/claude_code_tools-1.10.3-py3-none-any.whl";
-    hash = "sha256-k91w32UovG3sEIVLzh1miYXqylpJekocFOuRsQPtB2c=";
+    url = "https://files.pythonhosted.org/packages/e3/5e/5f84d9f3b54c5e530d19d52dd8363e3d5f65eb284f38d5d82d0c87b78b9b/claude_code_tools-1.10.3-py3-none-any.whl";
+    hash = "sha256-pnudEbKaBB+eH1TEV+VQUC5iGX07iZp1H1O9SDquwhA=";
   };
 
 in pkgs.stdenv.mkDerivation {
