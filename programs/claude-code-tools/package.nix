@@ -61,21 +61,28 @@ let
   # Build the virtual environment
   venv = pythonSet.mkVirtualEnv "claude-code-tools-env" workspace.deps.default;
 
-  # Build node_modules for the Node UI using buildNpmPackage
-  nodeUI = pkgs.buildNpmPackage {
+  # Build node_modules for the Node UI
+  nodeUI = pkgs.stdenv.mkDerivation {
     pname = "claude-code-tools-node-ui";
     inherit version;
 
     src = "${src}/node_ui";
 
-    npmDepsHash = "sha256-cGtWyx4Bv7L58NsftwUFusgZMY1Y7UrlkHhsH2q9mxc=";
+    nativeBuildInputs = [ nodejs ];
 
-    dontNpmBuild = true;
+    buildPhase = ''
+      export HOME=$TMPDIR
+      npm install --omit=dev --prefer-offline --no-audit
+    '';
 
     installPhase = ''
       mkdir -p $out
       cp -r node_modules $out/
     '';
+
+    outputHashMode = "recursive";
+    outputHashAlgo = "sha256";
+    outputHash = "sha256-cGtWyx4Bv7L58NsftwUFusgZMY1Y7UrlkHhsH2q9mxc=";
   };
 
 in pkgs.stdenv.mkDerivation {
