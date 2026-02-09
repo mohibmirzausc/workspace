@@ -110,13 +110,13 @@ in pkgs.stdenv.mkDerivation {
   installPhase = ''
     mkdir -p $out/bin $out/lib
 
-    # Copy the modified venv
-    cp -r $TMPDIR/venv/* $out/
+    # Copy the entire venv to a lib directory (for runtime dependencies)
+    cp -r $TMPDIR/venv $out/lib/venv
 
-    # Only expose the claude-code-tools commands, not all python packages
+    # Only expose the claude-code-tools commands by creating wrapper scripts
     for cmd in aichat tmux-cli fix-session vault env-safe csv2gsheet gsheet2csv gdoc2md md2gdoc; do
-      if [ -f $out/bin/$cmd ]; then
-        wrapProgram $out/bin/$cmd \
+      if [ -f $out/lib/venv/bin/$cmd ]; then
+        makeWrapper $out/lib/venv/bin/$cmd $out/bin/$cmd \
           --prefix PATH : ${lib.makeBinPath [ nodejs ]}
       fi
     done
