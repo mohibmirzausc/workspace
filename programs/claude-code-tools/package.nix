@@ -26,7 +26,7 @@ let
     ]
   );
 
-  # Build Python base set
+  # Build Python base set with overrides for packages missing build dependencies
   pythonSet =
     (pkgs.callPackage pyproject-nix.build.packages {
       inherit python;
@@ -34,6 +34,14 @@ let
       lib.composeManyExtensions [
         pyproject-build-systems.overlays.default
         overlay
+        # Add build dependencies for packages that don't declare them properly
+        (final: prev: {
+          fire = prev.fire.overrideAttrs (old: {
+            nativeBuildInputs = (old.nativeBuildInputs or []) ++ [
+              final.setuptools
+            ];
+          });
+        })
       ]
     );
 
