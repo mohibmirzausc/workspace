@@ -10,9 +10,6 @@
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
-  # Use overlays for package overrides
-  nixpkgs.overlays = [ (import ./overlays/claude-code-overlay.nix) ];
-
   # Primary user for system operations
   system.primaryUser = "mohib";
 

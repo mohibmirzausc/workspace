@@ -11,9 +11,13 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    claude-code-overlay = {
+      url = "github:ryoppippi/claude-code-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, ... }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, claude-code-overlay, ... }:
     {
       # Darwin configuration for macOS
       darwinConfigurations."Mohibs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
@@ -22,6 +26,7 @@
           ./darwin.nix
           home-manager.darwinModules.home-manager
           {
+            nixpkgs.overlays = [ claude-code-overlay.overlays.default ];
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.users.mohib = import ./home.nix;
