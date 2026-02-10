@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  build-linux:
+    name: Build Linux configurations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build home-manager configuration (coder)
+        run: |
+          echo "Building home-manager configuration for coder..."
+          nix build .#homeConfigurations.coder.activationPackage --no-link
+
+      - name: Build home-manager configuration (mohib)
+        run: |
+          echo "Building home-manager configuration for mohib..."
+          nix build .#homeConfigurations.mohib.activationPackage --no-link
+
+      - name: Check flake
+        run: |
+          nix flake check --no-build
+
+  build-darwin:
+    name: Build macOS configuration
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build nix-darwin configuration
+        run: |
+          echo "Building nix-darwin configuration..."
+          nix build .#darwinConfigurations."Mohibs-MacBook-Pro".system --no-link
+
+      - name: Check flake
+        run: |
+          nix flake check --no-build

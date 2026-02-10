@@ -1,0 +1,124 @@
+name: Update Flake
+
+on:
+  schedule:
+    # Run every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-flake:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Update flake
+        run: |
+          nix flake update --commit-lock-file
+
+      - name: Build home-manager configurations
+        run: |
+          echo "Building home-manager configuration for coder..."
+          nix build .#homeConfigurations.coder.activationPackage --no-link
+
+          echo "Building home-manager configuration for mohib..."
+          nix build .#homeConfigurations.mohib.activationPackage --no-link
+
+          echo "All home-manager configurations built successfully!"
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet HEAD~1 HEAD -- flake.lock; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload flake.lock
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-flake-lock
+          path: flake.lock
+          retention-days: 1
+
+  test-darwin:
+    needs: update-flake
+    if: needs.update-flake.outputs.has_changes == 'true'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download updated flake.lock
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-flake-lock
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Build Darwin configuration
+        run: |
+          echo "Building nix-darwin configuration..."
+          nix build .#darwinConfigurations."Mohibs-MacBook-Pro".system --no-link
+
+          echo "Darwin configuration built successfully!"
+
+  create-pr:
+    needs: [update-flake, test-darwin]
+    if: needs.update-flake.outputs.has_changes == 'true' && (success() || needs.test-darwin.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download updated flake.lock
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-flake-lock
+
+      - name: Commit updated flake.lock
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add flake.lock
+          git commit -m "chore: update flake.lock"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update flake.lock"
+          title: "chore: Weekly flake update"
+          body: |
+            Automated weekly update of flake.lock
+
+            This PR updates all flake inputs to their latest versions.
+
+            ✅ All configurations verified:
+            - home-manager (coder) - Linux x86_64
+            - home-manager (mohib) - Linux x86_64
+            - nix-darwin (Mohibs-MacBook-Pro) - macOS aarch64
+
+            Please review the changes and merge if all checks pass.
+          branch: automated/flake-update
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
