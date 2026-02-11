@@ -16,7 +16,7 @@ let
     };
     x86_64-linux = {
       url = "https://github.com/pchalasani/claude-code-tools/releases/download/rust-v0.3.0/aichat-search-linux-x86_64.tar.gz";
-      sha256 = "sha256-/2YYuLv3Gr7hlyBldxbvUy/pS3CNUnMDOh5/TVL/30I=";
+      sha256 = "sha256-II/cjlL1uaBJbJsLyJUJ+A/W4T4Q1tQBrwik3ndG2c4=";
     };
     aarch64-linux = {
       url = "https://github.com/pchalasani/claude-code-tools/releases/download/rust-v0.3.0/aichat-search-linux-arm64.tar.gz";
