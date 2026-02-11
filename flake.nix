@@ -11,9 +11,13 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, nix-darwin, home-manager, ... }:
+  outputs = { self, nixpkgs, nix-darwin, home-manager, sops-nix, ... }:
     {
       # Darwin configuration for macOS
       darwinConfigurations."Mohibs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
@@ -25,6 +29,9 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.users.mohib = import ./home.nix;
+            home-manager.sharedModules = [
+              sops-nix.homeManagerModules.sops
+            ];
             home-manager.extraSpecialArgs = {
               user = "mohib";
               home = "/Users/mohib";
@@ -39,7 +46,10 @@
           system = "x86_64-linux";
           config.allowUnfree = true;
         };
-        modules = [ ./home.nix ];
+        modules = [
+          ./home.nix
+          sops-nix.homeManagerModules.sops
+        ];
         extraSpecialArgs = {
           user = "coder";
           home = "/home/coder";
@@ -51,7 +61,10 @@
           system = "x86_64-linux";
           config.allowUnfree = true;
         };
-        modules = [ ./home.nix ];
+        modules = [
+          ./home.nix
+          sops-nix.homeManagerModules.sops
+        ];
         extraSpecialArgs = {
           user = "mohib";
           home = "/home/mohib";

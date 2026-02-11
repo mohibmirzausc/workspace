@@ -8,6 +8,7 @@
     ./programs/ghostty.nix
     ./programs/zellij.nix
     ./programs/ticktick-sdk/config.nix
+    ./programs/sops
   ];
 
   # Note: nixpkgs configuration is now handled by darwin.nix when using nix-darwin
@@ -33,6 +34,8 @@
     # # Adds the 'hello' command to your environment. It prints a friendly
     # # "Hello, world!" when run.
     # pkgs.hello
+    age
+    sops
     yq
     jujutsu
     neovim

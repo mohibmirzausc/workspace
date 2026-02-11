@@ -1,0 +1,8 @@
+keys:
+  - &mohib age1p8r7v8ukr8yc2e8823x3jedug94rjx2juraw47n8nn79mcpt6peq5swrv4
+
+creation_rules:
+  - path_regex: programs/sops/.*\.yaml$
+    key_groups:
+      - age:
+          - *mohib
