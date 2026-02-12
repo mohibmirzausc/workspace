@@ -19,7 +19,9 @@ let
       description = "agent-mail MCP bearer token";
       script = ''
         ${pkgs.jq}/bin/jq --arg val "Bearer $VAL" '
-          .mcpServers["agent-mail"].headers.Authorization = $val
+          if .mcpServers["agent-mail"] then
+            .mcpServers["agent-mail"].headers.Authorization = $val
+          else . end
         ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
       '';
     }
@@ -28,7 +30,17 @@ let
       description = "Shortcut MCP API token";
       script = ''
         ${pkgs.jq}/bin/jq --arg val "$VAL" '
-          .mcpServers["shortcut"].env.SHORTCUT_API_TOKEN = $val
+          .mcpServers["shortcut"] = {
+            command: "npx",
+            args: ["-y", "@shortcut/mcp@0.19.0"],
+            env: { SHORTCUT_API_TOKEN: $val }
+          }
+          # Remove redundant project-level shortcut configs
+          | if .projects then
+              .projects |= with_entries(
+                .value.mcpServers |= (if . then del(.shortcut) else . end)
+              )
+            else . end
         ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
       '';
     }
