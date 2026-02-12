@@ -107,6 +107,21 @@ in
           cd ~/src/workspace && ${pkgs.sops}/bin/sops --set "[\"$KEY\"] \"$VALUE\"" "$SOPS_FILE"
           echo "Updated $KEY. Run 'bash ~/src/workspace/install.sh' to apply."
           ;;
+        remove)
+          if [ -z "''${2:-}" ]; then
+            echo "Usage: hm-secrets remove <key>"
+            exit 1
+          fi
+          KEY="$2"
+          cd ~/src/workspace
+          ${pkgs.sops}/bin/sops --decrypt --output-type json "$SOPS_FILE" | \
+            ${pkgs.jq}/bin/jq "del(.[\"$KEY\"])" | \
+            ${pkgs.yq}/bin/yq -y '.' > "$SOPS_FILE.plain"
+          cp "$SOPS_FILE.plain" "$SOPS_FILE"
+          rm "$SOPS_FILE.plain"
+          ${pkgs.sops}/bin/sops --encrypt --in-place "$SOPS_FILE"
+          echo "Removed $KEY."
+          ;;
         apply)
           echo "Re-running install..."
           cd ~/src/workspace && bash install.sh
@@ -118,6 +133,7 @@ in
           echo "  edit     Open secrets in \$EDITOR (decrypts, re-encrypts on save)"
           echo "  show     Print decrypted secrets to stdout"
           echo "  set K V  Set a single key (e.g. hm-secrets set shortcut_api_token NEW_TOKEN)"
+          echo "  remove K Remove a key (e.g. hm-secrets remove old_token)"
           echo "  apply    Run install.sh to apply secrets"
           echo ""
           echo "Secrets file: $SOPS_FILE"
