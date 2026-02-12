@@ -95,8 +95,9 @@
     };
   };
 
-  # Enable Touch ID for sudo
+  # Enable Touch ID for sudo (including inside tmux sessions)
   security.pam.services.sudo_local.touchIdAuth = true;
+  security.pam.services.sudo_local.reattach = true;
 
   # Homebrew configuration
   homebrew = {
