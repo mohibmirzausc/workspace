@@ -83,6 +83,18 @@ in
       SOPS_FILE="$(cd ~/src/workspace && pwd)/programs/sops/secrets.yaml"
       export SOPS_AGE_KEY_FILE="${ageKeyFile}"
 
+      BOLD=$'\033[1m'
+      DIM=$'\033[2m'
+      GREEN=$'\033[32m'
+      YELLOW=$'\033[33m'
+      RED=$'\033[31m'
+      CYAN=$'\033[36m'
+      RESET=$'\033[0m'
+
+      ok()   { echo "''${GREEN}''${BOLD}ok''${RESET} $*"; }
+      warn() { echo "''${YELLOW}''${BOLD}!!''${RESET} $*"; }
+      err()  { echo "''${RED}''${BOLD}err''${RESET} $*" >&2; exit 1; }
+
       case "''${1:-help}" in
         edit)
           cd ~/src/workspace && ${pkgs.sops}/bin/sops "$SOPS_FILE"
@@ -90,28 +102,26 @@ in
         show)
           ${pkgs.sops}/bin/sops --decrypt "$SOPS_FILE"
           ;;
+        list)
+          ${pkgs.sops}/bin/sops --decrypt --output-type json "$SOPS_FILE" | \
+            ${pkgs.jq}/bin/jq -r 'keys[]'
+          ;;
         set)
-          if [ -z "''${2:-}" ]; then
-            echo "Usage: hm-secrets set <key> [value]"
-            echo "If value is omitted, reads from stdin (avoids shell history)."
-            exit 1
-          fi
+          [ -z "''${2:-}" ] && err "Usage: hm-secrets set <key> [value]"
           KEY="$2"
           if [ -n "''${3:-}" ]; then
             VALUE="$3"
           else
-            echo -n "Enter value for $KEY: "
+            echo -n "''${DIM}Enter value for ''${RESET}''${BOLD}$KEY''${RESET}''${DIM}: ''${RESET}"
             read -rs VALUE
             echo ""
           fi
           cd ~/src/workspace && ${pkgs.sops}/bin/sops --set "[\"$KEY\"] \"$VALUE\"" "$SOPS_FILE"
-          echo "Updated $KEY. Run 'bash ~/src/workspace/install.sh' to apply."
+          ok "Updated ''${BOLD}$KEY''${RESET}"
+          warn "Run ''${CYAN}hm-secrets apply''${RESET} to activate"
           ;;
         remove)
-          if [ -z "''${2:-}" ]; then
-            echo "Usage: hm-secrets remove <key>"
-            exit 1
-          fi
+          [ -z "''${2:-}" ] && err "Usage: hm-secrets remove <key>"
           KEY="$2"
           cd ~/src/workspace
           ${pkgs.sops}/bin/sops --decrypt --output-type json "$SOPS_FILE" | \
@@ -120,24 +130,28 @@ in
           cp "$SOPS_FILE.plain" "$SOPS_FILE"
           rm "$SOPS_FILE.plain"
           ${pkgs.sops}/bin/sops --encrypt --in-place "$SOPS_FILE"
-          echo "Removed $KEY."
+          ok "Removed ''${BOLD}$KEY''${RESET}"
           ;;
         apply)
-          echo "Re-running install..."
+          echo "''${DIM}Rebuilding...''${RESET}"
           cd ~/src/workspace && bash install.sh
           ;;
         help|*)
-          echo "hm-secrets - manage encrypted secrets for home-manager"
           echo ""
-          echo "Commands:"
-          echo "  edit     Open secrets in \$EDITOR (decrypts, re-encrypts on save)"
-          echo "  show     Print decrypted secrets to stdout"
-          echo "  set K V  Set a single key (e.g. hm-secrets set shortcut_api_token NEW_TOKEN)"
-          echo "  remove K Remove a key (e.g. hm-secrets remove old_token)"
-          echo "  apply    Run install.sh to apply secrets"
+          echo "  ''${BOLD}hm-secrets''${RESET} ''${DIM}- encrypted secrets for home-manager''${RESET}"
           echo ""
-          echo "Secrets file: $SOPS_FILE"
-          echo "Age key:      ${ageKeyFile}"
+          echo "  ''${BOLD}Commands''${RESET}"
+          echo "    ''${CYAN}edit''${RESET}            Open in \$EDITOR ''${DIM}(decrypts, re-encrypts on save)''${RESET}"
+          echo "    ''${CYAN}show''${RESET}            Print all decrypted secrets"
+          echo "    ''${CYAN}list''${RESET}            List secret key names ''${DIM}(no values)''${RESET}"
+          echo "    ''${CYAN}set''${RESET} ''${DIM}<key> [val]''${RESET}  Set a secret ''${DIM}(prompts if value omitted)''${RESET}"
+          echo "    ''${CYAN}remove''${RESET} ''${DIM}<key>''${RESET}     Remove a secret"
+          echo "    ''${CYAN}apply''${RESET}           Rebuild to activate changes"
+          echo ""
+          echo "  ''${BOLD}Files''${RESET}"
+          echo "    ''${DIM}secrets''${RESET}  $SOPS_FILE"
+          echo "    ''${DIM}age key''${RESET}  ${ageKeyFile}"
+          echo ""
           ;;
       esac
     '')
