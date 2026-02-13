@@ -132,6 +132,42 @@ in
           ${pkgs.sops}/bin/sops --encrypt --in-place "$SOPS_FILE"
           ok "Removed ''${BOLD}$KEY''${RESET}"
           ;;
+        test)
+          echo ""
+          echo "  ''${BOLD}hm-secrets test''${RESET}"
+          echo ""
+
+          # 1. Key file exists
+          if [ ! -f "${ageKeyFile}" ]; then
+            err "age key not found at ${ageKeyFile}
+  Run:  mkdir -p ~/.config/sops/age && age-keygen -o ${ageKeyFile}"
+          fi
+          ok "key file exists"
+
+          # 2. File contains a valid AGE-SECRET-KEY line
+          if ! ${pkgs.gnugrep}/bin/grep -q '^AGE-SECRET-KEY-' "${ageKeyFile}"; then
+            err "${ageKeyFile} does not contain a valid AGE-SECRET-KEY"
+          fi
+          ok "valid age secret key"
+
+          # 3. Derive public key and check it matches .sops.yaml
+          DERIVED_PUB=$(${pkgs.age}/bin/age-keygen -y "${ageKeyFile}" 2>/dev/null)
+          EXPECTED_PUB="age1p8r7v8ukr8yc2e8823x3jedug94rjx2juraw47n8nn79mcpt6peq5swrv4"
+          if [ "$DERIVED_PUB" != "$EXPECTED_PUB" ]; then
+            err "public key mismatch — private key doesn't match .sops.yaml
+  Expected: $EXPECTED_PUB
+  Got:      $DERIVED_PUB"
+          fi
+          ok "public key matches .sops.yaml"
+
+          # 4. Can decrypt the secrets file (only the key count escapes the pipe)
+          if ! KEY_COUNT=$(${pkgs.sops}/bin/sops --decrypt --output-type json "$SOPS_FILE" 2>/dev/null | ${pkgs.jq}/bin/jq 'keys | length'); then
+            err "could not decrypt $SOPS_FILE"
+          fi
+          ok "decryption works ''${DIM}($KEY_COUNT secret(s))''${RESET}"
+
+          echo ""
+          ;;
         apply)
           echo "''${DIM}Rebuilding...''${RESET}"
           cd ~/src/workspace && bash install.sh
@@ -146,6 +182,7 @@ in
           echo "    ''${CYAN}list''${RESET}            List secret key names ''${DIM}(no values)''${RESET}"
           echo "    ''${CYAN}set''${RESET} ''${DIM}<key> [val]''${RESET}  Set a secret ''${DIM}(prompts if value omitted)''${RESET}"
           echo "    ''${CYAN}remove''${RESET} ''${DIM}<key>''${RESET}     Remove a secret"
+          echo "    ''${CYAN}test''${RESET}            Verify age key is set, valid, and can decrypt"
           echo "    ''${CYAN}apply''${RESET}           Rebuild to activate changes"
           echo ""
           echo "  ''${BOLD}Files''${RESET}"
