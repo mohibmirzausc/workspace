@@ -28,7 +28,7 @@ Steps:
 5. Generate a concise summary in the work log format (bullet points under H3 headings)
 6. Append to the end of the page using insert_content_after:
    - Find a unique pattern at the very end of the existing content (typically the last line before <empty-block/>)
-   - Add a new section: "## Zoe Gagnon" (or appropriate user name)
+   - Add a new section: "## Mohib Mirza"
    - Add subsections with H3 headings for each major work item
    - IMPORTANT: Use insert_content_after, not replace_content
 7. If the append fails due to pattern matching, try using a different unique end pattern
