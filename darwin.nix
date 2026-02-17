@@ -92,6 +92,11 @@
         AutoHide = false;
         StageManagerHideWidgets = false;
       };
+      # Zoom: enable scroll gesture with Command modifier key
+      "com.apple.universalaccess" = {
+        closeViewScrollWheelToggle = true;
+        closeViewScrollWheelModifiersInt = 1048576; # Command key
+      };
     };
   };
 
