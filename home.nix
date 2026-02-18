@@ -55,6 +55,7 @@
     kubectl        # Kubernetes CLI
     minikube       # Local Kubernetes
     nodejs         # Node.js runtime
+    shopify-cli    # Shopify CLI
     pre-commit     # Git pre-commit hooks
     (callPackage ./programs/beads.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
