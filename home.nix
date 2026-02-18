@@ -53,6 +53,7 @@
     gh             # GitHub CLI
     graphite-cli   # Graphite stacked diffs
     kubectl        # Kubernetes CLI
+    k9s            # Kubernetes TUI
     minikube       # Local Kubernetes
     nodejs         # Node.js runtime
     shopify-cli    # Shopify CLI
