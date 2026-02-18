@@ -15,7 +15,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
     exit 1
   fi
 
-  # Run darwin-rebuild with sudo (it needs it for system activation)
+  # Run darwin-rebuild with sudo (it needs root for system activation)
   sudo nix --extra-experimental-features "nix-command flakes" run nix-darwin -- switch --flake .#Mohibs-MacBook-Pro
 else
   echo "Running home-manager switch..."
