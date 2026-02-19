@@ -45,6 +45,20 @@ let
       '';
     }
 
+    # ── Playwright MCP (no secret needed) ──
+    {
+      sopsKey = null;
+      description = "Playwright MCP server";
+      script = ''
+        ${pkgs.jq}/bin/jq '
+          .mcpServers["playwright"] = {
+            command: "npx",
+            args: ["-y", "@playwright/mcp@latest"]
+          }
+        ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
+      '';
+    }
+
     # ── Other secrets ──
     # Example: write a dotfile with secrets
     # {
@@ -66,14 +80,23 @@ let
     # }
   ];
 
-  # Generate the activation script from patches
-  patchScript = lib.concatMapStringsSep "\n" (patch: ''
+  # Split patches into secret-dependent and non-secret
+  secretPatches = builtins.filter (p: p.sopsKey != null) patches;
+  nonSecretPatches = builtins.filter (p: p.sopsKey == null) patches;
+
+  # Generate scripts
+  secretPatchScript = lib.concatMapStringsSep "\n" (patch: ''
     VAL=$(echo "$SECRETS_JSON" | ${pkgs.jq}/bin/jq -r '.${patch.sopsKey}')
     if [ -n "$VAL" ] && [ "$VAL" != "null" ]; then
       ${patch.script}
       echo "  ${patch.description}"
     fi
-  '') patches;
+  '') secretPatches;
+
+  nonSecretPatchScript = lib.concatMapStringsSep "\n" (patch: ''
+    ${patch.script}
+    echo "  ${patch.description}"
+  '') nonSecretPatches;
 
 in
 {
@@ -194,8 +217,11 @@ in
     '')
   ];
 
-  # Activation: decrypt all secrets once, apply all patches
+  # Activation: apply non-secret patches always, secret patches when decryptable
   home.activation.applySecrets = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    echo "Applying MCP patches..."
+    ${nonSecretPatchScript}
+
     if [ ! -f "${ageKeyFile}" ] || [ ! -f "${sopsFile}" ]; then
       echo "Skipping secrets: age key or sops file not found"
     else
@@ -204,7 +230,7 @@ in
 
       if [ "$SECRETS_JSON" != "{}" ]; then
         echo "Applying secrets..."
-        ${patchScript}
+        ${secretPatchScript}
         echo "Secrets applied."
       else
         echo "Warning: could not decrypt secrets"

@@ -11,7 +11,10 @@
   nixpkgs.config.allowUnfree = true;
 
   # Apply overlays for package overrides
-  nixpkgs.overlays = [ (import ./overlays/claude-code-overlay.nix) ];
+  nixpkgs.overlays = [
+    (import ./overlays/claude-code-overlay.nix)
+    (import ./overlays/shopify-cli-overlay.nix)
+  ];
 
   # Primary user for system operations
   system.primaryUser = "mohib";
@@ -92,13 +95,16 @@
         AutoHide = false;
         StageManagerHideWidgets = false;
       };
-      # Zoom: enable scroll gesture with Command modifier key
-      "com.apple.universalaccess" = {
-        closeViewScrollWheelToggle = true;
-        closeViewScrollWheelModifiersInt = 1048576; # Command key
-      };
+      # Note: com.apple.universalaccess is applied via system.activationScripts
+      # below because it's a protected domain that may fail silently
     };
   };
+
+  # Apply protected accessibility defaults (best-effort, may fail without Full Disk Access)
+  system.activationScripts.postActivation.text = ''
+    defaults write com.apple.universalaccess closeViewScrollWheelToggle -bool true 2>/dev/null || true
+    defaults write com.apple.universalaccess closeViewScrollWheelModifiersInt -int 1048576 2>/dev/null || true
+  '';
 
   # Enable Touch ID for sudo (including inside tmux sessions)
   security.pam.services.sudo_local.touchIdAuth = true;
