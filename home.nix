@@ -60,6 +60,7 @@
     teleport       # tsh - Teleport CLI
     pre-commit     # Git pre-commit hooks
     (callPackage ./programs/beads.nix {} )
+    (callPackage ./programs/yaks.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
     ((callPackage ./programs/worktree-tools/package.nix {}).tree-me)
     (callPackage ./programs/claude-session.nix {} )
