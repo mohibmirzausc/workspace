@@ -120,6 +120,7 @@
     };
     casks = [
       "1password-cli"
+      "calibre"
       "flycut"
       "fossa"
       "gcloud-cli"
