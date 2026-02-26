@@ -203,6 +203,7 @@
       }
 
       alias ci='git commit -m WIP'
+      alias am='cd ~/src/mcp_agent_mail && uv run python -m mcp_agent_mail.http --host 127.0.0.1 --port 8765'
 
       # Command completion beep
       BEEP_ENABLED=1
