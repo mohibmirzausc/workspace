@@ -7,6 +7,7 @@
     ./programs/raycast/raycast.nix
     ./programs/ghostty.nix
     ./programs/zellij.nix
+    ./programs/tmux.nix
     ./programs/ticktick-sdk/config.nix
     ./programs/sops
   ];
@@ -47,7 +48,7 @@
     carapace       # Multi-shell completion generator
     fastfetch      # System information tool
     mitmproxy
-    tmux           # Terminal multiplexer (for claude-session)
+    # tmux is managed by programs.tmux in tmux.nix
 
     # Development tools (previously via Homebrew)
     gh             # GitHub CLI
@@ -203,6 +204,26 @@
       }
 
       alias ci='git commit -m WIP'
+
+      # Ghostty keybind switcher (swap in current instance)
+      tmux-keys() {
+        ln -sf keys-tmux.conf ~/.config/ghostty/keys.conf
+        pkill -SIGUSR2 ghostty 2>/dev/null
+        echo "Switched to tmux keybinds"
+      }
+      zellij-keys() {
+        ln -sf keys-zellij.conf ~/.config/ghostty/keys.conf
+        pkill -SIGUSR2 ghostty 2>/dev/null
+        echo "Switched to zellij keybinds"
+      }
+
+      # Launch separate Ghostty instances with their own keybinds + icons
+      ghostty-tmux() {
+        open -na Ghostty.app --args --config-default-files=false --config-file="$HOME/.config/ghostty/config-tmux" -e tmux new -As main
+      }
+      ghostty-zellij() {
+        open -na Ghostty.app --args --config-default-files=false --config-file="$HOME/.config/ghostty/config-zellij" -e zellij
+      }
       alias am='cd ~/src/mcp_agent_mail && uv run python -m mcp_agent_mail.http --host 127.0.0.1 --port 8765'
 
       # Command completion beep
