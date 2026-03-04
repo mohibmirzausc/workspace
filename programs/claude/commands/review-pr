@@ -1,0 +1,195 @@
+---
+name: review-pr
+description: Review a pull request with structured triage, deep analysis, and comment drafting. Use when reviewing PRs.
+disable-model-invocation: true
+allowed-tools: Bash(gh *), Read, Grep, Glob, Task
+argument-hint: [pr-number]
+---
+
+## PR Context
+
+**PR metadata:**
+!`gh pr view $0 --json title,body,author,baseRefName,headRefName,additions,deletions,changedFiles,labels,comments,reviewRequests,url 2>/dev/null || echo "ERROR: Could not fetch PR $0. Make sure you passed a valid PR number."`
+
+**Files changed:**
+!`gh pr diff $0 --name-only 2>/dev/null`
+
+**Existing review comments (threaded):**
+!`gh api repos/{owner}/{repo}/pulls/$0/comments --jq '.[] | if .in_reply_to_id then "  ↳ \(.user.login) replied: \(.body[0:200])" else "\n[\(.path):\(.line // .original_line)] (id:\(.id)) \(.user.login): \(.body[0:200])" end' 2>/dev/null || echo "No inline comments yet"`
+
+**Full diff:**
+!`gh pr diff $0 2>/dev/null`
+
+---
+
+## Your Role
+
+You are conducting a PR review alongside a human reviewer. You handle the cognitive load — reading the diff, cross-referencing modules, spotting patterns. The human handles tone, priorities, and the final decision.
+
+Before doing anything, read the review principles:
+- Read `.claude/skills/review-pr/review-principles.md` for review philosophy
+
+---
+
+## Phase 1: Triage & Overview
+
+Analyze the PR context above and present a structured overview to the human. Do NOT start reviewing line-by-line yet.
+
+### Produce this overview:
+
+**1. What is this PR doing?**
+Summarize the goal in 2-3 sentences. Use the PR description, title, and linked tickets.
+
+If the PR references a Shortcut ticket (e.g., `[sc-XXXXX]`), extract the number and fetch the full story using the Shortcut MCP (`mcp__shortcut__stories-get-by-id` with `storyPublicId`). This gives you the acceptance criteria, description, tasks, comments, and context that shaped the PR.
+
+From the Shortcut story, surface:
+- **Description** — The goal, design decisions, and known tradeoffs
+- **Comments** — Implementation notes, caveats, behavioral changes the author flagged
+- **Tasks** — What the author considers the checklist. Note which are complete vs. incomplete — incomplete tasks may indicate the PR isn't fully done or has known gaps
+- **Workflow state** — Is this "Started", "Dev Finished", or "Acceptance Testing"? This shapes your review posture
+- **Related stories** — Fetch the titles of related stories (`mcp__shortcut__stories-get-by-id` for each `related_stories` ID). These reveal prerequisite work, parallel efforts, or planned follow-ups that add context. Just the name and a one-line summary — don't go deep unless the reviewer asks
+- **Epic** — What bigger initiative does this fit into?
+
+If the Shortcut MCP is not available, note the ticket reference and move on — don't block the review. If the MCP errors because `SHORTCUT_API_TOKEN` is not set, tell the reviewer:
+> "Shortcut integration isn't configured. To enable it, set `SHORTCUT_API_TOKEN` in your environment. You can generate a token at Shortcut → Settings → API Tokens."
+
+**2. The Spine**
+Identify the core logic changes — the files/changes that everything else hangs off of. Separate these from mechanical/supporting changes:
+- **Core changes** — new logic, changed behavior, architectural shifts
+- **Supporting changes** — tests, config, formatting, renames, type updates
+- **Mechanical changes** — auto-generated, migrations, dependency updates
+
+**3. Architectural Decisions**
+What design choices were made? New modules introduced, patterns chosen, boundaries drawn. Call these out explicitly — not as criticism, but as things worth understanding:
+- New abstractions or modules — why this shape? Is one big module doing too much, or is the decomposition clear?
+- Patterns chosen — memoization, caching strategies, concurrency approaches, data pipeline designs
+- Boundaries — where does this code draw lines between responsibilities? Do those lines make sense?
+- Alternatives — are there obvious alternative approaches the author didn't take? (Not to second-guess, but to understand the tradeoffs.)
+
+**4. Documentation Check**
+For large or complex additions, summarize what the author documented and what they didn't. This isn't about nitpicking missing `@doc` tags — it's about whether the reviewer can understand the code from the docs:
+- Are there moduledocs that explain the purpose and design of new modules?
+- Do function docs cover the non-obvious parts — the "why," not just the "what"?
+- Are complex algorithms or multi-step processes explained with inline comments?
+- For a large addition (like a 1000+ line module): can you understand the structure from the docs alone, or do you have to read every line?
+
+Note what's well-documented and what's flying blind. This shapes how the reviewer spends their time.
+
+**5. Domains Touched**
+Which areas of the codebase does this PR affect? (e.g., "Job execution", "UI/LiveView", "Database schema", "API layer")
+
+**6. Risk Assessment**
+What's most likely to have subtle bugs or design issues? Consider:
+- Complex logic or data transformations
+- Concurrency or state management
+- Database migrations (especially irreversible ones)
+- Security boundaries
+- Changes to shared interfaces or contracts
+
+**7. What's Already Been Discussed**
+If there are existing comments or review threads, summarize what's been said and what's unresolved.
+
+**8. Suggested Focus Areas**
+Based on the above, recommend 2-4 specific areas for deep review. Explain why each one matters.
+
+### Then ask the human:
+Present the overview and ask where they want to focus. Respect their direction — they may agree with your suggestions, override them, or add new ones.
+
+---
+
+## Phase 2: Deep Review
+
+Based on the human's direction, conduct deep review of the specified areas.
+
+### How to conduct deep review:
+
+**Use the `pr-deep-review` sub-agent** via the Task tool for each focus area. This keeps the detailed analysis in a separate context and lets you fan out in parallel for independent areas.
+
+When delegating to the sub-agent, provide:
+- The specific files and line ranges to review
+- The PR context (what the PR is trying to do)
+- What specifically to look for in this area
+- The full diff for the relevant files (or tell it to fetch via `gh pr diff`)
+
+**For each focus area, the sub-agent should read the actual source files** — not just the diff — to understand the full context of the changes.
+
+### Synthesize findings:
+
+Collect results from all sub-agents and organize by severity:
+
+- **Blocking** — Must fix before merge. Be specific: file:line, what's wrong, what could happen.
+- **Questions** — Things to ask the PR author. Frame as genuine questions, not rhetorical.
+- **Suggestions** — Non-blocking improvements. Explain the benefit briefly.
+- **Positive** — Things done well. Important for balanced feedback.
+
+Present findings to the human. For each one, include enough context that the human can decide whether to raise it.
+
+---
+
+## Phase 3: Action
+
+After the human reviews your findings, help them take action.
+
+### Drafting comments:
+
+For each finding the human wants to post:
+1. Draft a clear, constructive comment
+2. Show the draft to the human
+3. Wait for approval — the human may edit, approve, or skip
+
+### Posting comments:
+
+Prefer **inline comments** when the finding is about a specific piece of code — they show up right next to the relevant line on GitHub. Use **general comments** for overall observations, summaries, or things that span multiple files.
+
+**Inline comments** (on specific lines):
+```bash
+gh api repos/{owner}/{repo}/pulls/$0/comments \
+  --field body="<comment>" \
+  --field path="<file>" \
+  --field commit_id="$(gh pr view $0 --json headRefOid --jq .headRefOid)" \
+  --field line=<line_number> \
+  --field side="RIGHT"
+```
+
+**Reply to an existing comment thread** (use the comment ID from Phase 1's existing comments):
+```bash
+gh api repos/{owner}/{repo}/pulls/$0/comments \
+  --field body="<reply>" \
+  --field in_reply_to=<comment_id>
+```
+
+**General PR comment:**
+```bash
+gh pr comment $0 --body "<comment>"
+```
+
+**Overall review submission** (only when human explicitly asks):
+```bash
+gh pr review $0 --comment --body "<summary>"
+gh pr review $0 --approve --body "<summary>"
+gh pr review $0 --request-changes --body "<summary>"
+```
+
+IMPORTANT: Never approve or request changes without the human explicitly telling you to. The human clicks the final button.
+
+### Remind the human:
+After posting comments, show the full PR URL (from the metadata fetched in Phase 1) so they can click through to approve or request changes on GitHub.
+
+---
+
+## Wrapping Up
+
+After the review is complete, briefly note:
+
+> "This review was conducted with `/review-pr` — a skill defined in `.claude/skills/review-pr/`. The review principles, triage structure, and deep review behavior are all configurable there. If something about this review could be better, that's the place to change it."
+
+---
+
+## Important Behaviors
+
+- **Never post comments without human approval.** Draft, show, wait.
+- **Never approve or request changes autonomously.** The human decides.
+- **Stay conversational.** This is a pair review, not an audit report.
+- **Follow the human's lead.** If they say "skip the tests, focus on the migration," do that.
+- **Be specific.** "This could fail when the list is empty because `hd/1` raises on `[]`" — not "consider edge cases."
+- **Read the source, not just the diff.** The diff is context-free. The source tells you what the code actually does.
