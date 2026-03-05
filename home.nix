@@ -47,6 +47,7 @@
     atuin          # Shell history tool
     carapace       # Multi-shell completion generator
     fastfetch      # System information tool
+    uv
     mitmproxy
     # tmux is managed by programs.tmux in tmux.nix
 
