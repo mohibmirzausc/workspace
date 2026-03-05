@@ -197,7 +197,22 @@
       default_layout "compact"
 
       // Theme
-      theme "tokyo-night-storm"
+      themes {
+        tokyo-night-storm-yellow {
+          fg "#c0caf5"
+          bg "#24283b"
+          black "#1a1b26"
+          red "#f7768e"
+          green "#e0af68"
+          yellow "#e0af68"
+          blue "#7aa2f7"
+          magenta "#bb9af7"
+          cyan "#7dcfff"
+          white "#a9b1d6"
+          orange "#ff9e64"
+        }
+      }
+      theme "tokyo-night-storm-yellow"
     '';
   };
 }
