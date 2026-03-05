@@ -19,9 +19,11 @@ let
       description = "agent-mail MCP bearer token";
       script = ''
         ${pkgs.jq}/bin/jq --arg val "Bearer $VAL" '
-          if .mcpServers["agent-mail"] then
-            .mcpServers["agent-mail"].headers.Authorization = $val
-          else . end
+          .mcpServers["agent-mail"] = {
+            type: "http",
+            url: "http://127.0.0.1:8765/api/",
+            headers: { Authorization: $val }
+          }
         ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
       '';
     }
