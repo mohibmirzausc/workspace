@@ -174,7 +174,7 @@
 
     if [ ! -d "$YAKTHANG_DIR/.git" ]; then
       $DRY_RUN_CMD mkdir -p "$HOME/src"
-      if $DRY_RUN_CMD ${pkgs.git}/bin/git clone git@github.com:wellmaintained/yakthang.git "$YAKTHANG_DIR" 2>&1; then
+      if $DRY_RUN_CMD ${pkgs.git}/bin/git clone https://github.com/wellmaintained/yakthang.git "$YAKTHANG_DIR" 2>&1; then
         $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$YAKTHANG_DIR" submodule update --init --recursive 2>&1
       else
         echo "Warning: Failed to clone yakthang repository."
