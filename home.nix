@@ -168,6 +168,21 @@
     fi
   '';
 
+  # Clone yakthang repository if it doesn't exist
+  home.activation.cloneYakthang = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    YAKTHANG_DIR="$HOME/src/yakthang"
+
+    if [ ! -d "$YAKTHANG_DIR/.git" ]; then
+      $DRY_RUN_CMD mkdir -p "$HOME/src"
+      if $DRY_RUN_CMD ${pkgs.git}/bin/git clone git@github.com:wellmaintained/yakthang.git "$YAKTHANG_DIR" 2>&1; then
+        $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$YAKTHANG_DIR" submodule update --init --recursive 2>&1
+      else
+        echo "Warning: Failed to clone yakthang repository."
+        echo "You can manually clone it later or set up SSH keys."
+      fi
+    fi
+  '';
+
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
