@@ -60,6 +60,7 @@
     nodejs         # Node.js runtime
     shopify-cli    # Shopify CLI
     teleport       # tsh - Teleport CLI
+    just           # Command runner
     pre-commit     # Git pre-commit hooks
     (callPackage ./programs/beads.nix {} )
     (callPackage ./programs/yaks.nix {} )
