@@ -19,5 +19,5 @@ if [[ "$(uname)" == "Darwin" ]]; then
   sudo nix --extra-experimental-features "nix-command flakes" run nix-darwin -- switch --flake .#Mohibs-MacBook-Pro
 else
   echo "Running home-manager switch..."
-  nix --extra-experimental-features "nix-command flakes" run home-manager -- switch -b backup --flake .#linux --show-trace
+  USER="$USER" HOME="$HOME" nix --extra-experimental-features "nix-command flakes" run home-manager -- switch -b backup --flake .#linux --impure --show-trace
 fi
