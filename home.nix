@@ -36,6 +36,7 @@
     # # "Hello, world!" when run.
     # pkgs.hello
     age
+    cachix
     sops
     yq
     jujutsu
