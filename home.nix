@@ -203,9 +203,17 @@
         export PATH="$HOME/.nix-profile/bin:$PATH"
       fi
 
-      # Source home-manager session vars
+      # Add home-manager packages to PATH (home-manager uses a separate profile)
+      HM_PROFILE="$HOME/.local/state/nix/profiles/home-manager/home-path"
+      if [ -d "$HM_PROFILE/bin" ]; then
+        export PATH="$HM_PROFILE/bin:$PATH"
+      fi
+
+      # Source home-manager session vars (check both profile locations)
       if [ -f ~/.nix-profile/etc/profile.d/hm-session-vars.sh ]; then
         source ~/.nix-profile/etc/profile.d/hm-session-vars.sh
+      elif [ -f "$HOME/.local/state/nix/profiles/home-manager/home-path/etc/profile.d/hm-session-vars.sh" ]; then
+        source "$HOME/.local/state/nix/profiles/home-manager/home-path/etc/profile.d/hm-session-vars.sh"
       fi
 
       if [ -e $HOME/.profile ]; then . $HOME/.profile; fi
@@ -334,6 +342,13 @@
     environmentVariables = {
       # Add any env vars if needed
     };
+    extraEnv = ''
+      # Add home-manager packages to PATH (home-manager uses a separate profile)
+      let hm_bin = ($env.HOME | path join ".local/state/nix/profiles/home-manager/home-path/bin")
+      if ($hm_bin | path exists) {
+        $env.PATH = ($env.PATH | prepend $hm_bin)
+      }
+    '';
     extraConfig = ''
       # Git worktree tools
       # Note: tree-me and gw are available as commands but designed for bash/zsh
