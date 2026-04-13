@@ -20,15 +20,10 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v14
 
-      - name: Build home-manager configuration (coder)
+      - name: Build home-manager configuration (linux)
         run: |
-          echo "Building home-manager configuration for coder..."
-          nix build .#homeConfigurations.coder.activationPackage --no-link
-
-      - name: Build home-manager configuration (mohib)
-        run: |
-          echo "Building home-manager configuration for mohib..."
-          nix build .#homeConfigurations.mohib.activationPackage --no-link
+          echo "Building home-manager configuration for linux..."
+          nix build .#homeConfigurations.linux.activationPackage --no-link
 
       - name: Check flake
         run: |
