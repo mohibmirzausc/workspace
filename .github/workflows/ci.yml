@@ -25,8 +25,8 @@ jobs:
           echo "Building home-manager configuration for linux..."
           nix build .#homeConfigurations.linux.activationPackage --no-link --impure
         env:
-          USER: ci
-          HOME: /home/ci
+          USER: runner
+          HOME: /home/runner
 
       - name: Check flake
         run: |
