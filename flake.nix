@@ -40,8 +40,13 @@
         ];
       };
 
-      # Keep standalone home-manager config for Linux (coder)
-      homeConfigurations."coder" = home-manager.lib.homeManagerConfiguration {
+      # Generic Linux home-manager config — works for any username.
+      # Usage: home-manager switch --flake .#linux
+      # Reads USER and HOME from the environment at build time.
+      homeConfigurations."linux" = let
+        currentUser = builtins.getEnv "USER";
+        currentHome = builtins.getEnv "HOME";
+      in home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = "x86_64-linux";
           config.allowUnfree = true;
@@ -51,23 +56,8 @@
           sops-nix.homeManagerModules.sops
         ];
         extraSpecialArgs = {
-          user = "coder";
-          home = "/home/coder";
-        };
-      };
-
-      homeConfigurations."mohib" = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs {
-          system = "x86_64-linux";
-          config.allowUnfree = true;
-        };
-        modules = [
-          ./home.nix
-          sops-nix.homeManagerModules.sops
-        ];
-        extraSpecialArgs = {
-          user = "mohib";
-          home = "/home/mohib";
+          user = currentUser;
+          home = currentHome;
         };
       };
     };
