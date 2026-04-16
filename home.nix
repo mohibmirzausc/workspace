@@ -61,6 +61,7 @@
     nodejs         # Node.js runtime
     shopify-cli    # Shopify CLI
     teleport       # tsh - Teleport CLI
+    google-cloud-sdk # gcloud CLI
     go             # Go programming language
     just           # Command runner
     pre-commit     # Git pre-commit hooks
