@@ -124,6 +124,7 @@
       "flycut"
       "fossa"
       "gcloud-cli"
+      "git-lfs"
       "karabiner-elements"
       "superwhisper"
       "raycast"
