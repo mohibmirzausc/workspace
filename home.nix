@@ -54,6 +54,7 @@
 
     # Development tools (previously via Homebrew)
     gh             # GitHub CLI
+    git-lfs        # Git Large File Storage
     graphite-cli   # Graphite stacked diffs
     kubectl        # Kubernetes CLI
     k9s            # Kubernetes TUI
