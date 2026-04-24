@@ -14,6 +14,7 @@
   nixpkgs.overlays = [
     (import ./overlays/claude-code-overlay.nix)
     (import ./overlays/shopify-cli-overlay.nix)
+    (import ./overlays/zellij-overlay.nix { mouseScrollLines = 1; })
   ];
 
   # Primary user for system operations

@@ -30,7 +30,10 @@ jobs:
 
       - name: Check flake
         run: |
-          nix flake check --no-build
+          nix flake check --no-build --impure
+        env:
+          USER: runner
+          HOME: /home/runner
 
   build-darwin:
     name: Build macOS configuration
@@ -49,4 +52,7 @@ jobs:
 
       - name: Check flake
         run: |
-          nix flake check --no-build
+          nix flake check --no-build --impure
+        env:
+          USER: runner
+          HOME: /home/runner
