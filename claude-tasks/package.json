@@ -1,0 +1,16 @@
+{
+  "name": "claude-tasks",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "db:push": "pnpm --filter @claude-tasks/server run db:push",
+    "server": "pnpm --filter @claude-tasks/server run dev",
+    "web": "pnpm --filter @claude-tasks/web run dev",
+    "cli": "pnpm --filter @claude-tasks/cli run dev"
+  },
+  "engines": { "node": ">=22" }
+}
