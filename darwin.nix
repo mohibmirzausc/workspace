@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, user, home, ... }:
 
 {
   # Disable nix-darwin's Nix management (using Determinate Nix)
@@ -18,12 +18,12 @@
   ];
 
   # Primary user for system operations
-  system.primaryUser = "mohib";
+  system.primaryUser = user;
 
   # User configuration
-  users.users.mohib = {
-    name = "mohib";
-    home = "/Users/mohib";
+  users.users.${user} = {
+    name = user;
+    home = home;
   };
 
   # System-wide packages (optional - most can stay in home.nix)

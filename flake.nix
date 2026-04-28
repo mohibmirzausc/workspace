@@ -18,27 +18,44 @@
   };
 
   outputs = { self, nixpkgs, nix-darwin, home-manager, sops-nix, ... }:
-    {
-      # Darwin configuration for macOS
-      darwinConfigurations."Mohibs-MacBook-Pro" = nix-darwin.lib.darwinSystem {
-        system = "aarch64-darwin";
+    let
+      # Generic Darwin config — works for any username/hostname.
+      # Usage: sudo nix run nix-darwin -- switch --flake .#darwin --impure
+      # Reads USER and HOME from the environment at build time.
+      # Fallbacks are provided so `nix flake check --no-build` passes pure evaluation.
+      mkDarwin = system: let
+        currentUser = let v = builtins.getEnv "USER"; in if v == "" then "nobody" else v;
+        currentHome = let v = builtins.getEnv "HOME"; in if v == "" then "/var/empty" else v;
+      in nix-darwin.lib.darwinSystem {
+        inherit system;
+        specialArgs = {
+          user = currentUser;
+          home = currentHome;
+        };
         modules = [
           ./darwin.nix
           home-manager.darwinModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.users.mohib = import ./home.nix;
+            home-manager.users.${currentUser} = import ./home.nix;
             home-manager.sharedModules = [
               sops-nix.homeManagerModules.sops
             ];
             home-manager.extraSpecialArgs = {
-              user = "mohib";
-              home = "/Users/mohib";
+              user = currentUser;
+              home = currentHome;
             };
           }
         ];
       };
+    in
+    {
+      # Generic Darwin configuration — username/home read from environment at build time.
+      darwinConfigurations."darwin" = mkDarwin "aarch64-darwin";
+
+      # Back-compat alias for the original hostname-pinned attribute.
+      darwinConfigurations."Mohibs-MacBook-Pro" = mkDarwin "aarch64-darwin";
 
       # Generic Linux home-manager config — works for any username.
       # Usage: home-manager switch --flake .#linux --impure
