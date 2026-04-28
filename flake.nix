@@ -25,7 +25,7 @@
       # Fallbacks are provided so `nix flake check --no-build` passes pure evaluation.
       mkDarwin = system: let
         currentUser = let v = builtins.getEnv "USER"; in if v == "" then "nobody" else v;
-        currentHome = let v = builtins.getEnv "HOME"; in if v == "" then "/var/empty" else v;
+        currentHome = if currentUser == "nobody" then "/var/empty" else "/Users/${currentUser}";
       in nix-darwin.lib.darwinSystem {
         inherit system;
         specialArgs = {
@@ -38,6 +38,7 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
+            home-manager.backupFileExtension = "hm-backup";
             home-manager.users.${currentUser} = import ./home.nix;
             home-manager.sharedModules = [
               sops-nix.homeManagerModules.sops
