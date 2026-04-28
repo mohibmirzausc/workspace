@@ -7,6 +7,7 @@ let
   sharedConfig = ''
     bell-features = system,attention,title
     theme = dark:Catppuccin Mocha,light:Catppuccin Mocha
+    mouse-scroll-multiplier = precision:1,discrete:1
   '';
 
   tmuxKeybinds = ''
