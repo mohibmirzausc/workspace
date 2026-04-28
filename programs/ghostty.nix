@@ -118,6 +118,7 @@ in
   # Default to tmux keybinds if keys.conf doesn't exist
   home.activation.ghosttyKeys = lib.hm.dag.entryAfter ["writeBoundary"] ''
     KEYS="$HOME/.config/ghostty/keys.conf"
+    mkdir -p "$HOME/.config/ghostty"
     if [ ! -e "$KEYS" ]; then
       ln -sf keys-tmux.conf "$KEYS"
     fi
