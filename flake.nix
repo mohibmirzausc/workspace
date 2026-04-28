@@ -41,11 +41,12 @@
       };
 
       # Generic Linux home-manager config — works for any username.
-      # Usage: home-manager switch --flake .#linux
+      # Usage: home-manager switch --flake .#linux --impure
       # Reads USER and HOME from the environment at build time.
+      # Fallbacks are provided so `nix flake check --no-build` passes pure evaluation.
       homeConfigurations."linux" = let
-        currentUser = builtins.getEnv "USER";
-        currentHome = builtins.getEnv "HOME";
+        currentUser = let v = builtins.getEnv "USER"; in if v == "" then "nobody" else v;
+        currentHome = let v = builtins.getEnv "HOME"; in if v == "" then "/homeless-shelter" else v;
       in home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = "x86_64-linux";
