@@ -74,6 +74,9 @@
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     (callPackage ./programs/claude-code-tools/package.nix {} )
     (callPackage ./programs/pi-agent {} )
+    # Pi shells out to rg/fd; providing them on PATH skips the runtime download.
+    ripgrep
+    fd
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
