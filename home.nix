@@ -73,6 +73,7 @@
     (callPackage ./programs/claude-session.nix {} )
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     (callPackage ./programs/claude-code-tools/package.nix {} )
+    (callPackage ./programs/pi-agent {} )
     # direnv already configured in programs.direnv
 
     # Python with ticktick-sdk
