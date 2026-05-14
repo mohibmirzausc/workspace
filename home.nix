@@ -63,16 +63,10 @@
     shopify-cli    # Shopify CLI
     teleport       # tsh - Teleport CLI
     google-cloud-sdk # gcloud CLI
-    # Fly.io CLI. Upstream nixpkgs ships both `fly` and `flyctl`; we drop the
-    # `fly` symlink so it doesn't collide with Concourse's `fly` CLI at
-    # /usr/local/bin/fly. Call it as `flyctl` (Fly.io docs use both names).
-    (pkgs.symlinkJoin {
-      name = "flyctl-no-fly";
-      paths = [ pkgs.flyctl ];
-      postBuild = ''
-        rm -f $out/bin/fly
-      '';
-    })
+    # Fly.io CLI is installed via Homebrew (see darwin.nix homebrew.brews) for
+    # faster release cadence than nixpkgs. The `fly` symlink is stripped by
+    # home.activation.removeBrewFlyLink below so Concourse's `/usr/local/bin/fly`
+    # remains the binary `fly` resolves to.
     go             # Go programming language
     just           # Command runner
     pre-commit     # Git pre-commit hooks
@@ -236,6 +230,16 @@
         echo "Warning: Failed to clone yakthang repository."
         echo "You can manually clone it later or set up SSH keys."
       fi
+    fi
+  '';
+
+  # Homebrew's flyctl formula installs both `flyctl` and `fly` into
+  # /opt/homebrew/bin. We keep `flyctl` but strip the `fly` symlink so it
+  # doesn't shadow Concourse's `fly` CLI at /usr/local/bin/fly.
+  home.activation.removeBrewFlyLink = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    BREW_FLY="/opt/homebrew/bin/fly"
+    if [ -e "$BREW_FLY" ] || [ -L "$BREW_FLY" ]; then
+      $DRY_RUN_CMD rm -f "$BREW_FLY"
     fi
   '';
 
