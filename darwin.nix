@@ -1,4 +1,4 @@
-{ config, pkgs, lib, user, home, ... }:
+{ config, pkgs, lib, user, home, system, ... }:
 
 {
   # Disable nix-darwin's Nix management (using Determinate Nix)
@@ -138,6 +138,7 @@
   # $ darwin-rebuild changelog
   system.stateVersion = 5;
 
-  # The platform the configuration will be used on
-  nixpkgs.hostPlatform = "aarch64-darwin";
+  # The platform the configuration will be used on. Provided by flake.nix
+  # specialArgs so the same config works on both Apple Silicon and Intel Macs.
+  nixpkgs.hostPlatform = system;
 }
