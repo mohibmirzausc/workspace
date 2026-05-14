@@ -127,6 +127,7 @@
       "fossa"
       "gcloud-cli"
       "karabiner-elements"
+      "linearmouse"   # Fast-scroll when holding modifier key (configured in home.nix)
       "superwhisper"
       "raycast"
       "ticktick"

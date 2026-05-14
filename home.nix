@@ -116,6 +116,10 @@
     #   org.gradle.daemon.idletimeout=3600000
     # '';
 
+    # LinearMouse config is installed via home.activation below as a mutable
+    # copy (not a symlink) so the LinearMouse UI can save changes back to it.
+    # See home.activation.installLinearMouseConfig.
+
     # Claude Code configuration
     ".claude/settings.json" = {
       source = ./programs/claude/settings.json;
@@ -172,6 +176,40 @@
         echo "Warning: Failed to clone agentic-practice-logs repository."
         echo "This is expected if you don't have SSH keys set up for GitHub."
         echo "You can manually clone it later or set up SSH keys."
+      fi
+    fi
+  '';
+
+  # Install LinearMouse config as a writable copy (not a symlink) so the
+  # LinearMouse UI can save edits. The repo's programs/linearmouse.json is
+  # the seed: it's copied on first install and whenever the seed changes,
+  # but local UI edits between seed updates are preserved.
+  home.activation.installLinearMouseConfig = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    LM_DIR="$HOME/.config/linearmouse"
+    LM_FILE="$LM_DIR/linearmouse.json"
+    LM_SEED="${./programs/linearmouse.json}"
+    LM_STAMP="$LM_DIR/.seed-hash"
+
+    $DRY_RUN_CMD mkdir -p "$LM_DIR"
+
+    # If the existing file is a symlink (legacy from when this was managed
+    # via home.file), replace it with a writable copy of the seed.
+    if [ -L "$LM_FILE" ]; then
+      $DRY_RUN_CMD rm "$LM_FILE"
+    fi
+
+    SEED_HASH="$(${pkgs.coreutils}/bin/sha256sum "$LM_SEED" | ${pkgs.coreutils}/bin/cut -d' ' -f1)"
+    PREV_HASH=""
+    if [ -f "$LM_STAMP" ]; then
+      PREV_HASH="$(${pkgs.coreutils}/bin/cat "$LM_STAMP")"
+    fi
+
+    if [ ! -f "$LM_FILE" ] || [ "$SEED_HASH" != "$PREV_HASH" ]; then
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 644 "$LM_SEED" "$LM_FILE"
+      if [ -z "$DRY_RUN_CMD" ]; then
+        printf '%s\n' "$SEED_HASH" > "$LM_STAMP"
+      else
+        echo "would write $LM_STAMP"
       fi
     fi
   '';
