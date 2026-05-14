@@ -63,6 +63,16 @@
     shopify-cli    # Shopify CLI
     teleport       # tsh - Teleport CLI
     google-cloud-sdk # gcloud CLI
+    # Fly.io CLI. Upstream nixpkgs ships both `fly` and `flyctl`; we drop the
+    # `fly` symlink so it doesn't collide with Concourse's `fly` CLI at
+    # /usr/local/bin/fly. Call it as `flyctl` (Fly.io docs use both names).
+    (pkgs.symlinkJoin {
+      name = "flyctl-no-fly";
+      paths = [ pkgs.flyctl ];
+      postBuild = ''
+        rm -f $out/bin/fly
+      '';
+    })
     go             # Go programming language
     just           # Command runner
     pre-commit     # Git pre-commit hooks
