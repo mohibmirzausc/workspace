@@ -12,7 +12,7 @@
 
   # Apply overlays for package overrides
   nixpkgs.overlays = [
-    (import ./overlays/claude-code-overlay.nix)
+    # (import ./overlays/claude-code-overlay.nix)  # Using Homebrew cask instead
     (import ./overlays/shopify-cli-overlay.nix)
     (import ./overlays/zellij-overlay.nix { mouseScrollLines = 1; })
   ];
@@ -122,6 +122,7 @@
     casks = [
       "1password-cli"
       "calibre"
+      "claude-code@latest"  # Auto-updating Claude Code CLI (v2.1.140)
       "flycut"
       "fossa"
       "gcloud-cli"

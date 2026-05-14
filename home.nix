@@ -42,7 +42,7 @@
     jujutsu
     neovim
     zellij
-    claude-code
+    # claude-code managed by Homebrew cask in darwin.nix
     bun
     nushell
     atuin          # Shell history tool
@@ -69,7 +69,6 @@
     (callPackage ./programs/beads.nix {} )
     (callPackage ./programs/yaks.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
-    ((callPackage ./programs/worktree-tools/package.nix {}).tree-me)
     (callPackage ./programs/claude-session.nix {} )
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     (callPackage ./programs/claude-code-tools/package.nix {} )
@@ -233,7 +232,7 @@
 
       # Function instead of alias so it works with sudo
       homeswitch() {
-        sudo darwin-rebuild switch --flake ~/src/workstations/home/mohib/
+        sudo darwin-rebuild switch --flake ~/src/workspace
       }
 
       alias ci='git commit -m WIP'
@@ -308,13 +307,6 @@
         fi
       }
 
-      # Git worktree tools
-      # tree-me: Command-line worktree management with auto-cd and Graphite integration
-      export WORKTREE_ROOT="$HOME/src.wt"
-      source <(tree-me shellenv)
-
-      # Convenient aliases for worktree workflow
-      alias tm='tree-me'
     '';
     history = {
       ignoreSpace = true;
@@ -356,10 +348,6 @@
       }
     '';
     extraConfig = ''
-      # Git worktree tools
-      # Note: tree-me and gw are available as commands but designed for bash/zsh
-      # For nushell, you can call them directly: `tree-me list`, `tree-me create mybranch`, etc.
-      # The auto-cd and interactive TUI features work best in bash/zsh shells
     '';
   };
 
