@@ -63,16 +63,10 @@
     shopify-cli    # Shopify CLI
     teleport       # tsh - Teleport CLI
     google-cloud-sdk # gcloud CLI
-    # Fly.io CLI. Upstream nixpkgs ships both `fly` and `flyctl`; we drop the
-    # `fly` symlink so it doesn't collide with Concourse's `fly` CLI at
-    # /usr/local/bin/fly. Call it as `flyctl` (Fly.io docs use both names).
-    (pkgs.symlinkJoin {
-      name = "flyctl-no-fly";
-      paths = [ pkgs.flyctl ];
-      postBuild = ''
-        rm -f $out/bin/fly
-      '';
-    })
+    # Fly.io CLI is installed via Homebrew (see darwin.nix homebrew.brews) for
+    # faster release cadence than nixpkgs. The `fly` symlink is stripped by
+    # home.activation.removeBrewFlyLink below so Concourse's `/usr/local/bin/fly`
+    # remains the binary `fly` resolves to.
     go             # Go programming language
     just           # Command runner
     pre-commit     # Git pre-commit hooks
@@ -239,6 +233,16 @@
     fi
   '';
 
+  # Homebrew's flyctl formula installs both `flyctl` and `fly` into
+  # /opt/homebrew/bin. We keep `flyctl` but strip the `fly` symlink so it
+  # doesn't shadow Concourse's `fly` CLI at /usr/local/bin/fly.
+  home.activation.removeBrewFlyLink = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    BREW_FLY="/opt/homebrew/bin/fly"
+    if [ -e "$BREW_FLY" ] || [ -L "$BREW_FLY" ]; then
+      $DRY_RUN_CMD rm -f "$BREW_FLY"
+    fi
+  '';
+
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
@@ -267,6 +271,14 @@
         source ~/.nix-profile/etc/profile.d/hm-session-vars.sh
       elif [ -f "$HOME/.local/state/nix/profiles/home-manager/home-path/etc/profile.d/hm-session-vars.sh" ]; then
         source "$HOME/.local/state/nix/profiles/home-manager/home-path/etc/profile.d/hm-session-vars.sh"
+      fi
+
+      # Homebrew on PATH. /opt/homebrew on Apple Silicon, /usr/local on Intel.
+      # Without this, brew-installed CLIs like flyctl aren't found.
+      if [ -x /opt/homebrew/bin/brew ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+      elif [ -x /usr/local/bin/brew ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
       fi
 
       if [ -e $HOME/.profile ]; then . $HOME/.profile; fi

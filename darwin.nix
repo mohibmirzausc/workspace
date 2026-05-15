@@ -119,6 +119,13 @@
       autoUpdate = true;
       upgrade = true;
     };
+    # Fly.io CLI. Homebrew ships the formula with daily updates, well ahead of
+    # nixpkgs. The formula drops both `flyctl` and `fly` into /opt/homebrew/bin;
+    # home.nix removes the `fly` symlink on activation so it doesn't shadow
+    # Concourse's `fly` CLI at /usr/local/bin/fly. See home.activation.removeBrewFlyLink.
+    brews = [
+      "flyctl"
+    ];
     casks = [
       "1password-cli"
       "calibre"
