@@ -135,7 +135,7 @@
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;
-    initExtra = ''
+    initContent = ''
       if [ -e $HOME/.profile ]; then . $HOME/.profile; fi
       export NIXPKGS_ALLOW_UNFREE=1
       export AUTO_ENABLE_FLAKES=true
