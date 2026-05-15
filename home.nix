@@ -273,6 +273,14 @@
         source "$HOME/.local/state/nix/profiles/home-manager/home-path/etc/profile.d/hm-session-vars.sh"
       fi
 
+      # Homebrew on PATH. /opt/homebrew on Apple Silicon, /usr/local on Intel.
+      # Without this, brew-installed CLIs like flyctl aren't found.
+      if [ -x /opt/homebrew/bin/brew ]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+      elif [ -x /usr/local/bin/brew ]; then
+        eval "$(/usr/local/bin/brew shellenv)"
+      fi
+
       if [ -e $HOME/.profile ]; then . $HOME/.profile; fi
       export NIXPKGS_ALLOW_UNFREE=1
       export AUTO_ENABLE_FLAKES=true
