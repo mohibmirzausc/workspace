@@ -297,6 +297,13 @@
 
       alias ci='git commit -m WIP'
 
+      # `fly` -> Concourse CI (Homebrew's flyctl formula keeps recreating a
+      # /opt/homebrew/bin/fly symlink on upgrade, which shadows Concourse).
+      # Alias makes `fly` resolve to Concourse durably; use `flyctl` for Fly.io.
+      if [ -x /usr/local/bin/fly ]; then
+        alias fly='/usr/local/bin/fly'
+      fi
+
       # Ghostty keybind switcher (swap in current instance)
       tmux-keys() {
         ln -sf keys-tmux.conf ~/.config/ghostty/keys.conf
