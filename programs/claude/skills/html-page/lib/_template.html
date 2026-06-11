@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NOTE TITLE</title>
+  <link href="lib/notes-style.css" rel="stylesheet" />
+  <script src="lib/notes-toc.js" defer></script>
+  <script src="lib/notes-highlight.js" defer></script>
+  <script src="lib/notes-comments.js" defer></script>
+  <!-- Opt-in: uncomment for <pre class="mermaid">…</pre> diagrams. ~500KB.
+  <script src="lib/notes-mermaid.js" defer></script>
+  -->
+</head>
+<body>
+
+  <header class="notes-header">
+    <h1>Note title</h1>
+    <span class="meta">
+      <a href="...">source link</a>
+      &middot; YYYY-MM-DD
+      &middot; owner: Scott
+    </span>
+  </header>
+
+  <!-- Optional legend — useful when many sections use status chips.
+  <div class="legend">
+    <span class="chip chip-done">done</span>
+    <span class="chip chip-todo">todo</span>
+    <span class="chip chip-blocked">blocked</span>
+    <span class="chip chip-info">info / fyi</span>
+    <span class="chip chip-open">open question</span>
+    <span class="meta">&nbsp;<span class="unknown">?</span> = not yet verified</span>
+  </div>
+  -->
+
+  <section class="section">
+    <h2>First section</h2>
+    <p>Lead paragraph.</p>
+
+    <!-- Callout — use sparingly, e.g. for an acceptance criterion or a key constraint.
+    <div class="callout callout-info">
+      <span><strong>Acceptance:</strong> ...</span>
+    </div>
+    -->
+  </section>
+
+  <section class="section">
+    <h2>Example: a table</h2>
+    <div class="table-scroll">
+      <table class="notes-table">
+        <thead>
+          <tr><th>Col A</th><th>Col B</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>foo()</code></td>
+            <td>does the thing</td>
+            <td><span class="chip chip-done">done</span></td>
+          </tr>
+          <tr>
+            <td><code>bar()</code></td>
+            <td>does the other thing</td>
+            <td><span class="chip chip-todo">todo</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Example: a collapsible appendix</h2>
+    <details class="notes-details">
+      <summary>Background reading</summary>
+      <div class="notes-details-body">
+        <ul>
+          <li>One source</li>
+          <li>Another</li>
+        </ul>
+      </div>
+    </details>
+  </section>
+
+  <!-- Example: a syntax-highlighted code block. Add class="language-X" on <code>.
+       Common languages: bash, java, javascript, python, rust, sql, json, yaml, html.
+  <section class="section">
+    <h2>Example: code with highlighting</h2>
+    <pre><code class="language-bash">echo "hello, parchment"
+ls -la ~/notes</code></pre>
+  </section>
+  -->
+
+  <!-- Example: a Mermaid diagram. Uncomment the mermaid <script> in <head> first.
+  <section class="section">
+    <h2>Example: a flow diagram</h2>
+    <pre class="mermaid">
+flowchart LR
+  spec[Spec doc] --> impl[Implement]
+  impl --> verify{All green?}
+  verify -->|yes| ship[Ship PR]
+  verify -->|no| impl
+    </pre>
+  </section>
+  -->
+
+</body>
+</html>
