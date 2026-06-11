@@ -141,6 +141,24 @@
     ];
   };
 
+  # Always-on local gallery server for the `html-page` Claude skill. Runs at
+  # login, restarts on crash, serves ~/html-pages at http://localhost:7777.
+  # Managed here (nix-darwin launchd.user.agents) rather than home-manager's
+  # launchd.agents, which is not activated when HM runs as a nix-darwin module.
+  launchd.user.agents.html-pages-server = {
+    serviceConfig = {
+      ProgramArguments = [ "${pkgs.callPackage ./programs/html-pages-server { }}/bin/html-pages-server" ];
+      EnvironmentVariables = {
+        PORT = "7777";
+        HTML_PAGES_DIR = "${home}/html-pages";
+      };
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "${home}/Library/Logs/html-pages-server.log";
+      StandardErrorPath = "${home}/Library/Logs/html-pages-server.log";
+    };
+  };
+
   # Used for backwards compatibility, please read the changelog before changing
   # $ darwin-rebuild changelog
   system.stateVersion = 5;

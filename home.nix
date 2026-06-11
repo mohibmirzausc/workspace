@@ -1,5 +1,10 @@
 { config, pkgs, lib, user, home, ... }:
 
+let
+  # Always-on local gallery server for the `html-page` Claude skill.
+  htmlPagesServer = pkgs.callPackage ./programs/html-pages-server { };
+  htmlPagesDir = "${config.home.homeDirectory}/html-pages";
+in
 {
   # Import additional modules
   imports = [
@@ -74,6 +79,7 @@
     (callPackage ./programs/yaks.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
     (callPackage ./programs/claude-session.nix {} )
+    htmlPagesServer  # `html-pages-server`: local gallery at localhost:7777
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     (callPackage ./programs/claude-code-tools/package.nix {} )
     (callPackage ./programs/pi-agent {} )
@@ -169,6 +175,15 @@
   home.sessionVariables = {
     # EDITOR = "emacs";
   };
+
+  # NOTE: the always-on launchd agent for html-pages-server lives in darwin.nix
+  # (`launchd.user.agents`). Home-manager's `launchd.agents` is NOT activated when
+  # home-manager runs as a nix-darwin module here, so nix-darwin owns it instead.
+
+  # Ensure the gallery data directory exists (mutable user content, not in repo).
+  home.activation.ensureHtmlPagesDir = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    $DRY_RUN_CMD mkdir -p "${htmlPagesDir}"
+  '';
 
   # Clone agentic practice logs repository if it doesn't exist
   home.activation.cloneLogsRepo = lib.hm.dag.entryAfter ["writeBoundary"] ''
