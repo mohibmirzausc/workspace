@@ -17,7 +17,10 @@ if [[ "$(uname)" == "Darwin" ]]; then
 
   # Run darwin-rebuild with sudo (it needs root for system activation).
   # Pass USER/HOME through sudo and use --impure so the flake can read them at build time.
-  sudo USER="$USER" HOME="$HOME" nix --extra-experimental-features "nix-command flakes" run nix-darwin -- switch --flake .#darwin --impure
+  # NONINTERACTIVE=1 makes `brew bundle cleanup` (homebrew.onActivation.cleanup = "zap")
+  # skip its "Do you want to proceed with the cleanup? [y/n]" prompt so the
+  # install runs unattended instead of blocking on stdin.
+  sudo USER="$USER" HOME="$HOME" NONINTERACTIVE=1 nix --extra-experimental-features "nix-command flakes" run nix-darwin -- switch --flake .#darwin --impure
 else
   echo "Running home-manager switch..."
   USER="$USER" HOME="$HOME" nix --extra-experimental-features "nix-command flakes" run home-manager -- switch -b backup --flake .#linux --impure --show-trace
