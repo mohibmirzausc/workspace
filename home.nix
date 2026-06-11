@@ -180,6 +180,17 @@ in
   # (`launchd.user.agents`). Home-manager's `launchd.agents` is NOT activated when
   # home-manager runs as a nix-darwin module here, so nix-darwin owns it instead.
 
+  # Home-manager's built-in `setupLaunchAgents` activation step always runs on
+  # Darwin and calls `readlink -m`. Under the sudo/nix-darwin activation context
+  # the PATH resolves to BSD readlink (which lacks `-m`), so the step fails with
+  #   readlink: illegal option -- m
+  # and then `find: : No such file or directory` (empty dir arg). Since we have no
+  # home-manager launchd agents (nix-darwin owns launchd), override the step to a
+  # no-op to silence the spurious activation errors.
+  home.activation.setupLaunchAgents = lib.mkForce (lib.hm.dag.entryAfter ["writeBoundary"] ''
+    : # no-op — launchd is managed by nix-darwin (see note above)
+  '');
+
   # Ensure the gallery data directory exists (mutable user content, not in repo).
   home.activation.ensureHtmlPagesDir = lib.hm.dag.entryAfter ["writeBoundary"] ''
     $DRY_RUN_CMD mkdir -p "${htmlPagesDir}"
