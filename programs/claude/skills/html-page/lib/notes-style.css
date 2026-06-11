@@ -1,0 +1,949 @@
+/* Shared style for personal notes — earth-tone light theme.
+   Self-contained: no Tailwind, no daisyUI. Link from any notes page <head>.
+   These docs exist so I can quickly understand what an LLM did or planned —
+   skim-first hierarchy, generous code rendering, minimal decoration. */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600;6..72,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ── Earth-tone palette (Solarized warm paper + Gruvbox accents) ── */
+  --sand-0:          #fdf6e3;
+  --sand-1:          #f5ecd0;
+  --sand-2:          #eee4c8;
+  --sand-3:          #d8cdac;
+  --sand-4:          #b8ac90;
+
+  --ink-0:           #2d2418;
+  --ink-1:           #3c3024;
+  --ink-2:           #54483a;
+  --ink-3:           #6d5f4d;
+  --ink-4:           #8a7d68;
+  --ink-5:           #a89b85;
+
+  --terracotta:      #af3a03;
+  --terracotta-soft: #d65d0e;
+  --ochre:           #b57614;
+  --ochre-soft:      #d79921;
+  --burgundy:        #9d0006;
+  --burgundy-soft:   #cc241d;
+  --moss:            #79740e;
+  --moss-soft:       #98971a;
+  --pine:            #427b58;
+  --teal-deep:       #076678;
+  --plum:            #8f3f71;
+
+  /* Semantic roles */
+  --paper:           var(--sand-0);
+  --paper-2:         var(--sand-1);
+  --paper-3:         var(--sand-2);
+  --ink:             var(--ink-1);
+  --ink-soft:        var(--ink-2);
+  --ink-muted:       var(--ink-3);
+  --ink-faint:       var(--ink-4);
+  --rule:            var(--sand-3);
+  --rule-soft:       var(--sand-2);
+
+  --accent:          var(--terracotta);
+  --accent-soft:     var(--terracotta-soft);
+  --heading:         var(--ochre);
+  --code-fg:         var(--burgundy);
+
+  /* Layout */
+  --notes-width:     1180px;
+  --notes-prose:     74ch;
+
+  /* Fonts */
+  --font-body:       'Newsreader', Georgia, 'Iowan Old Style', serif;
+  --font-mono:       'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* Sans is used only for editorial/prose component labels (eyebrow, tldr,
+     note). Data-UI labels (chips, table headers, TOC) stay mono on purpose —
+     prose components get the crisp sans voice, data components stay mono. */
+  --font-sans:       ui-sans-serif, 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  color-scheme: light;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-size: 120%;            /* every rem-based size scales up 20% from here */
+  scroll-behavior: smooth;
+  scroll-padding-top: 2rem;
+  -webkit-text-size-adjust: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100%;
+}
+
+body {
+  margin: 0 auto;
+  max-width: var(--notes-width);
+  padding: 3.5rem 5rem 6rem;
+  background: var(--paper);
+  font-family: var(--font-body);
+  font-feature-settings: "kern", "liga", "calt";
+  font-optical-sizing: auto;
+  font-size: 1.0625rem;
+  font-weight: 400;
+  line-height: 1.62;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  counter-reset: section;
+}
+
+@media (max-width: 1100px) { body { padding: 2.5rem 2rem 5rem; } }
+@media (max-width: 640px)  { body { padding: 1.75rem 1.1rem 4rem; font-size: 1rem; } }
+
+/* ── Typography ── */
+h1, h2, h3, h4 {
+  font-family: var(--font-body);
+  color: var(--ink-0);
+  letter-spacing: -0.015em;
+  font-feature-settings: "kern";
+}
+
+h1 {
+  font-size: clamp(1.75rem, 1.8vw + 1rem, 2.1rem);
+  font-weight: 600;
+  line-height: 1.18;
+  margin: 0 0 0.4rem;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0 0 1rem;
+  color: var(--heading);
+  text-wrap: balance;
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  margin: 1.5rem 0 0.4rem;
+  color: var(--accent);
+}
+
+p { margin: 0.7rem 0; max-width: var(--notes-prose); }
+
+ul, ol { margin: 0.7rem 0; padding-left: 1.4rem; max-width: var(--notes-prose); }
+li { padding-left: 0.25rem; }
+li + li { margin-top: 0.35rem; }
+ul > li::marker { color: var(--ink-5); }
+ol > li::marker { color: var(--ink-5); font-feature-settings: "tnum"; font-weight: 500; }
+ul ul, ol ol, ul ol, ol ul { margin: 0.35rem 0; }
+
+strong, b { color: var(--ink-0); font-weight: 700; }
+em, i { font-style: italic; color: var(--ink); }
+
+blockquote {
+  margin: 1rem 0;
+  padding: 0.2rem 0 0.2rem 1rem;
+  border-left: 2px solid var(--accent);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* ── Code ── */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  font-weight: 500;
+  padding: 0.08em 0.38em;
+  border-radius: 3px;
+  background: var(--paper-3);
+  color: var(--code-fg);
+  border: 1px solid var(--rule);
+  word-break: break-word;
+}
+a code { color: inherit; border-color: color-mix(in oklch, currentColor 30%, transparent); }
+
+pre {
+  background: var(--paper-3);
+  border: 1px solid var(--rule);
+  padding: 0.95rem 1.15rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  margin: 0.85rem 0;
+  max-width: 100%;
+  color: var(--ink-1);
+}
+pre code {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 1em;
+  font-weight: 400;
+}
+
+/* ── Syntax highlighting (highlight.js token classes, themed to palette) ── */
+.hljs-comment, .hljs-quote { color: var(--ink-4); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-name, .hljs-tag {
+  color: var(--burgundy);
+}
+.hljs-string, .hljs-title, .hljs-section, .hljs-attribute, .hljs-literal,
+.hljs-template-tag, .hljs-template-variable, .hljs-addition {
+  color: var(--moss);
+}
+.hljs-type, .hljs-class .hljs-title, .hljs-symbol, .hljs-bullet {
+  color: var(--ochre);
+}
+.hljs-number, .hljs-link, .hljs-regexp {
+  color: var(--teal-deep);
+}
+.hljs-variable, .hljs-attr, .hljs-meta, .hljs-meta-keyword {
+  color: var(--terracotta);
+}
+.hljs-deletion { color: var(--burgundy); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* ── Mermaid containers — let the SVG breathe; no extra chrome ── */
+pre.mermaid, .mermaid {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0;
+  margin: 1rem 0;
+  display: flex;             /* flex-center beats text-align — Mermaid's SVG
+                                renders as display:block after layout and
+                                ignores text-align on the parent. */
+  justify-content: center;
+  align-items: center;
+  overflow-x: auto;
+  font-family: var(--font-body);
+}
+pre.mermaid { white-space: normal; }
+pre.mermaid svg, .mermaid svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Inline key for a Mermaid diagram. Swatches mirror the classDef fills/strokes
+   in lib/notes-mermaid.js — if those change, update these too. */
+.diagram-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: center;
+  align-items: center;
+  margin: 0.5rem auto 1rem;
+  max-width: none;           /* override the global p { max-width: 74ch } */
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.diagram-key > span {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 3px;
+  border: 1.5px solid;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.diagram-key > .key-done { background: #dde2b1; color: #3e3a07; border-color: #79740e; }
+.diagram-key > .key-next { background: #f5dca0; color: #5c3b07; border-color: #b57614; border-width: 2.5px; }
+.diagram-key > .key-todo { background: #fdf6e3; color: #6d5f4d; border-color: #bdae93; }
+
+/* ── Links ── */
+a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in oklch, var(--accent) 35%, transparent);
+  transition: color .12s ease, border-color .12s ease;
+}
+a:hover { color: var(--burgundy); border-bottom-color: var(--burgundy); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+/* ── Header ── */
+.notes-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0 0 2.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+.notes-header h1 { border: none; padding: 0; margin: 0; }
+.notes-header .meta {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  letter-spacing: 0.01em;
+  line-height: 1.65;
+}
+.notes-header .meta a { color: var(--teal-deep); border-bottom-color: transparent; }
+.notes-header .meta a:hover { color: var(--pine); border-bottom-color: var(--pine); }
+
+/* ── Legend ── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.6rem;
+  margin: 0 0 2rem;
+  padding: 0.6rem 0.9rem;
+  align-items: center;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.legend .meta {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+
+/* ── Sections ── */
+.section {
+  border-top: 1px solid var(--rule);
+  padding: 2rem 0 0.5rem;
+  position: relative;
+}
+.section:first-of-type { border-top: none; padding-top: 0; }
+
+.section > h2:first-of-type {
+  counter-increment: section;
+  margin-top: 0;
+  position: relative;
+}
+.section > h2:first-of-type::before {
+  content: counter(section, decimal-leading-zero);
+  position: absolute;
+  left: -2.75rem;
+  top: 0.4rem;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 1100px) { .section > h2:first-of-type::before { display: none; } }
+
+/* ── Chips ── */
+span.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: 0.1em;
+  line-height: 1.55;
+  white-space: nowrap;
+  border: 1px solid color-mix(in oklch, currentColor 50%, transparent);
+  background: color-mix(in oklch, currentColor 12%, var(--paper));
+}
+span.chip-done    { color: var(--moss); }
+span.chip-todo    { color: var(--ochre); }
+span.chip-blocked { color: var(--burgundy); }
+span.chip-info    { color: var(--teal-deep); }
+span.chip-open    { color: var(--ink-4); }
+.unknown { color: var(--ochre); font-weight: 700; font-family: var(--font-mono); }
+
+/* ── Tables ── */
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0.85rem 0;
+}
+table.notes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+table.notes-table thead th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  padding: 0.5rem 0.9rem 0.55rem 0;
+  border-bottom: 1px solid var(--sand-4);
+  vertical-align: bottom;
+}
+table.notes-table tbody td {
+  vertical-align: top;
+  padding: 0.6rem 0.9rem 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+}
+table.notes-table tbody tr:last-child td { border-bottom: none; }
+table.notes-table tbody tr:nth-child(even) td {
+  background: color-mix(in oklch, var(--paper-2) 60%, transparent);
+}
+table.notes-table td code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* ── Callouts (side-rule, not panels) ── */
+.callout {
+  display: block;
+  border-left: 2px solid var(--accent);
+  padding: 0.3rem 0 0.3rem 0.95rem;
+  margin: 0.85rem 0;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+.callout > span { display: block; }
+.callout strong { color: var(--ink-0); }
+.callout-info    { border-left-color: var(--teal-deep); }
+.callout-warning { border-left-color: var(--ochre); }
+.callout-error   { border-left-color: var(--burgundy); }
+.callout-success { border-left-color: var(--moss); }
+
+/* ── Details (collapsible blocks — native <details>/<summary>) ── */
+.notes-details {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper-2);
+  margin: 0.5rem 0;
+  overflow: hidden;
+}
+.notes-details + .notes-details { margin-top: 0.5rem; }
+.notes-details > summary {
+  font-family: var(--font-body);
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--ink-0);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.notes-details > summary::-webkit-details-marker { display: none; }
+.notes-details > summary::before {
+  content: '▸';
+  display: inline-block;
+  color: var(--ink-muted);
+  margin-right: 0.55rem;
+  font-size: 0.85em;
+  transition: transform .15s ease;
+}
+.notes-details[open] > summary::before { transform: rotate(90deg); }
+.notes-details > .notes-details-body {
+  font-size: 0.93rem;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--rule);
+  padding: 0.4rem 1rem 0.9rem;
+}
+.notes-details > .notes-details-body ul { margin: 0.4rem 0; }
+.notes-details > .notes-details-body li + li { margin-top: 0.3rem; }
+
+/* ══ Editorial components ══════════════════════════════════════════════════
+   Adapted from the warm-serif teaching style (learn-hidam et al.) into the
+   notes palette. These are PROSE pieces — heavier, more inviting than the
+   minimal side-rule .callout. Use .callout for terse asides; use .note /
+   .tldr when something deserves a panel. Labels use --font-sans to set the
+   editorial voice apart from the mono data-UI labels. */
+
+/* Eyebrow — uppercase accent kicker, typically directly above an h1. */
+.eyebrow {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 0.15rem;
+}
+.notes-header .eyebrow { margin-bottom: 0.1rem; }
+
+/* Subtitle — large italic serif deck under the h1. */
+.subtitle {
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-style: italic;
+  color: var(--ink-muted);
+  margin: 0.1rem 0 0.4rem;
+  max-width: var(--notes-prose);
+  text-wrap: balance;
+}
+
+/* TL;DR — the one-breath summary box. Soft panel, accent spine, sans label. */
+.tldr {
+  background: var(--paper-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 5px 5px 0;
+  padding: 1rem 1.3rem;
+  margin: 1.6rem 0;
+  font-size: 1.02rem;
+  color: var(--ink);
+  max-width: var(--notes-prose);
+}
+.tldr > .l {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 0.4rem;
+}
+.tldr p:first-of-type { margin-top: 0; }
+.tldr p:last-child { margin-bottom: 0; }
+
+/* Note / aha / warn — panel callouts (heavier than .callout). Tinted by role:
+   default = info (teal), .aha = insight (moss), .warn = caution (ochre). */
+.note {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--teal-deep);
+  background: color-mix(in oklch, var(--teal-deep) 6%, var(--paper));
+  border-radius: 0 4px 4px 0;
+  padding: 0.85rem 1.2rem;
+  margin: 1.4rem 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+  max-width: var(--notes-prose);
+}
+.note > .nl {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--teal-deep);
+  margin-bottom: 0.3rem;
+}
+.note p:first-of-type { margin-top: 0; }
+.note p:last-child { margin-bottom: 0; }
+.note.aha {
+  border-left-color: var(--moss);
+  background: color-mix(in oklch, var(--moss) 8%, var(--paper));
+}
+.note.aha > .nl { color: var(--moss); }
+.note.warn {
+  border-left-color: var(--ochre);
+  background: color-mix(in oklch, var(--ochre) 8%, var(--paper));
+}
+.note.warn > .nl { color: var(--ochre); }
+
+/* Analogy — two-column teaching panel (metaphor | what it really is).
+   Left cell is tinted; collapses to one column on narrow screens. */
+.analogy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 1.6rem 0;
+  background: var(--paper);
+  max-width: var(--notes-prose);
+}
+.analogy > div { padding: 1rem 1.2rem; }
+.analogy > .left {
+  border-right: 1px solid var(--rule);
+  background: color-mix(in oklch, var(--accent) 4%, var(--paper));
+}
+.analogy .cap {
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  margin-bottom: 0.45rem;
+}
+.analogy .big { font-size: 0.98rem; line-height: 1.45; }
+.analogy .real {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  margin-top: 0.55rem;
+}
+@media (max-width: 620px) {
+  .analogy { grid-template-columns: 1fr; }
+  .analogy > .left { border-right: none; border-bottom: 1px solid var(--rule); }
+}
+
+/* ── Rule ── */
+hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: 2rem 0;
+  height: 0;
+}
+
+/* ── Selection / scrollbar ── */
+::selection { background: color-mix(in oklch, var(--ochre-soft) 45%, var(--paper)); color: var(--ink-0); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--paper); }
+::-webkit-scrollbar-thumb { background: var(--sand-3); border-radius: 5px; border: 2px solid var(--paper); }
+::-webkit-scrollbar-thumb:hover { background: var(--sand-4); }
+
+/* ── Floating section index (built by notes-toc.js) ── */
+.notes-toc {
+  position: fixed;
+  right: max(1.25rem, calc((100vw - var(--notes-width)) / 2 - 17rem));
+  top: 4rem;
+  width: 16rem;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.55;
+  z-index: 5;
+  display: none;
+}
+@media (min-width: 1500px) { .notes-toc { display: block; } }
+.notes-toc-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  padding: 0 0 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 0.35rem;
+}
+.notes-toc ol { list-style: none; padding: 0; margin: 0; border-left: 1px solid var(--rule); max-width: none; }
+.notes-toc li { margin: 0; padding: 0; counter-increment: tocitem; }
+.notes-toc li::marker { content: none; }
+.notes-toc a {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  padding: 0.28rem 0.65rem 0.28rem 0.85rem;
+  color: var(--ink-muted);
+  border: none;
+  border-left: 2px solid transparent;
+  margin-left: -1px;
+  letter-spacing: 0.02em;
+  font-size: 0.7rem;
+  transition: color .12s, border-color .12s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notes-toc a::before {
+  content: counter(tocitem, decimal-leading-zero);
+  color: var(--ink-faint);
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+.notes-toc a:hover { color: var(--ink-0); }
+.notes-toc a.is-active { color: var(--accent); border-left-color: var(--accent); }
+.notes-toc a.is-active::before { color: var(--accent); }
+
+/* ── Index page: folder tag (clickable; filters table to that folder) ── */
+a.folder-tag {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+  margin-right: 0.25rem;
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in oklch, var(--ink-muted) 50%, transparent);
+  padding-bottom: 0.05em;
+  transition: color .12s, border-color .12s;
+}
+a.folder-tag:hover {
+  color: var(--ochre);
+  border-bottom-color: var(--ochre);
+  border-bottom-style: solid;
+}
+
+/* ── Index page: filter banner shown when #folder= is active ─────────────────
+   The [hidden] guard MUST come before the layout rule, otherwise our
+   `display: flex` overrides the browser default `[hidden] { display: none }`
+   and the banner flashes on load before the filter JS runs. */
+.filter-banner[hidden] { display: none !important; }
+.filter-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  padding: 0.35rem 0.7rem;
+  background: color-mix(in oklch, var(--ochre) 10%, var(--paper));
+  border: 1px solid color-mix(in oklch, var(--ochre) 35%, transparent);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--ochre);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.filter-banner-clear {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  margin-left: auto;
+  transition: color .12s;
+}
+.filter-banner-clear:hover {
+  color: var(--ochre);
+}
+
+/* When the table is filtered to a single folder, the per-row folder-tag is
+   redundant — every visible row belongs to the same folder. Hide them. */
+body.is-filtered a.folder-tag { display: none; }
+
+/* ── Sortable table headers (used on index.html) ── */
+table.notes-table.sortable thead th { padding-right: 1.25rem; }
+table.notes-table.sortable thead th button.sort-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  transition: color .12s;
+}
+table.notes-table.sortable thead th button.sort-toggle:hover {
+  color: var(--ochre);
+}
+table.notes-table.sortable thead th button.sort-toggle::after {
+  content: '↕';
+  font-size: 1.25em;
+  line-height: 0.8;
+  color: var(--ink-faint);
+  opacity: 0.75;
+}
+table.notes-table.sortable thead th button.sort-toggle:hover::after {
+  color: var(--ochre);
+  opacity: 1;
+}
+table.notes-table.sortable thead th button.sort-toggle[data-dir='asc']::after {
+  content: '▲';
+  font-size: 1em;
+  color: var(--ochre);
+  opacity: 1;
+}
+table.notes-table.sortable thead th button.sort-toggle[data-dir='desc']::after {
+  content: '▼';
+  font-size: 1em;
+  color: var(--ochre);
+  opacity: 1;
+}
+table.notes-table.sortable thead th button.sort-toggle.is-active {
+  color: var(--ochre);
+}
+
+/* ── Index page: small "rebuild" button in the header meta line ── */
+.index-refresh {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color .12s, border-color .12s;
+}
+.index-refresh:hover {
+  color: var(--ochre);
+  border-color: var(--ochre);
+}
+.index-refresh:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* ── LLM comments (markers, popovers, edit-mode UI) ── */
+.llm-comment {
+  position: absolute;
+  left: -1.85rem;
+  top: 0.15em;
+  z-index: 4;
+  font-family: var(--font-body);
+}
+.llm-comment-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 1.5px solid var(--ochre);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ochre);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .14s, background .14s;
+}
+.llm-comment-icon:hover,
+.llm-comment-icon:focus-visible {
+  transform: scale(1.12);
+  background: color-mix(in oklch, var(--ochre) 14%, var(--paper));
+  outline: none;
+}
+.llm-comment-popover {
+  display: none;
+  position: absolute;
+  left: 1.7rem;
+  top: -0.25rem;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--ochre);
+  border-radius: 3px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.88rem;
+  color: var(--ink);
+  line-height: 1.45;
+  white-space: normal;
+  width: 22rem;
+  box-shadow: 0 4px 14px rgba(60, 56, 54, 0.18);
+  z-index: 6;
+}
+.llm-comment:hover .llm-comment-popover,
+.llm-comment:focus-within .llm-comment-popover {
+  display: block;
+}
+@media (max-width: 1100px) {
+  .llm-comment { display: none; }
+}
+
+body.llm-pick-mode,
+body.llm-pick-mode * { cursor: crosshair !important; }
+body.llm-pick-mode p:hover,
+body.llm-pick-mode li:hover,
+body.llm-pick-mode h2:hover,
+body.llm-pick-mode h3:hover,
+body.llm-pick-mode h4:hover,
+body.llm-pick-mode pre:hover,
+body.llm-pick-mode blockquote:hover,
+body.llm-pick-mode .callout:hover,
+body.llm-pick-mode .notes-table tr:hover,
+body.llm-pick-mode .notes-details:hover {
+  outline: 2px dashed var(--ochre);
+  outline-offset: 2px;
+}
+
+.llm-edit-hint {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  background: color-mix(in oklch, var(--paper-2) 75%, transparent);
+  border: 1px solid var(--rule);
+  padding: 0.3rem 0.6rem;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.65;
+}
+
+.llm-modal {
+  position: fixed; inset: 0;
+  background: rgba(60, 56, 54, 0.35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.llm-modal-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  box-shadow: 0 12px 36px rgba(60, 56, 54, 0.3);
+  padding: 1.25rem 1.4rem;
+  width: 32rem;
+  max-width: 90vw;
+}
+.llm-modal-title {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink-0);
+  margin-bottom: 0.4rem;
+}
+.llm-modal-target {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  padding: 0.3rem 0.5rem;
+  background: var(--paper-2);
+  border-radius: 3px;
+  margin-bottom: 0.8rem;
+  max-height: 3em;
+  overflow: hidden;
+}
+.llm-modal-input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+}
+.llm-modal-input:focus {
+  outline: none;
+  border-color: var(--ochre);
+}
+.llm-modal-actions {
+  display: flex; justify-content: flex-end; gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+.llm-modal-actions button {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.85rem;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+}
+.llm-modal-actions .llm-modal-save {
+  background: var(--ochre);
+  color: var(--paper);
+  border-color: var(--ochre);
+}
+.llm-modal-actions button:hover { filter: brightness(0.97); }
+
+/* ── Print ── */
+@media print {
+  body { background: white; color: black; max-width: none; padding: 0.5in; font-size: 11pt; }
+  .notes-toc, .legend { display: none; }
+  .section { border-color: #ddd; }
+  a { color: inherit; border-bottom-color: #999; }
+  h1, h2, h3 { color: black; }
+  pre, code { background: #f5f3ef; color: black; border-color: #ddd; }
+  span.chip { border-color: #999; color: black; background: white; }
+  .tldr, .note, .analogy { break-inside: avoid; background: #f7f5f1; border-color: #ccc; }
+  .analogy > .left { background: #f0ede8; }
+  .eyebrow, .tldr > .l, .note > .nl { color: #555; }
+}
