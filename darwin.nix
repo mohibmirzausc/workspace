@@ -1,6 +1,10 @@
 { config, pkgs, lib, user, home, system, ... }:
 
 {
+  imports = [
+    ./programs/shottr.nix
+  ];
+
   # Disable nix-darwin's Nix management (using Determinate Nix)
   nix.enable = false;
 
