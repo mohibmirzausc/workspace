@@ -138,6 +138,7 @@
       "superwhisper"
       "raycast"
       "ticktick"
+      "finetune"
     ];
   };
 
