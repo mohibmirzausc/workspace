@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- ============================================================
+     INTAKE FORM TEMPLATE  (intake-form skill)
+     Claude: edit ONLY the CONFIG block below (TITLE, SUBTITLE,
+     FORM_ID, THEME vars) and the SCHEMA array. The engine handles
+     rendering, conditionals (showIf), per-question notes-to-Claude,
+     prefill, autosave/resume, progress, and the INTAKE-JSON output.
+     Honor the Fillability Floor: keep it legible & mobile-friendly.
+     Remember to add the html-page <dl> stamp before the </body>.
+     ============================================================ -->
+<title id="docTitle">Intake Form</title>
+<style>
+  /* ---- THEME (edit these to fit the chosen html-page style) ---- */
+  :root {
+    --bg: #14121c;
+    --panel: #1e1b29;
+    --panel2: #272336;
+    --accent: #8b7cf0;
+    --accent2: #f0a0c0;
+    --ok: #6fae8e;
+    --text: #f2eefb;
+    --muted: #aaa0c4;
+    --border: #383150;
+    --radius: 14px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  /* ---- engine styles (safe to restyle, but keep the Fillability Floor) ---- */
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:var(--font); background:radial-gradient(1100px 560px at 50% -10%, #221d33, var(--bg));
+    color:var(--text); line-height:1.5; padding:0 0 130px; }
+  header { text-align:center; padding:46px 20px 22px; border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg, rgba(139,124,240,0.06), transparent); }
+  header h1 { margin:0; font-size:29px; letter-spacing:.3px; }
+  header h1 .accent { color:var(--accent); }
+  header p { color:var(--muted); margin:8px 0 0; }
+  .wrap { max-width:820px; margin:0 auto; padding:0 20px; }
+  .progress-bar { position:sticky; top:0; z-index:20; background:rgba(20,18,28,.92); backdrop-filter:blur(8px);
+    padding:12px 20px; border-bottom:1px solid var(--border); }
+  .progress-track { height:6px; background:var(--panel2); border-radius:99px; overflow:hidden; max-width:820px; margin:0 auto; }
+  .progress-fill { height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .3s; }
+  .progress-label { text-align:center; font-size:12px; color:var(--muted); margin:6px 0 0; }
+  section.card { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:22px 22px 10px; margin:24px 0; scroll-margin-top:80px; }
+  section.card > h2 { margin:0 0 4px; font-size:19px; display:flex; align-items:center; gap:10px; }
+  section.card > h2 .ico { font-size:22px; }
+  section.card > .sub { color:var(--muted); margin:0 0 14px; font-size:13px; }
+  .q { margin:16px 0; padding-top:14px; border-top:1px dashed var(--border); }
+  .q:first-of-type { border-top:none; padding-top:0; }
+  .q.hidden { display:none; }
+  .q label.qlabel { display:block; font-weight:600; margin-bottom:8px; }
+  .q .hint { color:var(--muted); font-size:12px; font-weight:400; margin-left:6px; }
+  input[type="text"],input[type="number"],textarea,select { width:100%; background:var(--panel2); color:var(--text);
+    border:1px solid var(--border); border-radius:10px; padding:11px 12px; font-size:14px; font-family:inherit; }
+  textarea { min-height:68px; resize:vertical; }
+  input:focus,textarea:focus,select:focus { outline:none; border-color:var(--accent); }
+  .opts { display:flex; flex-wrap:wrap; gap:8px; }
+  .opt { display:inline-flex; align-items:center; gap:7px; background:var(--panel2); border:1px solid var(--border);
+    padding:9px 13px; border-radius:99px; cursor:pointer; font-size:13px; user-select:none; transition:all .15s; min-height:40px; }
+  .opt:hover { border-color:var(--accent2); }
+  .opt input { accent-color:var(--accent); margin:0; }
+  .opt.checked { background:rgba(139,124,240,.16); border-color:var(--accent); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:560px){ .grid2 { grid-template-columns:1fr; } }
+  .row-label { font-size:12px; color:var(--muted); margin-bottom:4px; display:block; }
+  .note-wrap { margin-top:8px; }
+  .note-toggle { font-size:12px; color:var(--accent2); cursor:pointer; user-select:none; background:none; border:none; padding:4px 0; }
+  .note-box { display:none; margin-top:6px; }
+  .note-box.show { display:block; }
+  .skip { font-size:12px; color:var(--muted); margin-left:8px; cursor:pointer; user-select:none; }
+  .actions { position:fixed; bottom:0; left:0; right:0; background:rgba(20,18,28,.96); backdrop-filter:blur(8px);
+    border-top:1px solid var(--border); padding:14px 20px; display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap; }
+  button { font-family:inherit; font-size:14px; font-weight:600; border-radius:10px; padding:12px 22px; cursor:pointer;
+    border:1px solid var(--border); background:var(--panel2); color:var(--text); min-height:44px; }
+  button.primary { background:linear-gradient(90deg,var(--accent),var(--accent2)); color:#14121c; border:none; }
+  button:hover { filter:brightness(1.08); }
+  .toast { position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:var(--ok); color:#0d1f17;
+    padding:10px 18px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .3s; pointer-events:none; font-weight:600; }
+  .toast.show { opacity:1; }
+  .out { background:#0d0b13; border:1px solid var(--border); border-radius:10px; padding:14px; white-space:pre-wrap;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:var(--accent2); display:none; margin-top:12px; }
+  .pill-note { font-size:12px; color:var(--muted); background:var(--panel2); border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px; margin:8px 0 0; }
+  .stamp { max-width:820px; margin:32px auto 0; padding:0 20px; }
+  .stamp details { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px 14px; font-size:12px; color:var(--muted); }
+  .stamp dt { font-weight:600; color:var(--text); margin-top:6px; }
+  .stamp dd { margin:0 0 4px; }
+  @media (prefers-reduced-motion: reduce){ * { transition:none !important; } }
+</style>
+</head>
+<body>
+
+<script>
+/* ============================================================
+   CONFIG — Claude edits these for each form.
+   ============================================================ */
+const TITLE    = "Intake Form";              // shown in header (use <span class='accent'> via HTML below if desired)
+const SUBTITLE = "A few questions to get aligned.";
+const FORM_ID  = "generic-intake";           // unique slug; also the localStorage key + JSON form name
+
+/* SCHEMA — the questions. See SKILL.md "Schema Reference".
+   Field types: text | number | textarea | radio | checkbox | matrix
+   Optional per field: hint, placeholder, prefill, showIf:{id, equals|in}
+   ============================================================ */
+const SCHEMA = [
+  {
+    id: "example", title: "Example Section", ico: "📝",
+    sub: "Delete this and author real questions for the situation.",
+    questions: [
+      { id: "name", type: "text", label: "Your name", placeholder: "" },
+      { id: "use_case", type: "radio", label: "Primary use case",
+        options: ["A", "B", "C"], prefill: "" },
+      { id: "use_case_detail", type: "text", label: "Tell me more about that use case",
+        showIf: { id: "use_case", in: ["A","B","C"] } },
+      { id: "features", type: "checkbox", label: "Which features matter?",
+        options: ["Speed", "Reliability", "Design"] },
+      { id: "status", type: "matrix", label: "Component status",
+        rows: ["Frontend", "Backend", "Docs"],
+        statuses: ["Done ✅", "In progress", "Not started", "N/A"] },
+      { id: "anything", type: "textarea", label: "Anything else I should know?" },
+    ]
+  },
+];
+/* ============================================================
+   ENGINE — generally no need to edit below this line.
+   ============================================================ */
+</script>
+
+<header>
+  <h1 id="hTitle"></h1>
+  <p id="hSub"></p>
+</header>
+
+<div class="progress-bar">
+  <div class="progress-track"><div class="progress-fill" id="pfill"></div></div>
+  <div class="progress-label" id="plabel">0% answered</div>
+</div>
+
+<div class="wrap">
+  <p class="pill-note">💡 Answer what you can — skip anything you're unsure about (we'll cover it in conversation). Use <b>“💬 note to Claude”</b> under any question to talk back, not just answer. Your progress auto-saves in this browser. When done: <b>Generate Summary → Copy</b>, then paste back to Claude.</p>
+  <form id="form"></form>
+  <pre class="out" id="out"></pre>
+</div>
+
+<div class="actions">
+  <button type="button" id="saveBtn">💾 Save draft</button>
+  <button type="button" class="primary" id="genBtn">✨ Generate Summary</button>
+  <button type="button" id="copyBtn" style="display:none;">📋 Copy for Claude</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- html-page STAMP — Claude: fill these in to match the chosen style so the gallery indexes it. -->
+<div class="stamp">
+  <details>
+    <summary>About this page's design</summary>
+    <dl>
+      <dt>Style</dt><dd>EDIT ME</dd>
+      <dt>Keywords</dt><dd>EDIT · ME · keywords</dd>
+      <dt>Recreate prompt</dt><dd>EDIT ME — one-line prompt to recreate this style.</dd>
+      <dt>Interactivity</dt><dd>Intake form — sectioned questions, conditional reveals, per-question notes, structured JSON round-trip.</dd>
+    </dl>
+  </details>
+</div>
+
+<script>
+const STORE_KEY = "intake_" + FORM_ID;
+document.getElementById("docTitle").textContent = TITLE;
+document.getElementById("hTitle").innerHTML = TITLE.replace(/\*(.+?)\*/g,'<span class="accent">$1</span>');
+document.getElementById("hSub").textContent = SUBTITLE;
+
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch(e){}
+const form = document.getElementById("form");
+
+function el(tag, attrs={}, ...kids){
+  const n=document.createElement(tag);
+  for(const k in attrs){ if(k==="class")n.className=attrs[k]; else if(k==="html")n.innerHTML=attrs[k]; else n.setAttribute(k,attrs[k]); }
+  kids.forEach(c=> n.appendChild(typeof c==="string"?document.createTextNode(c):c));
+  return n;
+}
+
+// flatten questions for lookups
+const ALLQ = {};
+SCHEMA.forEach(s=>s.questions.forEach(q=>ALLQ[q.id]=q));
+
+function addNoteChannel(wrap, qid){
+  const nw = el("div",{class:"note-wrap"});
+  const btn = el("button",{type:"button",class:"note-toggle"}, "💬 note to Claude");
+  const box = el("textarea",{class:"note-box","data-note":qid, placeholder:"Talk back: a caveat, a question, 'not sure because…', context…"});
+  if(saved["note::"+qid]){ box.value=saved["note::"+qid]; box.classList.add("show"); }
+  btn.addEventListener("click",()=> box.classList.toggle("show"));
+  nw.appendChild(btn); nw.appendChild(box);
+  wrap.appendChild(nw);
+}
+
+function buildSkip(wrap, qid){
+  const lbl = wrap.querySelector("label.qlabel");
+  const skip = el("label",{class:"skip"});
+  const cb = el("input",{type:"checkbox","data-skip":qid, style:"accent-color:var(--muted);"});
+  if(saved["skip::"+qid]) cb.checked=true;
+  cb.addEventListener("change",()=>{ persist(); updateProgress(); });
+  skip.appendChild(cb); skip.appendChild(document.createTextNode(" skip / not sure"));
+  lbl.appendChild(skip);
+}
+
+SCHEMA.forEach(sec=>{
+  const card=el("section",{class:"card", id:"sec-"+sec.id});
+  const h2=el("h2",{});
+  if(sec.ico) h2.appendChild(el("span",{class:"ico"},sec.ico));
+  h2.appendChild(document.createTextNode(sec.title));
+  card.appendChild(h2);
+  if(sec.sub) card.appendChild(el("p",{class:"sub"},sec.sub));
+
+  sec.questions.forEach(q=>{
+    const wrap=el("div",{class:"q", id:"q-"+q.id, "data-qid":q.id});
+    const lab=el("label",{class:"qlabel"});
+    lab.appendChild(document.createTextNode(q.label));
+    if(q.hint) lab.appendChild(el("span",{class:"hint"}," — "+q.hint));
+    wrap.appendChild(lab);
+
+    if(q.type==="text"||q.type==="number"){
+      const inp=el("input",{type:q.type==="number"?"number":"text","data-id":q.id, placeholder:q.placeholder||""});
+      if(saved[q.id]!==undefined) inp.value=saved[q.id]; else if(q.prefill) inp.value=q.prefill;
+      wrap.appendChild(inp);
+    } else if(q.type==="textarea"){
+      const inp=el("textarea",{"data-id":q.id, placeholder:q.placeholder||""});
+      if(saved[q.id]!==undefined) inp.value=saved[q.id]; else if(q.prefill) inp.value=q.prefill;
+      wrap.appendChild(inp);
+    } else if(q.type==="radio"||q.type==="checkbox"){
+      const opts=el("div",{class:"opts"});
+      const cur = saved[q.id]!==undefined ? saved[q.id] : q.prefill;
+      q.options.forEach(o=>{
+        const labo=el("label",{class:"opt"});
+        const inp=el("input",{type:q.type, name:q.id, value:o, "data-id":q.id});
+        if(q.type==="checkbox" && Array.isArray(cur) && cur.includes(o)){ inp.checked=true; labo.classList.add("checked"); }
+        if(q.type==="radio" && cur===o){ inp.checked=true; labo.classList.add("checked"); }
+        inp.addEventListener("change",()=>{
+          if(q.type==="radio") opts.querySelectorAll(".opt").forEach(x=>x.classList.remove("checked"));
+          labo.classList.toggle("checked", inp.checked);
+          persist(); applyConditionals(); updateProgress();
+        });
+        labo.appendChild(inp); labo.appendChild(document.createTextNode(o));
+        opts.appendChild(labo);
+      });
+      wrap.appendChild(opts);
+    } else if(q.type==="matrix"){
+      const grid=el("div",{});
+      q.rows.forEach(r=>{
+        const row=el("div",{class:"grid2", style:"margin-bottom:8px; align-items:end;"});
+        const left=el("div",{});
+        left.appendChild(el("span",{class:"row-label"}, r));
+        const sel=el("select",{"data-matrix":q.id,"data-row":r});
+        ["— status —", ...q.statuses].forEach(s=> sel.appendChild(el("option",{value:s==="— status —"?"":s}, s)));
+        const mkey="matrix::"+q.id+"::"+r;
+        if(saved[mkey]) sel.value=saved[mkey];
+        left.appendChild(sel);
+        const right=el("div",{});
+        right.appendChild(el("span",{class:"row-label"}, "note (optional)"));
+        const note=el("input",{type:"text","data-matrixnote":q.id,"data-row":r, placeholder:"detail for Claude"});
+        const nkey="matrixnote::"+q.id+"::"+r;
+        if(saved[nkey]) note.value=saved[nkey];
+        right.appendChild(note);
+        row.appendChild(left); row.appendChild(right);
+        grid.appendChild(row);
+      });
+      wrap.appendChild(grid);
+    }
+
+    if(q.type!=="matrix"){ buildSkip(wrap, q.id); addNoteChannel(wrap, q.id); }
+    card.appendChild(wrap);
+  });
+  form.appendChild(card);
+});
+
+function conditionMet(cond){
+  if(!cond) return true;
+  const src = collectRaw()[cond.id];
+  if(src===undefined) return false;
+  if(cond.equals!==undefined){
+    return Array.isArray(src) ? src.includes(cond.equals) : src===cond.equals;
+  }
+  if(cond.in!==undefined){
+    if(Array.isArray(src)) return src.some(v=>cond.in.includes(v));
+    return cond.in.includes(src);
+  }
+  return true;
+}
+function applyConditionals(){
+  SCHEMA.forEach(s=>s.questions.forEach(q=>{
+    if(q.showIf){
+      const wrap=document.getElementById("q-"+q.id);
+      if(wrap) wrap.classList.toggle("hidden", !conditionMet(q.showIf));
+    }
+  }));
+}
+
+// raw answer values (no notes/skips), used for conditionals + progress
+function collectRaw(){
+  const data={};
+  form.querySelectorAll("input,textarea,select").forEach(inp=>{
+    const id=inp.getAttribute("data-id"); if(!id) return;
+    if(inp.type==="checkbox"){ if(inp.checked){ data[id]=data[id]||[]; data[id].push(inp.value);} }
+    else if(inp.type==="radio"){ if(inp.checked) data[id]=inp.value; }
+    else { if(inp.value.trim()!=="") data[id]=inp.value.trim(); }
+  });
+  return data;
+}
+
+function persist(){
+  const store={};
+  form.querySelectorAll("input,textarea,select").forEach(inp=>{
+    const id=inp.getAttribute("data-id");
+    if(id){
+      if(inp.type==="checkbox"){ if(inp.checked){ store[id]=store[id]||[]; store[id].push(inp.value);} }
+      else if(inp.type==="radio"){ if(inp.checked) store[id]=inp.value; }
+      else if(inp.value.trim()!=="") store[id]=inp.value.trim();
+    }
+    const note=inp.getAttribute("data-note"); if(note && inp.value.trim()!=="") store["note::"+note]=inp.value.trim();
+    const skip=inp.getAttribute("data-skip"); if(skip && inp.checked) store["skip::"+skip]=true;
+    const mx=inp.getAttribute("data-matrix"), mxr=inp.getAttribute("data-row");
+    if(mx && inp.value) store["matrix::"+mx+"::"+mxr]=inp.value;
+    const mn=inp.getAttribute("data-matrixnote"), mnr=inp.getAttribute("data-row");
+    if(mn && inp.value.trim()!=="") store["matrixnote::"+mn+"::"+mnr]=inp.value.trim();
+  });
+  localStorage.setItem(STORE_KEY, JSON.stringify(store));
+}
+
+function visibleQuestions(){
+  const out=[];
+  SCHEMA.forEach(s=>s.questions.forEach(q=>{
+    if(q.showIf && !conditionMet(q.showIf)) return;
+    out.push(q);
+  }));
+  return out;
+}
+
+function updateProgress(){
+  const raw=collectRaw();
+  const vis=visibleQuestions();
+  let total=0, answered=0;
+  vis.forEach(q=>{
+    if(q.type==="matrix"){ q.rows.forEach(r=>{ total++; if(saved2matrix(q.id,r)) answered++; }); }
+    else { total++; const sk=document.querySelector('[data-skip="'+q.id+'"]'); if(raw[q.id]!==undefined || (sk&&sk.checked)) answered++; }
+  });
+  const pct= total?Math.min(100,Math.round(answered/total*100)):0;
+  document.getElementById("pfill").style.width=pct+"%";
+  document.getElementById("plabel").textContent=pct+"% answered ("+answered+"/"+total+")";
+}
+function saved2matrix(qid,row){
+  const sel=document.querySelector('[data-matrix="'+qid+'"][data-row="'+CSS.escape(row)+'"]');
+  return sel && sel.value;
+}
+
+function generate(){
+  persist();
+  const raw=collectRaw();
+  const answers={};
+  const human=["=== "+TITLE+" — SUMMARY ===",""];
+  SCHEMA.forEach(sec=>{
+    const rows=[];
+    sec.questions.forEach(q=>{
+      if(q.showIf && !conditionMet(q.showIf)) return; // skip hidden
+      const skipEl=document.querySelector('[data-skip="'+q.id+'"]');
+      const skipped = skipEl && skipEl.checked;
+      const noteEl=document.querySelector('[data-note="'+q.id+'"]');
+      const note = noteEl ? noteEl.value.trim() : "";
+      if(q.type==="matrix"){
+        const val={}, notes={};
+        q.rows.forEach(r=>{
+          const sel=document.querySelector('[data-matrix="'+q.id+'"][data-row="'+CSS.escape(r)+'"]');
+          const nt=document.querySelector('[data-matrixnote="'+q.id+'"][data-row="'+CSS.escape(r)+'"]');
+          if(sel&&sel.value) val[r]=sel.value;
+          if(nt&&nt.value.trim()) notes[r]=nt.value.trim();
+        });
+        if(Object.keys(val).length||Object.keys(notes).length){
+          answers[q.id]={value:val, notes:notes};
+          rows.push("  • "+q.label+":");
+          q.rows.forEach(r=>{ if(val[r]||notes[r]) rows.push("      - "+r+": "+(val[r]||"—")+(notes[r]?(" ("+notes[r]+")"):"")); });
+        }
+      } else {
+        const v=raw[q.id];
+        if(skipped){ answers[q.id]={skipped:true, ...(note?{note}:{})}; rows.push("  • "+q.label+": [skipped]"+(note?(" — note: "+note):"")); }
+        else if(v!==undefined){ answers[q.id]={value:Array.isArray(v)?v:v, ...(note?{note}:{})};
+          rows.push("  • "+q.label+": "+(Array.isArray(v)?v.join(", "):v)+(note?("  — note: "+note):"")); }
+        else if(note){ answers[q.id]={note}; rows.push("  • "+q.label+": (no answer) — note: "+note); }
+      }
+    });
+    if(rows.length){ human.push("["+sec.title+"]", ...rows, ""); }
+  });
+  const json={ form: FORM_ID, answers };
+  const block = "```INTAKE-JSON\n"+JSON.stringify(json,null,2)+"\n```";
+  const full = human.join("\n")+"\n\n--- paste the block below to Claude ---\n\n"+block;
+  const out=document.getElementById("out");
+  out.textContent=full; out.style.display="block";
+  document.getElementById("copyBtn").style.display="inline-block";
+  out.scrollIntoView({behavior:"smooth", block:"center"});
+  window.__lastOut = block; // copy the machine block specifically
+  window.__lastFull = full;
+  toast("Summary ready — Copy & paste to Claude");
+}
+
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1900); }
+
+form.addEventListener("input", ()=>{ persist(); applyConditionals(); updateProgress(); });
+document.getElementById("saveBtn").addEventListener("click",()=>{ persist(); toast("Draft saved"); });
+document.getElementById("genBtn").addEventListener("click", generate);
+document.getElementById("copyBtn").addEventListener("click",()=>{
+  navigator.clipboard.writeText(window.__lastFull||"").then(()=>toast("Copied — paste to Claude"));
+});
+
+applyConditionals();
+updateProgress();
+</script>
+</body>
+</html>
