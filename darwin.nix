@@ -119,7 +119,11 @@
   homebrew = {
     enable = true;
     onActivation = {
-      cleanup = "zap";  # Uninstall packages not listed here
+      # "uninstall" removes Homebrew packages not listed here but, unlike "zap",
+      # respects dependencies. "zap" tried to remove ca-certificates/openssl@3/etc.
+      # that gcloud-cli depends on, producing a "Refusing to uninstall ... required
+      # by gcloud-cli" error on every run. "uninstall" is dependency-aware and quiet.
+      cleanup = "uninstall";
       autoUpdate = true;
       upgrade = true;
     };
@@ -141,6 +145,7 @@
       "linearmouse"   # Fast-scroll when holding modifier key (configured in home.nix)
       "superwhisper"
       "raycast"
+      "thaw"          # Menu bar manager (Ice fork) for macOS 26+
       "ticktick"
       "finetune"
     ];
