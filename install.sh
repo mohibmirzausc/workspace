@@ -17,10 +17,16 @@ if [[ "$(uname)" == "Darwin" ]]; then
 
   # Run darwin-rebuild with sudo (it needs root for system activation).
   # Pass USER/HOME through sudo and use --impure so the flake can read them at build time.
-  # NONINTERACTIVE=1 makes `brew bundle cleanup` (homebrew.onActivation.cleanup = "zap")
-  # skip its "Do you want to proceed with the cleanup? [y/n]" prompt so the
-  # install runs unattended instead of blocking on stdin.
-  sudo USER="$USER" HOME="$HOME" NONINTERACTIVE=1 nix --extra-experimental-features "nix-command flakes" run nix-darwin -- switch --flake .#darwin --impure
+  #
+  # Homebrew runs during activation and otherwise blocks on
+  #   ==> Do you want to proceed with the cleanup? [y/n]
+  # These env vars make it fully non-interactive:
+  #   NONINTERACTIVE=1               - brew never prompts (answers yes to confirmations)
+  #   HOMEBREW_NO_INSTALL_CLEANUP=1  - skip the post-install cleanup that raises that prompt
+  #   HOMEBREW_NO_ENV_HINTS=1        - silence the "Hide these hints..." noise
+  sudo USER="$USER" HOME="$HOME" \
+    NONINTERACTIVE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1 \
+    nix --extra-experimental-features "nix-command flakes" run nix-darwin -- switch --flake .#darwin --impure
 
   # Garbage-collect old generations so the nix store doesn't grow unbounded.
   # On Determinate Nix (nix.enable = false) nix-darwin does NOT manage the daemon,
