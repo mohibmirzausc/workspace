@@ -133,6 +133,8 @@
     # Concourse's `fly` CLI at /usr/local/bin/fly. See home.activation.removeBrewFlyLink.
     brews = [
       "flyctl"
+      "pi-coding-agent"  # Pi terminal coding agent (pi.dev). Homebrew ships it
+                         # ahead of nixpkgs and autoUpdate/upgrade keep it current.
     ];
     casks = [
       "1password-cli"
