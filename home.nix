@@ -82,8 +82,9 @@ in
     htmlPagesServer  # `html-pages-server`: local gallery at localhost:7777
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     (callPackage ./programs/claude-code-tools/package.nix {} )
-    (callPackage ./programs/pi-agent {} )
-    # Pi shells out to rg/fd; providing them on PATH skips the runtime download.
+    # Pi itself is installed via Homebrew (see darwin.nix homebrew.brews) so it
+    # stays current automatically. It shells out to rg/fd; providing them on
+    # PATH here skips Pi's runtime download of those tools.
     ripgrep
     fd
     # direnv already configured in programs.direnv
