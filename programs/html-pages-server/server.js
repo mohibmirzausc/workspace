@@ -99,12 +99,17 @@ function readPageMeta(dirName, indexPath, stat) {
   try {
     const sidecar = JSON.parse(fs.readFileSync(path.join(ROOT, dirName, 'meta.json'), 'utf8'));
     const dm = dirName.match(/^(\d{4}-\d{2}-\d{2})/);
+    // Coerce every field to a string. The client renderer assumes strings; a
+    // sidecar that (understandably) writes keywords as an array — or any other
+    // non-string — would otherwise blow up esc() and blank the WHOLE gallery.
+    const str = (v) => Array.isArray(v) ? v.filter(Boolean).join(' · ')
+      : (v == null ? '' : String(v));
     meta = {
-      title: sidecar.title || extractTitleOnly(indexPath) || dirName,
-      style: sidecar.style || '',
-      keywords: sidecar.keywords || '',
-      recreate: sidecar.recreate || sidecar.recreatePrompt || '',
-      date: sidecar.date || (dm ? dm[1] : stat.mtime.toISOString().slice(0, 10)),
+      title: str(sidecar.title) || extractTitleOnly(indexPath) || dirName,
+      style: str(sidecar.style),
+      keywords: str(sidecar.keywords),
+      recreate: str(sidecar.recreate) || str(sidecar.recreatePrompt),
+      date: str(sidecar.date) || (dm ? dm[1] : stat.mtime.toISOString().slice(0, 10)),
     };
   } catch { /* no/invalid sidecar → fall through to regex */ }
 
@@ -296,7 +301,7 @@ function galleryHtml() {
       const a = document.createElement('a');
       a.className = 'card';
       a.href = '/pages/' + encodeURIComponent(p.dir) + '/';
-      const esc = (s) => (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
       a.innerHTML =
         '<h2>' + esc(p.title) + '</h2>' +
         '<div class="meta"><span>' + esc(p.date) + '</span></div>' +
