@@ -7,6 +7,36 @@ that entire knowledge and pick one.** This file is NOT the list of options. It i
 a tiny set of examples whose only job is to *break you out of your defaults* so
 you remember how vast the space is.
 
+## Before you pick — MANDATORY recency check
+
+You are bad at "just pick something different" — left to yourself you converge,
+especially when the *content* is technical (build pipelines, CVEs, merge queues),
+which pulls hard toward blueprint / schematic / dossier / terminal looks. So do
+NOT choose from memory. First run this and read the output:
+
+```bash
+for d in $(ls -dt ~/html-pages/*/ 2>/dev/null | head -8); do
+  grep -o '"style"[^,}]*' "$d/meta.json" 2>/dev/null | head -1
+done
+```
+
+Then apply these hard rules (not suggestions):
+
+1. **Never repeat a style in the last 8 pages** — not the exact string, and not a
+   near-synonym (e.g. "Engineering Blueprint" and "Technical Schematic" are the
+   same style; "Security Dossier" and "Redacted Case File" are the same style).
+2. **Family cap.** The **technical-utility family** — blueprint, schematic,
+   engineering/patent drawing, cyanotype, dossier/case-file, CRT/terminal/console,
+   CI-pipeline diagram, transit/wayfinding map — is your default attractor. If ANY
+   member of that family appears in the last 5 pages, the **entire family is banned
+   for this page.** Pick from somewhere else in the world entirely.
+3. When in doubt, deliberately jump to a *different axis*: if recent pages were
+   dark/mono/technical, go light/serif/organic/decorative (and vice-versa).
+
+The content does NOT dictate the aesthetic. A CVE report can be an Art Nouveau
+botanical plate, a 1960s recipe card, or a Persian miniature — the tension between
+dry content and an unexpected style is the whole point.
+
 ## How to pick
 
 - **Sample broadly across your whole embedding of styles** and commit to one.
@@ -27,7 +57,9 @@ you remember how vast the space is.
 ## A few seeds (to escape from, not choose among)
 
 These are here only to remind you the space is huge — do NOT treat them as the
-menu. The best page is often a style that is NOT on this list.
+menu. The best page is often a style that is NOT on this list. Note how FEW of
+these are technical/blueprint looks — that's deliberate. The world is mostly
+*not* schematics.
 
 Swiss/International Typographic · Brutalism · Neo-brutalism · Bauhaus · Art Deco ·
 Memphis · Vaporwave · Y2K/Frutiger Aero · Editorial/Magazine · Blackletter

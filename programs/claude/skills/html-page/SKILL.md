@@ -25,14 +25,16 @@ file the page into a browsable gallery so the user can find it later.
 1. **Read the content** the user wants rendered. Understand what it is (review
    doc? plan? reference? landing page?).
 2. **Pick a style — from the whole world, not a list.** If the user named one,
-   use it. Otherwise reach into your *entire* knowledge of design styles
-   (movements, eras, regional traditions, subcultures, mediums, invented hybrids)
-   and pick one. `styles.md` holds a few **seeds to escape from, not a menu** —
-   the best page is often a style that isn't listed there. No bias toward safe or
-   toward radical: the user loves **variety** for its own sake, so over time it
-   should feel like a tour of the world. **Avoid recent repeats:** check
-   `~/html-pages/` (the gallery shows past styles) and go somewhere genuinely
-   different from the last few. Light/dark, serif/mono, famous/obscure — all fair.
+   use it. Otherwise: **first do the MANDATORY recency check in `styles.md`** —
+   run the one-liner that lists the last 8 pages' styles and read it BEFORE
+   choosing. Do not pick from memory; you converge when you do. Then reach into
+   your *entire* knowledge of design styles (movements, eras, regional traditions,
+   subcultures, mediums, invented hybrids) and pick one that obeys the two hard
+   rules in `styles.md`: **no repeat (or near-synonym) in the last 8 pages**, and
+   **if the technical-utility family (blueprint/schematic/dossier/terminal/CI/
+   transit-map) appeared in the last 5 pages, that whole family is banned.** The
+   content does not dictate the aesthetic — dry content in an unexpected style is
+   the point. Light/dark, serif/mono, famous/obscure — all fair.
 3. **Pick an interactivity pattern** from `styles.md` that *fits the content* —
    this is a content-fit decision, NOT a random roll. Static text is a fully
    valid choice when interaction would be noise. (Across many pages you'll
@@ -179,6 +181,11 @@ Pages live under `~/html-pages/`, **one dated folder per page**:
 - **Converging on a handful of styles.** The style space is the whole world, not
   the `styles.md` seeds and not your three favorites. Genuinely vary across
   pages — reach for styles you haven't touched, including obscure ones.
+- **Letting technical content pull you to technical styles.** The #1 real-world
+  failure: technical docs (CVEs, pipelines, merge queues) keep coming out as
+  blueprints / schematics / dossiers / terminals. That is convergence, not
+  variety. Run the recency check and honor the family ban in `styles.md` — the
+  content must NOT dictate the aesthetic.
 - **Treating `styles.md` as a menu.** It's seeds to escape from. Picking only from
   that list defeats the point; the best page is often a style not listed there.
 - **Hand-maintaining a gallery index.** Don't — the live server builds it. Just
