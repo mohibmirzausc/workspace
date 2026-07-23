@@ -30,7 +30,7 @@ if (!document.getElementById(STYLE_ID)) {
   const s = document.createElement("style");
   s.id = STYLE_ID;
   s.textContent = `
-    .mydash { --c-blue:#4772fa; --c-green:#22c55e; /* ...vars... */ }
+    .mydash { --color-blue:#4772fa; --color-green:#22c55e; /* ...vars... */ }
     .mydash .widget { background:var(--code-background); border-radius:16px; padding:16px 18px;
       display:flex; flex-direction:column; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,.15); }
     .mydash .columnParent { display:flex; gap:14px; align-items:flex-start; }
@@ -150,6 +150,15 @@ is wrong. Fonts fail silently to the default, so you can't tell by eye.
 - **Scope every query** to exclude noise: keep a `NOISE = ["_Templates","_Scripts",
   "_Experiments",".obsidian", ...]` array and `.where(p => !NOISE.some(x =>
   p.file.path.includes(x)))`. Otherwise templates/experiments pollute counts.
+- **Empty-but-present frontmatter is a trap.** A field can exist on every note yet
+  be blank (`author:` with no value). An existence check (`p.author`) passes but the
+  widget renders empty. Verify fields are NON-EMPTY before building a widget on them:
+  `.where(p => p.author && String(p.author).trim())`. When inspecting the vault,
+  `grep '^field:\s*\S'` (note the `\S`) to count notes with an actual value.
+- **`etags` picks up body-tag junk** in clipping/web-capture-heavy vaults (e.g.
+  `#bypass` from URL fragments inside note bodies). For a clean tag cloud, prefer
+  frontmatter tags (`p.file.frontmatter?.tags`) or filter etags (drop lowercase-only
+  noise, keep CamelCase / known tags). Don't assume a raw `etags` tally is clean.
 - **Dataview `dv.pages(source)` string exclusion is unreliable** — a bad source
   expression silently returns ALL pages. Do exclusion in JS `.where()`, not in the
   source string.
@@ -216,6 +225,11 @@ When layout/CSS is wrong, DON'T iterate blindly on selectors from a screenshot.
 - Ask the user to paste `[...document.querySelectorAll('.YOURCLASS .columnChild')][0].outerHTML`
   if you need the exact structure. (Note: `copy()` in console returns `undefined` —
   that's normal, it still copies to clipboard.)
+- **Verify backtick fences with Python, not shell grep.** Counting five-backtick
+  fences via `grep -c '^\`\`\`\`\`col'` inside a Bash `echo`/`$()` breaks in zsh
+  (backticks trigger command substitution). Use Python instead:
+  `python3 -c "s=open('DASH.md').read(); print(s.count(chr(96)*5+'col'), s.count(chr(96)*4+'col-md'))"`.
+  Same for extracting dataviewjs blocks to `node --check` — regex in Python is reliable.
 
 ## Make it PROFESSIONAL, not just correct (do this by default)
 
