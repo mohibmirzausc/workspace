@@ -12,6 +12,41 @@ Why: widgets styled with inline CSS render identically regardless of theme, and
 you get full control over layout. `dv.el()`/`dv.table()` + external CSS is
 fragile — selectors miss, themes override, and you spend hours chasing it.
 
+### DEFAULT TO SELF-STYLING (inject CSS from the note)
+
+**The single most important lesson:** put the dashboard's CSS INSIDE the note by
+injecting a `<style>` tag from a dataviewjs block at the top — do NOT rely on an
+external `.obsidian/snippets/*.css` file. An external snippet renders as an ugly
+UNSTYLED page until the user manually reloads/enables the snippet, and there's no
+signal telling them that's the problem — they just conclude "the dashboard is
+broken/ugly." Self-styling notes render commercial-grade INSTANTLY, need no
+snippet enabled, no reload, and survive being shared/synced.
+
+Style-injector block (put it right after the H1, before the columns). Guard with
+an id so it's idempotent across re-renders:
+```js
+const STYLE_ID = "mydash-styles";
+if (!document.getElementById(STYLE_ID)) {
+  const s = document.createElement("style");
+  s.id = STYLE_ID;
+  s.textContent = `
+    .mydash { --c-blue:#4772fa; --c-green:#22c55e; /* ...vars... */ }
+    .mydash .widget { background:var(--code-background); border-radius:16px; padding:16px 18px;
+      display:flex; flex-direction:column; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,.15); }
+    .mydash .columnParent { display:flex; gap:14px; align-items:flex-start; }
+    .mydash .columnParent .columnChild { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
+    /* ...all widget classes (tiles, ring, rows, bars)... */
+  `;
+  document.head.appendChild(s);
+}
+```
+The note still uses `cssclasses: [mydash]` in frontmatter — that class is just the
+selector hook; it does NOT require any snippet. `lib/dashboard.css` remains a handy
+reference for the rule set to copy INTO the injector, but ship it in the note.
+
+Only use an external snippet if the user explicitly wants shared styling across
+many dashboards AND accepts they must reload it. Otherwise: self-style.
+
 Minimal widget:
 ```js
 const T = dv.container;

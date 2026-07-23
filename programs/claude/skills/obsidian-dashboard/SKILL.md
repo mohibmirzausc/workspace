@@ -46,15 +46,17 @@ Confirm these are installed (you can prep configs but the USER installs plugins)
 2. **Confirm plugins** are installed (Dataview + Columns minimum). If missing,
    give exact install steps and stop until confirmed.
 3. **Read `reference.md`** — the technique + every gotcha. Do not skip.
-4. **Copy the starter assets** from `lib/` into the vault:
-   - `lib/dashboard.css` → `.obsidian/snippets/<name>.css`, enable it in
-     `.obsidian/appearance.json`, scope its class to a unique `cssclass`.
-   - Fonts (if used) go **IN** `.obsidian/snippets/`, referenced by bare
-     filename — relative `../` paths fail in Obsidian's CSS sandbox.
-   - `lib/widgets.md` → copy/adapt the widget snippets you need.
-5. **Build the note**: `cssclasses: [<your-class>]` frontmatter, optional banner,
-   then `` `````col `` wrapping `` ````col-md `` columns, ONE dataviewjs block per
-   column (see reference for the backtick-nesting rule).
+4. **Build the note SELF-STYLING** (the default — see reference.md "DEFAULT TO
+   SELF-STYLING"): a dataviewjs block at the top injects a `<style>` tag holding
+   ALL the dashboard CSS, so it renders commercial-grade instantly with no snippet
+   to enable and no reload. Use `lib/dashboard.css` as the rule set to copy INTO
+   that injector. This is what makes it look professional out of the box —
+   external snippets render as an ugly unstyled page until manually reloaded.
+   (Fonts, if used, still need `.obsidian/snippets/` + bare filename.)
+5. **Lay out the note**: `cssclasses: [<your-class>]` frontmatter (just a selector
+   hook, needs no snippet), optional banner, the style-injector block, then
+   `` `````col `` wrapping `` ````col-md `` columns, ONE dataviewjs block per column
+   (backtick-nesting rule in reference). Use `lib/widgets.md` for widgets.
 6. **Scope every query** to exclude noise folders (templates, scripts,
    experiments, `.obsidian`) so counts/lists stay accurate.
 6b. **Polish it — don't ship bare.** Correct-but-plain looks terrible. Use
