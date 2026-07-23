@@ -1,0 +1,106 @@
+/* =========================================================================
+   dashboard.css — starter snippet for an Obsidian widget dashboard.
+   1. Rename `.dash` below to a unique class (e.g. `.launchpad-exp`).
+   2. Put this file in `.obsidian/snippets/` and enable it in appearance.json.
+   3. Set `cssclasses: [dash]` in the dashboard note's frontmatter.
+   4. If using fonts, drop the .ttf files IN `.obsidian/snippets/` (see @font-face).
+   Fallbacks are included for vars that some themes don't define.
+   ========================================================================= */
+
+/* Fonts must live in the snippets folder; bare filename (relative paths fail). */
+/* @font-face { font-family:"Heading"; src:url("Heading.ttf") format("truetype"); } */
+
+.dash {
+  --bases-cards-radius: 12px;
+  --bg-color: var(--background-primary);
+}
+
+/* ---- full width (override Readable line length) ---- */
+.dash .markdown-preview-sizer,
+.dash.markdown-preview-view .markdown-preview-sizer,
+.markdown-reading-view:has(.dash) .markdown-preview-sizer,
+.workspace-leaf-content:has(.dash) .markdown-preview-sizer,
+.dash .cm-sizer,
+.dash .cm-contentContainer,
+.dash .markdown-source-view.mod-cm6 .cm-content {
+  max-width: none !important; width: 100% !important; margin: 0 !important;
+  padding-left: 12px !important; padding-right: 12px !important;
+}
+
+/* ---- hide chrome ---- */
+.dash .inline-title,
+.dash .metadata-properties-heading,
+.dash .metadata-container,
+.dash .view-header,
+.dash .dataview-error-message { display: none; }
+.dash * { border: none; }
+
+/* ---- banner image ---- */
+.dash img { width: 100%; border-radius: 24px; max-height: 300px; object-fit: cover; }
+
+/* ---- Columns plugin layout ---- */
+.dash .block-language-col-md { display: flex; flex-direction: column; justify-content: flex-start; }
+.dash .columnParent { width: 100%; display: flex; flex-wrap: nowrap; align-items: stretch; justify-content: center; margin: 0; padding: 0; }
+.dash .block-language-col .columnParent { gap: 8px; }
+.dash .block-language-col { width: 100%; padding: 0 !important; margin: 0 !important; }
+/* each column is a flex-column with gap so stacked widgets are evenly spaced */
+.dash .columnParent .columnChild {
+  flex: 1; min-width: 0; height: auto; padding: 0 !important; margin: 0 !important;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.dash .columnChild > * { margin: 0 !important; }
+.dash .columnChild .block-language-dataviewjs > div,
+.dash .columnChild .block-language-dataviewjs > div > * { width: 100%; box-sizing: border-box; }
+
+/* ---- the widget card (core building block) ---- */
+.dash .widget {
+  width: auto; background-color: var(--code-background); color: var(--text-normal);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: var(--bases-cards-radius); gap: 8px; margin: 0; padding: 12px;
+}
+.dash .widget h1 {
+  font-size: medium; padding: 0; margin: 0; line-height: 2;
+  color: var(--text-accent); letter-spacing: 0.06em;
+  /* font-family: "Heading", var(--font-text); */
+}
+
+/* ---- stat rows ---- */
+.dash .stat { display: flex; justify-content: space-between; padding: 6px 10px;
+  background: var(--code-background); border-radius: var(--bases-cards-radius); font-size: small; }
+
+/* ---- nav / quick-access buttons ---- */
+.dash .nav-item {
+  background-color: var(--code-background); border-radius: var(--bases-cards-radius);
+  padding: 12px 16px; text-decoration: none; color: var(--text-normal);
+  font-size: small; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+  display: flex; align-items: center; height: 44px; box-sizing: border-box;
+  transition: background-color .2s ease, color .2s ease;
+}
+.dash .nav-item:hover { background-color: var(--text-accent); color: var(--bg-color); }
+
+/* ---- mini calendar ---- */
+.dash .mini-calendar { display: flex; gap: 6px; justify-content: center; padding: 10px;
+  background: var(--code-background); border-radius: var(--bases-cards-radius); }
+.dash .cal-day { width: 52px; text-align: center; padding: 8px 0; border-radius: var(--bases-cards-radius); font-size: 12px; }
+.dash .cal-day.today { background: var(--text-accent); color: var(--bg-color); font-weight: bold; }
+.dash .cal-day.has-note { background: var(--text-accent); opacity: .45; color: var(--bg-color); }
+.dash .cal-day .cal-label { font-size: 10px; opacity: .7; text-transform: uppercase; }
+.dash .cal-day .cal-num { font-size: 16px; font-weight: 600; }
+
+/* ---- recent/list rows (prefer <div> rows; if using <ul>, force full width) ---- */
+.dash .recent-notes, .dash .recent-notes ul, .dash .recent-notes li { width: 100%; }
+.dash .recent-notes ul { list-style: none; padding: 0 !important; margin: 0 !important; display: flex; flex-direction: column; gap: 8px; }
+.dash .recent-notes li { padding: 12px 16px !important; margin: 0 !important; background: var(--code-background);
+  border-radius: var(--bases-cards-radius); font-size: small; display: flex; justify-content: space-between;
+  align-items: center; height: 44px; box-sizing: border-box; list-style: none; transition: background-color .15s ease; }
+.dash .recent-notes li::marker { content: ""; }
+.dash .recent-notes li:hover { background: var(--text-accent); }
+.dash .recent-notes li:hover a { color: var(--bg-color) !important; }
+.dash .recent-notes a { text-decoration: none !important; color: var(--text-normal) !important; font-size: small !important; }
+.dash .recent-notes .recent-date { opacity: .5; font-size: 11px; }
+
+/* ---- section headers + embedded Bases ---- */
+.dash h2 { text-align: center; color: var(--text-accent); letter-spacing: 0.1em; }
+.dash .bases-cards-item { background: var(--code-background); border: none; box-shadow: none; }
+.dash .task-list-item { border: none; min-height: 40px; padding: 4px 0; }
+.dash .task-list-item:hover { background-color: transparent; }
