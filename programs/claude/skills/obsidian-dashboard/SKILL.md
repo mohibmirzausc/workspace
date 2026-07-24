@@ -57,6 +57,11 @@ Confirm these are installed (you can prep configs but the USER installs plugins)
    hook, needs no snippet), optional banner, the style-injector block, then
    `` `````col `` wrapping `` ````col-md `` columns, ONE dataviewjs block per column
    (backtick-nesting rule in reference). Use `lib/widgets.md` for widgets.
+5b. **Add the eager-load bootstrap** to the top (style-injector) block — Obsidian
+   lazy-renders code blocks, so blocks below the fold stay blank until scrolled
+   to. Append the scroll-through snippet (see reference.md failure mode 4) so the
+   whole dashboard loads on open with no scrolling. Do this by default on any
+   dashboard tall enough to scroll.
 6. **Scope every query** to exclude noise folders (templates, scripts,
    experiments, `.obsidian`) so counts/lists stay accurate.
 6b. **Polish it — don't ship bare.** Correct-but-plain looks terrible. Use
@@ -73,7 +78,7 @@ Confirm these are installed (you can prep configs but the USER installs plugins)
    INSPECT the DOM / read plugin source rather than guessing at selectors (see
    reference.md → "Meta-lesson: don't guess").
 
-## The three failure modes (from reference.md — check these first)
+## The four failure modes (from reference.md — check these first)
 
 1. **Gaps between widgets** → put ALL widgets for a column in ONE dataviewjs
    block, wrapped in `<div style="display:flex;flex-direction:column;gap:8px">`.
@@ -82,6 +87,9 @@ Confirm these are installed (you can prep configs but the USER installs plugins)
    AND a strong CSS override on the sizer; also disable "Readable line length".
 3. **Fonts not loading** → keep font files IN `.obsidian/snippets/`, reference
    by bare filename. Check DevTools console for `ERR_FILE_NOT_FOUND`.
+4. **Blocks blank until scrolled to** → Obsidian lazy-renders code blocks; add
+   the eager-load scroll-through snippet to the top block so all blocks render on
+   open (reference.md failure mode 4).
 
 ## Verifying
 

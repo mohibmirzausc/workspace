@@ -84,7 +84,7 @@ for spacing (see Gotchas).
 The plugin's DOM: `.columnParent` > `.columnChild` (widgets live directly inside
 `.columnChild`). Confirmed from the plugin source. Style/space via `.columnChild`.
 
-## The three failure modes and their fixes
+## The four failure modes and their fixes
 
 ### 1. Gaps missing between widgets / cards touching
 Cause: two separate markdown blocks (e.g. a dataviewjs widget + a raw `<div>`,
@@ -131,6 +131,40 @@ bare filename:
 ```
 Confirm in DevTools console — a red `ERR_FILE_NOT_FOUND: Font.ttf` means the path
 is wrong. Fonts fail silently to the default, so you can't tell by eye.
+
+### 4. Blocks below the fold don't load until you scroll to them
+Cause: Obsidian **lazy-renders code blocks** — a `dataviewjs` block only executes
+when an IntersectionObserver sees it near the viewport. On a tall multi-column
+dashboard, blocks below the fold sit **blank** until the user scrolls down to
+them. Zooming in makes it worse (more content pushed below the fold). Reads as
+"the dashboard is half-broken / only some widgets show up."
+
+Fix: **eager-load all blocks on open** from the top block. After the style
+injector runs, trip every block's observer by scrolling the preview container
+through its full height once, then snapping back. Self-contained (no plugin, no
+setting), travels with the note. Append this to the top (style-injector) block:
+```js
+// EAGER LOAD: force every lazy-rendered dataviewjs block to render on open.
+setTimeout(() => {
+  const scroller = dv.container.closest(".markdown-preview-view")
+    || dv.container.closest(".cm-scroller")
+    || dv.container.closest(".view-content");
+  if (!scroller) return;
+  const start = scroller.scrollTop, end = scroller.scrollHeight;
+  let y = 0; const step = Math.max(200, scroller.clientHeight * 0.8);
+  const tick = () => {
+    scroller.scrollTop = y; y += step;
+    if (y < end) requestAnimationFrame(tick);
+    else setTimeout(() => { scroller.scrollTop = start; }, 60);  // snap back to top
+  };
+  requestAnimationFrame(tick);
+}, 120);
+```
+Notes: the `120`ms delay lets the page mount first; the multi-selector fallback
+covers Reading view (`.markdown-preview-view`) AND Live Preview (`.cm-scroller`).
+Trade-off: a brief scroll flicker on open — acceptable for a dashboard you open
+once and leave. If the flicker is unwanted, jump straight to `end` then back with
+no intermediate steps (less smooth internally, but no visible travel).
 
 ## Other widget gotchas
 

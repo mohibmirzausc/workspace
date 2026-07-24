@@ -22,6 +22,32 @@ Column skeleton (this is the pattern — put chosen widgets between the markers)
 
 ---
 
+## Eager-load bootstrap (add to the TOP / style-injector block)
+
+Obsidian lazy-renders code blocks — blocks below the fold stay **blank** until
+scrolled to. Append this to the top block so the whole dashboard loads on open.
+See reference.md failure mode 4 for the why + the no-flicker variant.
+
+```js
+// EAGER LOAD: force every lazy-rendered dataviewjs block to render on open.
+setTimeout(() => {
+  const scroller = dv.container.closest(".markdown-preview-view")
+    || dv.container.closest(".cm-scroller")
+    || dv.container.closest(".view-content");
+  if (!scroller) return;
+  const start = scroller.scrollTop, end = scroller.scrollHeight;
+  let y = 0; const step = Math.max(200, scroller.clientHeight * 0.8);
+  const tick = () => {
+    scroller.scrollTop = y; y += step;
+    if (y < end) requestAnimationFrame(tick);
+    else setTimeout(() => { scroller.scrollTop = start; }, 60);
+  };
+  requestAnimationFrame(tick);
+}, 120);
+```
+
+---
+
 ## Stats card
 ```js
 const stat = (k,v)=>`<div class="stat"><span>${k}</span><span>${v}</span></div>`;
