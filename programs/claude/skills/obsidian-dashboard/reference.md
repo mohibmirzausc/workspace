@@ -22,24 +22,28 @@ signal telling them that's the problem — they just conclude "the dashboard is
 broken/ugly." Self-styling notes render commercial-grade INSTANTLY, need no
 snippet enabled, no reload, and survive being shared/synced.
 
-Style-injector block (put it right after the H1, before the columns). Guard with
-an id so it's idempotent across re-renders:
+Style-injector block (put it right after the H1, before the columns). Use an id
+to reuse ONE tag across re-renders, but **create-or-UPDATE** — always overwrite
+`textContent` — never skip-if-exists:
 ```js
 const STYLE_ID = "mydash-styles";
-if (!document.getElementById(STYLE_ID)) {
-  const s = document.createElement("style");
-  s.id = STYLE_ID;
-  s.textContent = `
-    .mydash { --color-blue:#4772fa; --color-green:#22c55e; /* ...vars... */ }
-    .mydash .widget { background:var(--code-background); border-radius:16px; padding:16px 18px;
-      display:flex; flex-direction:column; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,.15); }
-    .mydash .columnParent { display:flex; gap:14px; align-items:flex-start; }
-    .mydash .columnParent .columnChild { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
-    /* ...all widget classes (tiles, ring, rows, bars)... */
-  `;
-  document.head.appendChild(s);
-}
+let s = document.getElementById(STYLE_ID);
+if (!s) { s = document.createElement("style"); s.id = STYLE_ID; document.head.appendChild(s); }
+s.textContent = `
+  .mydash { --color-blue:#4772fa; --color-green:#22c55e; /* ...vars... */ }
+  .mydash .widget { background:var(--code-background); border-radius:16px; padding:16px 18px;
+    display:flex; flex-direction:column; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,.15); }
+  .mydash .columnParent { display:flex; gap:14px; align-items:flex-start; }
+  .mydash .columnParent .columnChild { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
+  /* ...all widget classes (tiles, ring, rows, bars)... */
+`;
 ```
+**CRITICAL — do NOT use `if (!document.getElementById(STYLE_ID)) { ...create... }`.**
+That skip-if-exists guard means: once the tag exists (from an earlier render), any
+CSS you *edit* is silently ignored — the stale tag persists and your new rules never
+apply — until a full app restart. This reads as "my CSS edit did nothing / the new
+widgets are unstyled." Always refresh `textContent` (as above) so edits take effect
+on the next re-render. This is the single most confusing self-styling failure.
 The note still uses `cssclasses: [mydash]` in frontmatter — that class is just the
 selector hook; it does NOT require any snippet. `lib/dashboard.css` remains a handy
 reference for the rule set to copy INTO the injector, but ship it in the note.
