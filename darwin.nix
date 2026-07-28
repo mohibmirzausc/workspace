@@ -140,6 +140,9 @@
       "1password-cli"
       "calibre"
       "claude-code@latest"  # Auto-updating Claude Code CLI (v2.1.140)
+      "cmux"          # Ghostty-based macOS terminal for running AI agents in
+                      # parallel; reads ~/.config/ghostty/config for appearance.
+                      # cmux-specific config in programs/cmux.nix. Auto-updates.
       "eqmac"         # System-wide EQ + gain; boosts output volume above 100%
                       # (e.g. to hear people better in Zoom). First launch needs
                       # a one-time audio-driver approval in System Settings.

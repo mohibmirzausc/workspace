@@ -11,6 +11,7 @@ in
     ./programs/karabiner.nix
     ./programs/raycast/raycast.nix
     ./programs/ghostty.nix
+    ./programs/cmux.nix
     ./programs/zellij.nix
     ./programs/tmux.nix
     ./programs/ticktick-sdk/config.nix
