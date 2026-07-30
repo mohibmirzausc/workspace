@@ -140,6 +140,8 @@
       "1password-cli"
       "calibre"
       "claude-code@latest"  # Auto-updating Claude Code CLI (v2.1.140)
+      "codex"         # OpenAI's terminal coding agent (github.com/openai/codex).
+                      # Depends on ripgrep (already provided in home.nix).
       "cmux"          # Ghostty-based macOS terminal for running AI agents in
                       # parallel; reads ~/.config/ghostty/config for appearance.
                       # cmux-specific config in programs/cmux.nix. Auto-updates.
