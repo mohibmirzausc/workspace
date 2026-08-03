@@ -35,9 +35,18 @@
       }
     ]
   },
+  "extraKnownMarketplaces": {
+    "momentum-tracker": {
+      "source": {
+        "source": "github",
+        "repo": "mechanical-orchard/momentum-tracker"
+      }
+    }
+  },
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true,
-    "beads@beads-marketplace": true
+    "beads@beads-marketplace": true,
+    "momentum@momentum-tracker": true
   },
   "alwaysThinkingEnabled": false,
   "statusLine": {
