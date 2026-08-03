@@ -40,6 +40,38 @@ if [[ "$(uname)" == "Darwin" ]]; then
     NONINTERACTIVE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ENV_HINTS=1 \
     nix --extra-experimental-features "nix-command flakes" run nix-darwin -- switch --flake .#darwin --impure
 
+  # Re-run home-manager's user activation explicitly.
+  #
+  # The switch above reliably builds the correct home-manager generation into the
+  # system closure, but its user-activation step does not always run, so
+  # `linkGeneration` never fires and ~/ keeps symlinks into the PREVIOUS
+  # home-manager-files store path. The switch still reports success, so the
+  # result is a silent no-op: files under programs/ (claude skills, settings.json,
+  # ...) are built and staged but never linked, and stay stale until something
+  # forces activation. This was observed leaving ~/.claude pinned to an old
+  # generation across several switches, hiding newly added skills entirely.
+  #
+  # nix-darwin wraps the home-manager generation in an `activation-<user>` script
+  # and invokes it from `activate`. Re-running that script directly is idempotent
+  # (it just relinks the generation), so doing it unconditionally is safe and
+  # makes a stale-link outcome impossible.
+  #
+  # The path is scraped out of the just-activated `activate` script rather than
+  # hardcoded or evaluated separately, so it stays correct for any username and
+  # always matches the generation that was actually switched to.
+  echo "Re-running home-manager user activation..."
+  HM_ACTIVATE=$(grep -o '/nix/store/[a-z0-9]\{32\}-activation-[^ "]*' \
+    /nix/var/nix/profiles/system/activate 2>/dev/null | head -1)
+  if [ -n "$HM_ACTIVATE" ] && [ -x "$HM_ACTIVATE" ]; then
+    "$HM_ACTIVATE"
+    echo "home-manager user activation complete."
+  else
+    # Not fatal: the switch itself succeeded, and on a config with no
+    # home-manager user there is nothing to activate.
+    echo "Warning: could not locate the home-manager activation script;" >&2
+    echo "         files under programs/ may not be linked into \$HOME." >&2
+  fi
+
   # Garbage-collect old generations so the nix store doesn't grow unbounded.
   # On Determinate Nix (nix.enable = false) nix-darwin does NOT manage the daemon,
   # so nix.gc.automatic is ineffective — we GC explicitly here instead.
