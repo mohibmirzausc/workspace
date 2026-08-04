@@ -76,7 +76,6 @@ in
     go             # Go programming language
     just           # Command runner
     pre-commit     # Git pre-commit hooks
-    (callPackage ./programs/beads.nix {} )
     (callPackage ./programs/yaks.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
     (callPackage ./programs/claude-session.nix {} )
