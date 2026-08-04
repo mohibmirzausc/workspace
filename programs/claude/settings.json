@@ -45,7 +45,6 @@
   },
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true,
-    "beads@beads-marketplace": true,
     "momentum@momentum-tracker": true
   },
   "alwaysThinkingEnabled": false,
