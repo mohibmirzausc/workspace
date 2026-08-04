@@ -175,13 +175,6 @@ in
   #
   home.sessionVariables = {
     # EDITOR = "emacs";
-
-    # cmux's cmux-claude-wrapper exports CLAUDE_CODE_CHILD_SESSION=1, and every
-    # Claude Code session started beneath it inherits that marker -- which makes
-    # Claude treat itself as a subagent and disable transcript saving
-    # ("Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker").
-    # This opts transcripts back on for real interactive sessions.
-    CLAUDE_CODE_FORCE_SESSION_PERSISTENCE = "1";
   };
 
   # NOTE: the always-on launchd agent for html-pages-server lives in darwin.nix
@@ -288,6 +281,27 @@ in
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;
+
+    # Runs from ~/.zshenv, i.e. for EVERY zsh -- including non-interactive ones
+    # (`zsh -lc ...`, Claude Code's Bash tool, editor/agent subprocesses). The
+    # equivalent PATH fix in initExtra below is interactive-only, so it never
+    # reaches those; `zsh -lc 'which gh'` came back empty.
+    #
+    # useUserPackages = true puts home.packages in the nix-darwin per-user
+    # profile. nix-darwin's set-environment normally prepends it, but
+    # /etc/zshenv skips set-environment when __NIX_DARWIN_SET_ENVIRONMENT_DONE
+    # is already exported by a parent -- and any child shell inherits that
+    # marker along with a PATH that may not include the dir, so gh/kubectl/rg
+    # silently vanish. Prepend it ourselves, idempotently.
+    envExtra = ''
+      if [ -d "/etc/profiles/per-user/$USER/bin" ]; then
+        case ":$PATH:" in
+          *":/etc/profiles/per-user/$USER/bin:"*) ;;
+          *) export PATH="/etc/profiles/per-user/$USER/bin:$PATH" ;;
+        esac
+      fi
+    '';
+
     initExtra = ''
       # Add Nix profile to PATH (needed on Linux)
       if [ -d ~/.nix-profile/bin ]; then
