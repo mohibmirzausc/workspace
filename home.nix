@@ -175,6 +175,13 @@ in
   #
   home.sessionVariables = {
     # EDITOR = "emacs";
+
+    # cmux's cmux-claude-wrapper exports CLAUDE_CODE_CHILD_SESSION=1, and every
+    # Claude Code session started beneath it inherits that marker -- which makes
+    # Claude treat itself as a subagent and disable transcript saving
+    # ("Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker").
+    # This opts transcripts back on for real interactive sessions.
+    CLAUDE_CODE_FORCE_SESSION_PERSISTENCE = "1";
   };
 
   # NOTE: the always-on launchd agent for html-pages-server lives in darwin.nix
@@ -291,6 +298,22 @@ in
       HM_PROFILE="$HOME/.local/state/nix/profiles/home-manager/home-path"
       if [ -d "$HM_PROFILE/bin" ]; then
         export PATH="$HM_PROFILE/bin:$PATH"
+      fi
+
+      # Add the nix-darwin per-user profile to PATH. Because flake.nix sets
+      # home-manager.useUserPackages = true, home.packages lands HERE
+      # (/etc/profiles/per-user/$USER/bin) -- not in $HM_PROFILE above, which
+      # is left nearly empty. nix-darwin's set-environment normally prepends
+      # this, but /etc/zshenv skips it when __NIX_DARWIN_SET_ENVIRONMENT_DONE
+      # is already exported by a parent process (e.g. shells spawned under
+      # cmux/Claude Code inherit the marker with an incomplete PATH), so
+      # gh/kubectl/rg silently vanish. Prepend it ourselves, idempotently.
+      DARWIN_USER_PROFILE="/etc/profiles/per-user/$USER"
+      if [ -d "$DARWIN_USER_PROFILE/bin" ]; then
+        case ":$PATH:" in
+          *":$DARWIN_USER_PROFILE/bin:"*) ;;
+          *) export PATH="$DARWIN_USER_PROFILE/bin:$PATH" ;;
+        esac
       fi
 
       # Source home-manager session vars (check both profile locations)
@@ -439,6 +462,14 @@ in
       let hm_bin = ($env.HOME | path join ".local/state/nix/profiles/home-manager/home-path/bin")
       if ($hm_bin | path exists) {
         $env.PATH = ($env.PATH | prepend $hm_bin)
+      }
+
+      # useUserPackages = true puts home.packages in the nix-darwin per-user
+      # profile; see the zsh initExtra comment in home.nix for why this can be
+      # missing from an inherited PATH.
+      let darwin_user_bin = $"/etc/profiles/per-user/($env.USER)/bin"
+      if ($darwin_user_bin | path exists) and ($darwin_user_bin not-in $env.PATH) {
+        $env.PATH = ($env.PATH | prepend $darwin_user_bin)
       }
     '';
     extraConfig = ''
