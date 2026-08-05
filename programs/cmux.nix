@@ -23,24 +23,54 @@ let
 
     app = {
       appearance = "dark";          # matches the dark Catppuccin Mocha ghostty theme
-      newWorkspacePlacement = "afterCurrent";
+      appIcon = "dark";
+      newWorkspacePlacement = "end";
       confirmQuit = "always";
+      globalFontMagnification = 190;
+      workspaceInheritWorkingDirectory = true;
+      reorderOnNotification = false;   # don't shuffle the sidebar when a workspace pings
+      sendAnonymousTelemetry = false;
+      iMessageMode = false;
+
+      # Keep cmux a regular app: Dock icon, app switcher entry, and its own menu
+      # bar. Turning this on sets an .accessory activation policy, which means
+      # macOS gives cmux no menu bar at all -- so even when a cmux window is
+      # frontmost the menus belong to whatever regular app is behind it (for us,
+      # the standalone Ghostty), which reads as "cmux vanished from the top bar".
+      # Pinned false because it's a one-click toggle in cmux's own settings UI
+      # and the flag is easy to flip by accident.
+      menuBarOnly = false;
     };
 
     terminal = {
       autoResumeAgentSessions = true;  # bring Claude Code / Codex sessions back on relaunch
-      copyOnSelect = false;
+      copyOnSelect = true;
+      scrollSpeed = 1.15;
     };
 
     notifications = {
       dockBadge = true;
-      sound = "default";
+      sound = "Funk";
     };
 
     sidebar = {
       showBranchDirectory = true;
       showWorkspaceDescription = true;
+      branchLayout = "vertical";
+      watchGitStatus = true;
+      wrapWorkspaceTitles = false;
+      hideAllDetails = false;
+      notificationMessageLineLimit = 12;
+      beta.workspaceTodos.checklistStyle = "popover";
     };
+
+    # Sidebar chrome picks up the ghostty terminal background (Catppuccin Mocha
+    # #1e1e2e) instead of the system window color, so the two don't clash.
+    sidebarAppearance.matchTerminalBackground = true;
+
+    automation.workspaceAutoNaming = true;
+
+    canvas.paneGap = 20;
 
     # Pin the pane/tab bindings to cmux defaults (= your old ghostty super+ habits,
     # now as cmd+). Documented explicitly so they survive future default changes.
