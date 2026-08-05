@@ -100,6 +100,33 @@
         AutoHide = false;
         StageManagerHideWidgets = false;
       };
+      # cmux settings that its cmux.json schema does NOT cover. Everything
+      # expressible in the schema is pinned declaratively in programs/cmux.nix
+      # instead (cmux imports that JSON into this same defaults domain); these
+      # keys exist only here, so without this block they silently drift back to
+      # cmux's defaults on a fresh machine.
+      "com.cmuxterm.app" = {
+        # Compact sidebar rows: show only the last path segment rather than the
+        # full workspace path.
+        sidebarPathLastSegmentOnly = false;
+        # Chrome-less workspace presentation ("minimal" hides the tab bar).
+        workspacePresentationMode = "minimal";
+        # Global show/hide hotkey.
+        "systemWideHotkey.enabled" = true;
+        # Idle-screen mascot/glow/theme, all set to the cmux branding.
+        "sleepyMode.mascot" = "cmux";
+        "sleepyMode.glow" = "cmux";
+        "sleepyMode.theme" = "cmux";
+        # Render custom sidebars in-process (the alternative spawns a helper).
+        "customSidebars.renderer" = "inProcess";
+        "customSidebars.beta.enabled" = false;
+        # Right sidebar shows the file tree; beta dock mode off.
+        "rightSidebar.mode" = "files";
+        "rightSidebar.beta.dock.enabled" = false;
+        "sidebar.beta.workspaceTodos.controls.enabled" = true;
+        # iPhone pairing host disabled.
+        "mobile.iOSPairingHost.enabled" = false;
+      };
       # Note: com.apple.universalaccess is applied via system.activationScripts
       # below because it's a protected domain that may fail silently
     };

@@ -175,6 +175,13 @@ in
   #
   home.sessionVariables = {
     # EDITOR = "emacs";
+
+    # cmux's cmux-claude-wrapper exports CLAUDE_CODE_CHILD_SESSION=1, and every
+    # Claude Code session started beneath it inherits that marker -- which makes
+    # Claude treat itself as a subagent and disable transcript saving
+    # ("Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker").
+    # This opts transcripts back on for real interactive sessions.
+    CLAUDE_CODE_FORCE_SESSION_PERSISTENCE = "1";
   };
 
   # NOTE: the always-on launchd agent for html-pages-server lives in darwin.nix
