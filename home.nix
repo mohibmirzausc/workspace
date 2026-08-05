@@ -354,9 +354,13 @@ in
         source $HOME/.ticktick-secrets
       fi
 
-      # Function instead of alias so it works with sudo
+      # Run the full install.sh path (switch + Homebrew non-interactive env +
+      # explicit home-manager user re-activation + optional --cleanup GC), rather
+      # than a bare `darwin-rebuild switch`, so `homeswitch` and `install.sh` never
+      # diverge. Do NOT prefix with sudo: install.sh refuses to run as root and
+      # calls sudo internally where needed. Args pass through, e.g. `homeswitch --cleanup`.
       homeswitch() {
-        sudo darwin-rebuild switch --flake ~/src/workspace
+        ( cd ~/src/workspace && bash install.sh "$@" )
       }
 
       alias ci='git commit -m WIP'
