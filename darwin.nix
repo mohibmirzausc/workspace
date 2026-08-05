@@ -193,6 +193,24 @@
       "flyctl"
       "pi-coding-agent"  # Pi terminal coding agent (pi.dev). Homebrew ships it
                          # ahead of nixpkgs and autoUpdate/upgrade keep it current.
+      # nono (nono.sh, github.com/nolabs-ai/nono): capability sandbox for AI
+      # coding agents. Declares fs/network access up front and lets the kernel
+      # enforce it -- Seatbelt on macOS, Landlock on Linux -- so no daemon, no
+      # container, no VM, and the agent cannot widen its own constraints from
+      # the inside. Shape is `nono run --profile <p> -- <agent>`.
+      #
+      # Paired with microsandbox below deliberately: the two sit at different
+      # points on the isolation/overhead curve and we want to compare them on
+      # real moab runs. nono is process-level and needs nothing installed
+      # inside it, so the existing node/ACP-adapter/credential setup works
+      # unchanged; microsandbox is a hardware boundary but needs a guest image.
+      # moab's own backend evaluation (docs/sandbox/sandbox-evaluation.md in
+      # the moab repo) scores nono 5/5/5/5/5/5 and rates microsandbox a 2 on
+      # fit, VM-based backends being out of scope there -- so nono is the
+      # likelier long-term answer for wrapping agents.
+      #
+      # In homebrew-core, so unlike microsandbox it needs no `brew trust`.
+      "nono"
       # microsandbox (microsandbox.dev): runs untrusted code -- AI agents,
       # plugins, CI jobs -- in hardware-isolated microVMs that boot in
       # milliseconds. Installs the `msb` CLI (not `microsandbox`).
