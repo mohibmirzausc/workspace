@@ -154,6 +154,22 @@
       autoUpdate = true;
       upgrade = true;
     };
+    # Third-party taps. Must be declared here as well as in `brews` below:
+    # onActivation.cleanup = "uninstall" prunes taps that aren't listed, so an
+    # undeclared tap would be removed on every switch and re-added on the next.
+    #
+    # ONE-TIME MANUAL STEP on a new machine: Homebrew refuses to load formulae
+    # from third-party taps until they are explicitly trusted, so activation
+    # fails with "Refusing to load formula ... from untrusted tap" until you run
+    #
+    #     brew trust superradcompany/tap
+    #
+    # once. This cannot be declared here: `brew trust` records the decision in
+    # ~/.homebrew/trust.json (or $XDG_CONFIG_HOME/homebrew/trust.json), which
+    # nix-darwin does not manage.
+    taps = [
+      "superradcompany/tap"  # microsandbox; see brews below
+    ];
     # Fly.io CLI. Homebrew ships the formula with daily updates, well ahead of
     # nixpkgs. The formula drops both `flyctl` and `fly` into /opt/homebrew/bin;
     # home.nix removes the `fly` symlink on activation so it doesn't shadow
@@ -162,6 +178,21 @@
       "flyctl"
       "pi-coding-agent"  # Pi terminal coding agent (pi.dev). Homebrew ships it
                          # ahead of nixpkgs and autoUpdate/upgrade keep it current.
+      # microsandbox (microsandbox.dev): runs untrusted code -- AI agents,
+      # plugins, CI jobs -- in hardware-isolated microVMs that boot in
+      # milliseconds. Installs the `msb` CLI (not `microsandbox`).
+      #
+      # Homebrew rather than nixpkgs for two reasons. It isn't in nixpkgs at
+      # all, and more importantly the release binary is code-signed with the
+      # com.apple.security.hypervisor and disable-library-validation
+      # entitlements it needs to boot VMs. The formula is careful to install it
+      # without running install_name_tool, because touching the binary would
+      # invalidate that signature and strip the entitlements, and macOS would
+      # then kill it on launch. A nixpkgs-style build that patches rpaths would
+      # hit exactly that problem.
+      #
+      # Apple Silicon only -- the formula calls `odie` on x86_64 macOS.
+      "superradcompany/tap/microsandbox"
     ];
     casks = [
       "1password-cli"
