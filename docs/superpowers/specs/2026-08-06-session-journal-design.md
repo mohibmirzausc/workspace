@@ -180,8 +180,14 @@ Considered and rejected:
 Chosen: an append is **one line to `entries.txt`** — O(1) regardless of journal
 length, with no read-back. `index.html` is a static shell written once that
 fetches and renders the data, polling so an already-open tab updates itself.
-Requires the 7777 server, which is already running. A `--static` regeneration
-fallback is retained for `file://` use.
+Requires the 7777 server, which is already running.
+
+> **AMENDED 2026-08-06 (implementation):** the `--static` regeneration fallback
+> for `file://` was **dropped**. The gallery server is an always-on launchd
+> agent, so `file://` is not a real access path; the page degrades gracefully
+> there anyway (it renders and shows "offline" rather than breaking). Building a
+> second rendering path for a case that does not occur is unjustified. If
+> `file://` support is ever needed, add it then.
 
 ### Concurrency
 
@@ -189,7 +195,16 @@ Multiple panes and multiple subagents append to one file simultaneously, and
 `meta.json` is updated by the same writers. The two paths have very different
 risk profiles and get different treatment.
 
-**Appends to `entries.txt` — `flock`, not folklore.** An earlier draft claimed
+> **AMENDED 2026-08-06 (implementation):** `flock(1)` **does not exist on
+> macOS**. Everywhere this section says `flock`, the implementation uses an
+> atomic **`mkdir` mutex** (`mkdir(2)` is atomic on APFS) with the same
+> semantics. Verified empirically: 8 concurrent writers × 40 entries → 320
+> intact, distinct JSON lines. The lock is also bounded by **wall clock (2s)**
+> rather than an iteration count — `sleep 0.001` cannot deliver 1 ms because
+> process spawn dominates, so an iteration-capped loop stalled 18–26 s inside a
+> per-turn hook.
+
+**Appends to `entries.txt` — a real lock, not folklore.** An earlier draft claimed
 these were "atomic (single `O_APPEND` write under the pipe-buffer limit)". That
 justification was wrong on three counts and is retracted:
 
@@ -258,7 +273,7 @@ folder persists for the workspace's whole life — no daily rotation.
   index.html      ← static shell, written once; NEVER touched afterwards
   entries.txt     ← JSON Lines, append-only (extension dodges the fs.watch filter)
   meta.json       ← gallery metadata; `date` = last-updated so it floats
-  .lock           ← flock target for appends and meta updates
+  .lock/          ← mkdir-mutex directory for appends and meta updates
 ```
 
 `<wsid8>` is the first 8 hex chars of `CMUX_WORKSPACE_ID` (e.g. `2d0cdddb`).
@@ -356,8 +371,9 @@ model-authored reasoning from mechanically harvested facts at a glance.
 a.ts, b.ts, …") rather than logged individually — a refactor would otherwise
 produce hundreds of lines and bury the reasoning that is the actual point.
 
-**User prompts** are recorded as a truncated first line (~120 chars). They are
-the best available index of what a session was doing. Noted for awareness: these
+**User prompts** are recorded as a truncated first line (~120 chars) by a
+`UserPromptSubmit` hook, with an empty body — an index of what a session was
+doing, not an archive of the conversation. Noted for awareness: these
 land in `~/html-pages/` in plaintext, and the user works on client repos.
 
 ## Enable flag
