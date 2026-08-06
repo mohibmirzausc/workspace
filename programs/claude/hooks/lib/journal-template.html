@@ -8,6 +8,10 @@
 <!-- Discovery markers. These let an agent identify this journal over HTTP,
      without filesystem access to meta.json. Session and pane ids are NOT here:
      they accumulate over the journal's life, and this shell is written once. -->
+<!-- Hash of the template this page was rendered from. sj_init compares it and
+     regenerates the page when the template changes, so an existing journal
+     picks up page fixes instead of keeping its original shell forever. -->
+<meta name="session-journal:template-version" content="{{TEMPLATE_VERSION}}">
 <meta name="session-journal:workspace-id" content="{{WORKSPACE_ID}}">
 <meta name="session-journal:repo" content="{{REPO}}">
 <meta name="session-journal:branch" content="{{BRANCH}}">

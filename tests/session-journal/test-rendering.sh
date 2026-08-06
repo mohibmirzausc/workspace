@@ -80,6 +80,41 @@ assert_eq "$(printf '\n\n   \n' | sj_summarize_line 120)" "" "whitespace-only yi
 t=$(printf '```\nunterminated fence\n' | sj_summarize_line 120)
 assert_eq "$t" "" "unterminated fence consumes to EOF without hanging"
 
+# --- Page regeneration on template change ------------------------------------
+# Without this, a journal created before a template fix keeps its original shell
+# FOREVER. The markdown-rendering fix shipped and every existing journal still
+# showed raw "##" and "**" — only brand-new workspaces benefited.
+ver=$(grep -o 'template-version" content="[a-f0-9]*' "$d/index.html" | cut -d'"' -f3)
+[ -n "$ver" ] || fail "page carries no template-version marker"
+
+# Idempotent when the template has not changed. index.html IS inside the gallery
+# server's fs.watch filter, so a needless rewrite broadcasts an SSE reload to
+# every open tab — and sj_init runs on every SessionStart.
+m1=$(stat -f %m "$d/index.html")
+sleep 1
+sj_init >/dev/null
+sj_init >/dev/null
+assert_eq "$(stat -f %m "$d/index.html")" "$m1" "unchanged template must not rewrite the page"
+
+# A stale version regenerates, and the ORIGINAL creation date survives:
+# re-stamping it with today's would make every refreshed page claim it was
+# created now.
+sed -i '' 's/template-version" content="[a-f0-9]*"/template-version" content="0000deadbeef"/' "$d/index.html"
+sed -i '' 's/created [0-9][0-9-]*/created 2026-01-15/' "$d/index.html"
+sleep 1
+sj_init >/dev/null
+assert_eq "$(grep -o 'template-version" content="[a-f0-9]*' "$d/index.html" | cut -d'"' -f3)" \
+  "$ver" "stale template version regenerates the page"
+grep -q 'created 2026-01-15' "$d/index.html" || fail "creation date lost on regeneration"
+grep -q '{{' "$d/index.html" && fail "unsubstituted placeholder after regeneration"
+
+# Regeneration must never touch the log itself.
+sj_append decision agent "survives regeneration" "body"
+n=$(wc -l <"$d/entries.txt")
+sed -i '' 's/template-version" content="[a-f0-9]*"/template-version" content="0000deadbeef"/' "$d/index.html"
+sj_init >/dev/null
+assert_eq "$(wc -l <"$d/entries.txt")" "$n" "entries survive page regeneration"
+
 # --- Markdown rendering in the page ------------------------------------------
 assert_file_exists "$d/index.html"
 

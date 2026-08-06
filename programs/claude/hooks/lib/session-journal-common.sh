@@ -331,6 +331,7 @@ sj_render_template() {
       M["{{WORKSPACE_ID}}"] = ENVIRON["SJ_T_WSID"];
       M["{{CWD}}"]          = ENVIRON["SJ_T_CWD"];
       M["{{CREATED}}"]      = ENVIRON["SJ_T_CREATED"];
+      M["{{TEMPLATE_VERSION}}"] = ENVIRON["SJ_T_TPLVER"];
     }
     {
       for (k in M) {
@@ -358,7 +359,33 @@ sj_init() {
 
   tpl="${SJ_TEMPLATE:-$SJ_LIB_SELF_DIR/journal-template.html}"
 
-  if [ ! -f "$dir/index.html" ]; then
+  # Regenerate index.html when the TEMPLATE has changed, not only when the page
+  # is missing.
+  #
+  # The page is a static shell: all state lives in entries.txt and meta.json, and
+  # the only per-journal content is the placeholders re-substituted below. So
+  # rewriting it is safe and costs nothing.
+  #
+  # Without this, a journal created before a template fix keeps the old page
+  # FOREVER — the markdown-rendering fix shipped and every existing journal still
+  # showed raw "##" and "**", which is exactly the bug it was meant to fix. Only
+  # new workspaces would have benefited.
+  #
+  # Compares the template's own hash, embedded in the page as a marker on
+  # creation, rather than mtimes: nix rewrites the store path on every switch, so
+  # an mtime check would rewrite every page on every switch and (because
+  # index.html IS inside the gallery's fs.watch filter) broadcast a reload storm
+  # to every open tab.
+  local want_ver="" have_ver=""
+  if [ -f "$tpl" ]; then
+    want_ver=$(shasum -a 256 "$tpl" 2>/dev/null | cut -c1-12)
+  fi
+  if [ -f "$dir/index.html" ] && [ -n "$want_ver" ]; then
+    have_ver=$(sed -n 's/.*session-journal:template-version" content="\([a-f0-9]*\)".*/\1/p' \
+      "$dir/index.html" 2>/dev/null | head -1)
+  fi
+
+  if [ ! -f "$dir/index.html" ] || { [ -n "$want_ver" ] && [ "$have_ver" != "$want_ver" ]; }; then
     if [ ! -f "$tpl" ]; then
       echo "session-journal: template missing: $tpl" >&2
       return 1
@@ -368,6 +395,19 @@ sj_init() {
     # under 8 parallel writers), and a predictable name in a user-writable
     # directory is a symlink-follow target for anything already running as the
     # user. mktemp gives an unpredictable name and O_EXCL creation.
+    # Preserve the ORIGINAL creation date across a regeneration. Re-stamping it
+    # with today's date would make every refreshed page claim it was created now,
+    # losing the one piece of history the shell actually carries. Prefer the date
+    # already in the page, then meta.json, then today.
+    local created=""
+    if [ -f "$dir/index.html" ]; then
+      created=$(sed -n 's/.*created \([0-9][0-9-]*\).*/\1/p' "$dir/index.html" 2>/dev/null | head -1)
+    fi
+    if [ -z "$created" ] && [ -f "$dir/meta.json" ]; then
+      created=$(jq -r '.started // .date // empty' "$dir/meta.json" 2>/dev/null | cut -c1-10)
+    fi
+    [ -n "$created" ] || created=$(date +%F)
+
     local tmp
     tmp=$(mktemp "$dir/.index.html.XXXXXXXX") || return 1
     SJ_T_TITLE="$(sj_esc_html "$(sj_repo_name) · $(sj_branch_name)")" \
@@ -375,7 +415,8 @@ sj_init() {
     SJ_T_BRANCH="$(sj_esc_html "$(sj_branch_name)")" \
     SJ_T_WSID="$(sj_esc_html "${CMUX_WORKSPACE_ID:-$(sj_wsid8)}")" \
     SJ_T_CWD="$(sj_esc_html "$(sj_repo_root)")" \
-    SJ_T_CREATED="$(date +%F)" \
+    SJ_T_CREATED="$created" \
+    SJ_T_TPLVER="$want_ver" \
       sj_render_template "$tpl" >"$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$dir/index.html" || {
       rm -f "$tmp"
       return 1
