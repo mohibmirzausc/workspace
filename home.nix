@@ -64,7 +64,20 @@ in
     graphite-cli   # Graphite stacked diffs
     kubectl        # Kubernetes CLI
     k9s            # Kubernetes TUI
-    minikube       # Local Kubernetes
+    # Local Kubernetes. As of nixpkgs 26.11 minikube also ships its own
+    # bin/kubectl, which collides with the standalone kubectl above:
+    #
+    #   pkgs.buildEnv error: two given paths contain a conflicting subpath:
+    #     .../minikube-1.38.1/bin/kubectl  and  .../kubectl-1.36.3/bin/kubectl
+    #
+    # Drop minikube's copy so the explicitly-pinned kubectl wins. minikube
+    # itself is unaffected -- it shells out to whatever kubectl is on PATH,
+    # and `minikube kubectl` still works via its own bundled download.
+    (minikube.overrideAttrs (old: {
+      postInstall = (old.postInstall or "") + ''
+        rm -f "$out/bin/kubectl"
+      '';
+    }))
     nodejs         # Node.js runtime
     shopify-cli    # Shopify CLI
     teleport       # tsh - Teleport CLI
