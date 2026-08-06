@@ -15,10 +15,25 @@
   nixpkgs.config.allowUnfree = true;
 
   # Apply overlays for package overrides
+  # No overlays currently. Both previous ones were removed in the nixpkgs
+  # 26.11 upgrade:
+  #
+  #   shopify-cli  existed only to bump the package to 3.90.1, and nixpkgs now
+  #                ships 4.6.0 (upstream's latest). It also pinned
+  #                fetchPnpmDeps fetcherVersion = 2, which 26.11 removed
+  #                outright, so it broke evaluation.
+  #   zellij       patched a hardcoded 3-line mouse-wheel scroll down to 1.
+  #                Any overrideAttrs changes the derivation hash, so this cost
+  #                a full from-source Rust rebuild of zellij on every nixpkgs
+  #                bump -- a large, slow build for a one-line cosmetic tweak,
+  #                and the version/src/cargoDeps it also pinned had been
+  #                overtaken by nixpkgs anyway. Dropped in favour of the cached
+  #                build; mouse wheel now scrolls zellij's default 3 lines.
+  #                Upstream still has no config option for this (checked
+  #                against the 0.44.x release notes), so restoring the patch
+  #                means reinstating the overlay and accepting the rebuild.
   nixpkgs.overlays = [
     # (import ./overlays/claude-code-overlay.nix)  # Using Homebrew cask instead
-    (import ./overlays/shopify-cli-overlay.nix)
-    (import ./overlays/zellij-overlay.nix { mouseScrollLines = 1; })
   ];
 
   # Primary user for system operations
