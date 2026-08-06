@@ -81,15 +81,43 @@ assert_contains "$(printf '%s' "$last" | jq -r .body)" "Found 3 call sites" "rep
 printf '{"session_id":"s1"}' | bash "$H/session-journal-subagent.sh" >/dev/null
 assert_eq "$(tail -1 "$d/entries.txt" | jq -r .source)" "subagent" "degrades gracefully"
 
-# Transcript fallback when no summary field is present.
+# Transcript fallback. VERIFIED LIVE: `transcript_path` points at the PARENT
+# session's transcript, so a naive read captures the parent's narration instead
+# of the subagent's report. The subagent's own transcript lives beside it under
+# subagents/agent-<id>.jsonl. This asserts we prefer the right one.
 tr_file="$SANDBOX/transcript.jsonl"
 printf '%s\n' \
-  '{"type":"assistant","message":{"content":[{"type":"text","text":"first"}]}}' \
-  '{"type":"assistant","message":{"content":[{"type":"text","text":"the final report"}]}}' \
+  '{"type":"assistant","message":{"content":[{"type":"text","text":"PARENT narration, must not be captured"}]}}' \
   >"$tr_file"
+mkdir -p "$SANDBOX/subagents"
+printf '%s\n' \
+  '{"type":"assistant","message":{"content":[{"type":"text","text":"first"}]}}' \
+  '{"type":"assistant","message":{"content":[{"type":"text","text":"THE SUBAGENT REPORT"}]}}' \
+  >"$SANDBOX/subagents/agent-abc123.jsonl"
+printf '{"agentType":"Explore","description":"probe"}' \
+  >"$SANDBOX/subagents/agent-abc123.meta.json"
+
+printf '{"session_id":"s1","transcript_path":"%s"}' "$tr_file" |
+  bash "$H/session-journal-subagent.sh" >/dev/null
+last=$(tail -1 "$d/entries.txt")
+assert_contains "$(printf '%s' "$last" | jq -r .body)" "THE SUBAGENT REPORT" "reads the subagent's own transcript"
+printf '%s' "$last" | jq -r .body | grep -q "PARENT narration" &&
+  fail "captured the parent transcript instead of the subagent's"
+assert_eq "$(printf '%s' "$last" | jq -r .agent)" "Explore" "agent type recovered from the meta sidecar"
+
+# An explicit agent_id selects that exact transcript, not merely the newest.
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"OLDER SPECIFIC ONE"}]}}' \
+  >"$SANDBOX/subagents/agent-older.jsonl"
+touch -t 202001010000 "$SANDBOX/subagents/agent-older.jsonl"
+printf '{"session_id":"s1","agent_type":"Plan","agent_id":"older","transcript_path":"%s"}' "$tr_file" |
+  bash "$H/session-journal-subagent.sh" >/dev/null
+assert_contains "$(tail -1 "$d/entries.txt" | jq -r .body)" "OLDER SPECIFIC ONE" "agent_id wins over recency"
+
+# Parent transcript is still the last resort when no subagents dir exists.
+rm -rf "$SANDBOX/subagents"
 printf '{"session_id":"s1","agent_type":"Plan","transcript_path":"%s"}' "$tr_file" |
   bash "$H/session-journal-subagent.sh" >/dev/null
-assert_contains "$(tail -1 "$d/entries.txt" | jq -r .body)" "the final report" "transcript fallback"
+assert_contains "$(tail -1 "$d/entries.txt" | jq -r .body)" "PARENT narration" "falls back to parent as last resort"
 
 # --- Nudge -------------------------------------------------------------------
 # Fresh workspace with hook-only activity: Stop should nudge.

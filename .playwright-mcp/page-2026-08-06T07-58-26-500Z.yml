@@ -1,0 +1,51 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "workspace · feat/session-journal" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - generic [ref=e5]: workspace · feat/session-journal
+      - generic [ref=e6]: workspace 2D0CDDDB-A619-412A-84CE-F39140B6F1AC
+      - generic [ref=e7]: 4 entries
+  - group "Filter entries" [ref=e8]:
+    - button "all" [pressed] [ref=e9] [cursor=pointer]
+    - button "reasoning" [ref=e10] [cursor=pointer]
+    - button "prompts" [ref=e11] [cursor=pointer]
+    - button "activity" [ref=e12] [cursor=pointer]
+    - button "subagents" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]: ● live
+  - main [ref=e15]:
+    - article [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]: decision
+        - generic "2026-08-06T07:58:21Z" [ref=e19]: 5s ago
+        - generic [ref=e20]: pane F0CA39
+      - paragraph [ref=e21]: Verified the beep-state symlink bug is real
+      - generic [ref=e22]: ~/.claude/beep-state is a symlink into the read-only nix store, so claude-beep-mute cannot persist. session-journal-state uses home.activation to install a mutable copy instead, which is confirmed writable.
+    - article [ref=e23]:
+      - generic [ref=e24]:
+        - generic [ref=e25]: milestone
+        - generic "2026-08-06T07:58:21Z" [ref=e26]: 5s ago
+        - generic [ref=e27]: pane F0CA39
+      - paragraph [ref=e28]: Session journal is live in the real gallery
+      - generic [ref=e29]: Installed via homeswitch. State file is a mutable copy (writable), all six hooks registered, beep hook preserved alongside ours in the Stop array.
+    - article [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]: prompt
+        - generic "2026-08-06T07:58:21Z" [ref=e33]: 5s ago
+        - generic [ref=e34]: pane F0CA39
+      - paragraph [ref=e35]: ▸ I homeswitched!
+    - article [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]: session
+        - generic "2026-08-06T07:58:13Z" [ref=e39]: 13s ago
+        - generic [ref=e40]: pane F0CA39
+      - paragraph [ref=e41]: Session startup — workspace · feat/session-journal
+      - generic [ref=e42]: "session_id: 206e3dc4-5715-44c0-9736-9685f1dbb1c2"
+  - contentinfo [ref=e43]:
+    - generic [ref=e44]:
+      - term [ref=e45]: Style
+      - definition [ref=e46]: Session journal
+      - term [ref=e47]: Keywords
+      - definition [ref=e48]: live session log · decisions · progress
+      - term [ref=e49]: Recreate prompt
+      - definition [ref=e50]: Session journal — auto-maintained by the session-journal hooks.
+    - paragraph [ref=e51]: Auto-updating every 3s · created 2026-08-06

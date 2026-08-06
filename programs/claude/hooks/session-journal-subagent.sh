@@ -36,17 +36,54 @@ atype=$(printf '%s' "$payload" |
 summary=$(printf '%s' "$payload" |
   jq -r '.result // .final_message // .output // .response // .last_message // empty' 2>/dev/null)
 
-# Fall back to the transcript's last assistant text block.
+# Pull the last assistant text block out of a transcript.
+sj_last_assistant_text() {
+  tail -80 "$1" 2>/dev/null | jq -rs '
+    [ .[]
+      | select(.type == "assistant")
+      | .message.content[]?
+      | select(.type == "text")
+      | .text
+    ] | last // empty' 2>/dev/null
+}
+
+# Fall back to the subagent's OWN transcript.
+#
+# Verified live: the payload's `transcript_path` points at the PARENT session's
+# transcript, so reading it captures the parent's narration rather than the
+# subagent's report. The subagent's real transcript lives beside it under
+# `subagents/agent-<id>.jsonl`, with an `agent-<id>.meta.json` sidecar carrying
+# agentType. Resolve that directory and take the most recently modified entry —
+# this hook fires as the subagent finishes, so the newest file is ours.
 if [ -z "$summary" ]; then
   tp=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
-  if [ -n "$tp" ] && [ -f "$tp" ]; then
-    summary=$(tail -80 "$tp" 2>/dev/null | jq -rs '
-      [ .[]
-        | select(.type == "assistant")
-        | .message.content[]?
-        | select(.type == "text")
-        | .text
-      ] | last // empty' 2>/dev/null)
+  sub_id=$(printf '%s' "$payload" | jq -r '.agent_id // .agentId // .subagent_id // empty' 2>/dev/null)
+
+  if [ -n "$tp" ]; then
+    sub_dir="$(dirname "$tp")/subagents"
+    cand=""
+    # Prefer an exact id match when the payload gives us one.
+    if [ -n "$sub_id" ] && [ -f "$sub_dir/agent-$sub_id.jsonl" ]; then
+      cand="$sub_dir/agent-$sub_id.jsonl"
+    elif [ -d "$sub_dir" ]; then
+      cand=$(ls -t "$sub_dir"/agent-*.jsonl 2>/dev/null | head -1)
+    fi
+    [ -n "$cand" ] && [ -f "$cand" ] && summary=$(sj_last_assistant_text "$cand")
+
+    # If the agent type was not in the payload, the sidecar has it.
+    if [ "$atype" = "subagent" ] && [ -n "$cand" ]; then
+      meta="${cand%.jsonl}.meta.json"
+      if [ -f "$meta" ]; then
+        t=$(jq -r '.agentType // .agent_type // empty' "$meta" 2>/dev/null)
+        [ -n "$t" ] && atype="$t"
+      fi
+    fi
+
+    # Last resort: the parent transcript. Better than nothing, but it will read
+    # as the parent's voice, so only use it if the subagent's own is missing.
+    if [ -z "$summary" ] && [ -f "$tp" ]; then
+      summary=$(sj_last_assistant_text "$tp")
+    fi
   fi
 fi
 
