@@ -113,3 +113,66 @@ sj_enabled() {
 
   [ "$(tr -d '[:space:]' <"$SJ_STATE_FILE" 2>/dev/null)" = "ENABLED" ]
 }
+
+# --- Mutex -------------------------------------------------------------------
+
+# macOS has no flock(1), so mkdir(2) — which is atomic on APFS — is the portable
+# primitive. The critical section is a single printf to an append-mode fd, so
+# contention is microseconds even with many concurrent panes and subagents.
+sj_lock() {
+  local dir="$1/.lock"
+  local n=0
+  until mkdir "$dir" 2>/dev/null; do
+    n=$((n + 1))
+    if [ "$n" -gt 3000 ]; then
+      # ~3s. Assume the holder crashed without unlocking and steal the lock;
+      # losing one entry beats wedging a hook forever.
+      rmdir "$dir" 2>/dev/null || true
+      mkdir "$dir" 2>/dev/null && return 0
+      return 1
+    fi
+    sleep 0.001
+  done
+  return 0
+}
+
+sj_unlock() { rmdir "$1/.lock" 2>/dev/null || true; }
+
+# --- Append ------------------------------------------------------------------
+
+# One JSON object per line. jq -c does the escaping, so newlines, quotes and
+# tabs in the body can never break the one-entry-per-line invariant that the
+# page's parser depends on.
+#
+# Args: kind source title [body]
+sj_append() {
+  local kind="$1" source="$2" title="$3" body="${4:-}"
+  local dir
+  dir=$(sj_dir)
+  [ -d "$dir" ] || return 1
+
+  # Bound entry size so one runaway body cannot dominate the page.
+  if [ "${#body}" -gt "$SJ_MAX_BODY" ]; then
+    body="${body:0:$SJ_MAX_BODY}…[truncated]"
+  fi
+
+  local line
+  line=$(jq -nc \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg kind "$kind" \
+    --arg source "$source" \
+    --arg title "$title" \
+    --arg body "$body" \
+    --arg session_id "${SJ_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" \
+    --arg pane_id "${CMUX_PANEL_ID:-}" \
+    --arg workspace_id "${CMUX_WORKSPACE_ID:-}" \
+    --arg agent "${SJ_AGENT:-main}" \
+    '{ts:$ts, kind:$kind, source:$source, title:$title, body:$body,
+      session_id:$session_id, pane_id:$pane_id, workspace_id:$workspace_id,
+      agent:$agent}') || return 1
+
+  sj_lock "$dir" || return 1
+  printf '%s\n' "$line" >>"$dir/entries.txt"
+  sj_unlock "$dir"
+  return 0
+}
