@@ -8,6 +8,11 @@
 # Every function is written to fail soft: a hook must never break a Claude Code
 # session because journaling had a bad day.
 
+# Resolve this library's own directory ONCE, at load time, to an absolute path.
+# ${BASH_SOURCE[0]} is relative when sourced via a relative path (and empty
+# under zsh), so computing it lazily inside a function is unreliable.
+SJ_LIB_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
+
 SJ_STATE_FILE="${SJ_STATE_FILE:-$HOME/.claude/session-journal-state}"
 SJ_PAGES_DIR="${SJ_PAGES_DIR:-$HOME/html-pages}"
 SJ_RUNTIME_DIR="${SJ_RUNTIME_DIR:-$HOME/.claude/session-journal}"
@@ -18,9 +23,13 @@ SJ_MAX_BODY="${SJ_MAX_BODY:-4096}"
 # Repo root of the workspace. Prefers cmux's launch directory over $PWD, which
 # wanders as the agent cd's around during a session.
 sj_repo_root() {
-  local dir="${CMUX_AGENT_LAUNCH_CWD:-$PWD}"
+  local dir="${CMUX_AGENT_LAUNCH_CWD:-$PWD}" root
   [ -d "$dir" ] || dir="$PWD"
-  git -C "$dir" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$dir"
+  root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)
+  [ -n "$root" ] || root="$dir"
+  # Strip any trailing newline: these values are interpolated into slugs, sed
+  # patterns and HTML, where an embedded newline corrupts the output silently.
+  printf '%s' "${root%$'\n'}"
 }
 
 sj_repo_name() { basename "$(sj_repo_root)"; }
@@ -44,12 +53,19 @@ sj_branch_name() {
 # same repo AND branch created on the same day would share a folder and silently
 # merge into one journal.
 sj_wsid8() {
-  local id="${CMUX_WORKSPACE_ID:-}"
+  local id="${CMUX_WORKSPACE_ID:-}" out
   if [ -z "$id" ]; then
     # Outside cmux: derive a stable hash from the launch dir instead.
     id=$(printf '%s' "$(sj_repo_root)" | shasum -a 256 | cut -c1-8)
   fi
-  printf '%s' "$id" | tr 'A-Z' 'a-z' | tr -cd 'a-f0-9' | cut -c1-8
+  out=$(printf '%s' "$id" | tr 'A-Z' 'a-z' | tr -cd 'a-f0-9' | cut -c1-8)
+  # A non-hex id (not a UUID) can filter down to nothing, which would leave a
+  # slug ending in a bare '-' and, worse, make unrelated workspaces collide on
+  # the empty string. Hash the raw id instead so it stays unique.
+  if [ ${#out} -lt 8 ]; then
+    out=$(printf '%s' "$id" | shasum -a 256 | cut -c1-8)
+  fi
+  printf '%s' "$out"
 }
 
 # Lowercase, filesystem-safe. Note branch names legitimately contain '/', which
@@ -119,19 +135,22 @@ sj_enabled() {
 # macOS has no flock(1), so mkdir(2) — which is atomic on APFS — is the portable
 # primitive. The critical section is a single printf to an append-mode fd, so
 # contention is microseconds even with many concurrent panes and subagents.
+# Bounded by WALL CLOCK, not iteration count. `sleep 0.001` cannot actually
+# deliver 1ms — process spawn dominates, so a 3000-iteration cap took ~18-26s in
+# practice. That is a catastrophic stall inside a Stop/PostToolUse hook, which
+# runs on every single turn.
 sj_lock() {
   local dir="$1/.lock"
-  local n=0
+  local deadline=$(($(date +%s) + 2))
   until mkdir "$dir" 2>/dev/null; do
-    n=$((n + 1))
-    if [ "$n" -gt 3000 ]; then
-      # ~3s. Assume the holder crashed without unlocking and steal the lock;
-      # losing one entry beats wedging a hook forever.
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      # Assume the holder crashed without unlocking and steal the lock. Losing
+      # one entry beats wedging a hook.
       rmdir "$dir" 2>/dev/null || true
       mkdir "$dir" 2>/dev/null && return 0
       return 1
     fi
-    sleep 0.001
+    sleep 0.01
   done
   return 0
 }
@@ -219,7 +238,7 @@ sj_init() {
   dir=$(sj_dir)
   mkdir -p "$dir" || return 1
 
-  tpl="${SJ_TEMPLATE:-$(dirname "${BASH_SOURCE[0]}")/journal-template.html}"
+  tpl="${SJ_TEMPLATE:-$SJ_LIB_SELF_DIR/journal-template.html}"
 
   if [ ! -f "$dir/index.html" ]; then
     if [ ! -f "$tpl" ]; then

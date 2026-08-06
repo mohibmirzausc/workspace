@@ -22,13 +22,21 @@ buf="$SJ_RUNTIME_DIR/$(sj_wsid8)"
 touched=0
 
 if [ -s "$buf/files.txt" ]; then
-  files=$(sort -u "$buf/files.txt" 2>/dev/null)
-  n=$(printf '%s\n' "$files" | grep -c . || true)
-  if [ "${n:-0}" -gt 0 ]; then
+  # grep -v on blanks, not grep -c: `grep -c .` prints "0" AND exits 1 on no
+  # match, so `n=$(... || echo 0)` yields the two-line string "0\n0" and every
+  # later [ "$n" -gt 0 ] blows up with "integer expression expected".
+  files=$(grep -v '^[[:space:]]*$' "$buf/files.txt" 2>/dev/null | sort -u)
+  n=0
+  [ -n "$files" ] && n=$(printf '%s\n' "$files" | wc -l | tr -d ' ')
+
+  if [ "$n" -gt 0 ]; then
     sj_init || exit 0
     root=$(sj_repo_root)
-    # Relative paths are far easier to scan than absolute ones.
-    short=$(printf '%s\n' "$files" | sed "s|^${root}/||" | head -25)
+    # Relative paths are far easier to scan. Strip the prefix in awk rather than
+    # sed: a repo path containing '|' would break the sed delimiter, and one
+    # containing '&' or '\' would corrupt the replacement.
+    short=$(printf '%s\n' "$files" | awk -v r="$root/" '
+      { if (index($0, r) == 1) $0 = substr($0, length(r) + 1); print }' | head -25)
     if [ "$n" -gt 25 ]; then
       short=$(printf '%s\n… and %d more' "$short" "$((n - 25))")
     fi
