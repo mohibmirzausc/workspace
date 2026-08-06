@@ -8,8 +8,10 @@ CLI="$ROOT/programs/claude/hooks/session-journal"
 setup_sandbox
 trap teardown_sandbox EXIT
 
-# Disabled by default: add is a silent no-op that still exits 0, because a
-# failing hook would surface as an error inside the user's Claude session.
+# When disabled, add is a silent no-op that still exits 0 — a failing hook would
+# surface as an error inside the user's Claude session.
+# (Journaling is ENABLED by default, so disable explicitly to test this path.)
+echo DISABLED >"$SJ_STATE_FILE"
 "$CLI" add --kind decision --title "should not appear" || fail "must exit 0 when disabled"
 assert_eq "$(find "$SJ_PAGES_DIR" -name entries.txt | wc -l | tr -d ' ')" "0" "nothing written when disabled"
 

@@ -386,7 +386,7 @@ convention so the mechanism is already familiar:
 3. Per-repo `.session-journal` / `.no-session-journal` in the repo root.
 4. **`~/.claude/session-journal-state`** containing `ENABLED` or `DISABLED` —
    the global default, mirroring `~/.claude/beep-state`.
-5. Default when the state file is absent: **`DISABLED`** (opt-in), written on
+5. Default when the state file is absent: **`ENABLED`**, written on
    first read so the file always exists afterwards. Installing the hooks changes
    nothing until deliberately enabled.
 
@@ -508,7 +508,7 @@ acceptable; hooks stay bash.
 | R2 | `CLAUDE_CODE_CHILD_SESSION` cannot identify subagents in this setup. | Use the `SubagentStop` hook itself as the discriminator plus its stdin payload; never infer from that env var. |
 | R3 | Hook latency on every turn across many parallel sessions. | Scripts do one locked append and exit; no model calls, no network. `flock` critical section is a single `printf` to an open fd — microseconds. (Supersedes this row's earlier "no locking" stance, which traded real corruption risk for an unmeasured saving.) |
 | R4 | Model forgets Tier-2 entries under long context. | Three reinforcing mechanisms (injection, skill, nudge) plus a Tier-1 floor that keeps the journal useful regardless. |
-| R5 | Prompt text and reasoning stored in plaintext for client work. | Flagged for the user; opt-in default and per-repo `.no-session-journal` provide control. |
+| R5 | Prompt text and reasoning stored in plaintext for client work. | **AMENDED: journaling is now ENABLED by default** at the user's request, so the per-repo `.no-session-journal` marker is the primary control rather than a secondary one. Documented prominently in the README. |
 | R6 | Gallery pollution — journals mixed with design pages. | Reserved `session-` slug prefix makes them searchable and visually grouped; `style: "Session journal"` distinguishes them. |
 | R7 | `/styles` encyclopedia pollution — every journal shares `style: "Session journal"`, and `/styles` sorts by count desc (`server.js:375-376`), so journals would outrank the user's actual design experiments. | Accepted for now; journals are expected to outnumber pages. If it becomes annoying, the fix is a one-line server filter excluding `kind: "session-journal"` from `/styles` — deliberately deferred to avoid modifying the server in this project. |
 | R8 | Reload storm — appends triggering SSE broadcasts that reload every open tab. | `entries.txt` sits outside the watcher's `html\|css\|js\|mjs\|json` filter (`server.js:545`); `index.html` is never touched after creation; `meta.json` is written only on actual change. |

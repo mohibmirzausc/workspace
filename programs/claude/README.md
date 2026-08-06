@@ -54,7 +54,7 @@ skimming pages instead of reading verbose agent logs — and to keep the reasoni
 that scrolls out of the chat, so you can come back and ask the agent why it did
 something.
 
-**Opt-in.** Nothing is written until you turn it on:
+**On by default.** Journaling runs in every workspace unless turned off:
 
 ```bash
 claude-journal-on       # enable (takes effect on the next session start)
@@ -63,8 +63,8 @@ claude-journal-status   # show current state and this workspace's journal path
 ```
 
 Per-repo overrides: drop a `.no-session-journal` file in a repo root to exclude
-it, or `.session-journal` to include it while the global default is off. The
-`SESSION_JOURNAL=0` / `=1` env var beats both.
+that repo (see the caveat below), or `.session-journal` to force it on when the
+global toggle is off. The `SESSION_JOURNAL=0` / `=1` env var beats both.
 
 ### What lands in a journal
 
@@ -99,11 +99,29 @@ session-journal path                                    # this workspace
 grep -l "<session-or-workspace-uuid>" ~/html-pages/*-session-*/meta.json
 ```
 
-### Caveat
+### Caveat — read this before working in a client repo
 
-Prompts and reasoning are stored **in plaintext** under `~/html-pages/`. If
-you're working in a client repo and would rather not have that on disk, add a
-`.no-session-journal` file to it.
+Journaling is **on by default**, so prompts, agent reasoning, touched filenames,
+and commit subjects are written **in plaintext** to `~/html-pages/` for every
+workspace, and served by a local HTTP server on port 7777. Journals are never
+pruned.
+
+To exclude a repo entirely, add a marker file to its root:
+
+```bash
+touch /path/to/client-repo/.no-session-journal
+```
+
+That check runs inside the hook scripts before anything is written, so nothing
+from that repo is ever recorded — regardless of the global setting. Add it to
+your global gitignore if you don't want the marker showing up as an untracked
+file in someone else's repo:
+
+```bash
+echo '.no-session-journal' >> ~/.config/git/ignore
+```
+
+For a one-off session, `SESSION_JOURNAL=0 claude` also works.
 
 ## What's Not Here
 

@@ -80,7 +80,7 @@ session-journal path
 
 ## Enabling and disabling
 
-Journaling is **opt-in**. Resolution order: `SESSION_JOURNAL=0/1` env var, then
+Journaling is **on by default**. Resolution order: `SESSION_JOURNAL=0/1` env var, then
 `.session-journal` / `.no-session-journal` in the repo root, then
 `~/.claude/session-journal-state`.
 

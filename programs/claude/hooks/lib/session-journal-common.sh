@@ -104,10 +104,15 @@ sj_dir() { printf '%s/%s' "$SJ_PAGES_DIR" "$(sj_slug)"; }
 #   1. SESSION_JOURNAL=0/1 env var
 #   2. .session-journal / .no-session-journal in the repo root
 #   3. ~/.claude/session-journal-state (ENABLED/DISABLED)
-#   4. default DISABLED (opt-in), seeded on first read
+#   4. default ENABLED, seeded on first read
 #
-# Anything unrecognized is treated as disabled: failing closed means a corrupted
-# state file cannot silently start logging a client repo.
+# Enabled by default: the whole point is monitoring many parallel sessions the
+# user never individually configures, and an opt-in default meant a fresh
+# machine journaled nothing until someone remembered to turn it on.
+#
+# The escape hatch for sensitive work is per-repo: drop a `.no-session-journal`
+# file in a client repo's root and nothing there is ever recorded, regardless of
+# the global setting.
 sj_enabled() {
   case "${SESSION_JOURNAL:-}" in
     0 | off | false | no) return 1 ;;
@@ -123,11 +128,14 @@ sj_enabled() {
 
   if [ ! -f "$SJ_STATE_FILE" ]; then
     mkdir -p "$(dirname "$SJ_STATE_FILE")" 2>/dev/null
-    printf 'DISABLED\n' >"$SJ_STATE_FILE" 2>/dev/null
-    return 1
+    printf 'ENABLED\n' >"$SJ_STATE_FILE" 2>/dev/null
+    return 0
   fi
 
-  [ "$(tr -d '[:space:]' <"$SJ_STATE_FILE" 2>/dev/null)" = "ENABLED" ]
+  # Only an explicit DISABLED turns it off. Anything else (including a corrupted
+  # or partially-written file) reads as on, matching the enabled-by-default
+  # stance — a garbled state file should not silently stop journaling.
+  [ "$(tr -d '[:space:]' <"$SJ_STATE_FILE" 2>/dev/null)" != "DISABLED" ]
 }
 
 # --- Mutex -------------------------------------------------------------------

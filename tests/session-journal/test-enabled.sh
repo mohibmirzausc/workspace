@@ -8,10 +8,12 @@ setup_sandbox
 trap teardown_sandbox EXIT
 . "$LIB"
 
-# 1. Default: no state file -> disabled, and the file is seeded so it exists after.
-sj_enabled && fail "should be disabled by default"
+# 1. Default: no state file -> ENABLED, and the file is seeded so it exists after.
+# Journaling is on by default because the point is monitoring many parallel
+# sessions the user never individually configures.
+sj_enabled || fail "should be enabled by default"
 assert_file_exists "$SJ_STATE_FILE" "seeded on first check"
-assert_eq "$(cat "$SJ_STATE_FILE")" "DISABLED" "seed value"
+assert_eq "$(cat "$SJ_STATE_FILE")" "ENABLED" "seed value"
 
 # 2. State file ENABLED -> enabled.
 echo ENABLED >"$SJ_STATE_FILE"
@@ -45,8 +47,26 @@ rm "$CMUX_AGENT_LAUNCH_CWD/.session-journal"
 printf '  ENABLED  \n' >"$SJ_STATE_FILE"
 sj_enabled || fail "must tolerate surrounding whitespace"
 
-# 9. Garbage in the state file is treated as disabled, not as enabled.
+# 9. Only an explicit DISABLED turns it off. A garbled or partially-written
+# state file must not silently stop journaling.
 printf 'banana\n' >"$SJ_STATE_FILE"
-sj_enabled && fail "unrecognized state must be treated as disabled"
+sj_enabled || fail "unrecognized state should stay enabled"
+printf '' >"$SJ_STATE_FILE"
+sj_enabled || fail "empty state file should stay enabled"
+printf 'DISABLED\n' >"$SJ_STATE_FILE"
+sj_enabled && fail "explicit DISABLED must turn it off"
+
+# 10. The per-repo opt-out is the escape hatch for client work, and must beat
+# the enabled-by-default global.
+printf 'ENABLED\n' >"$SJ_STATE_FILE"
+touch "$CMUX_AGENT_LAUNCH_CWD/.no-session-journal"
+sj_enabled && fail ".no-session-journal must win over the default"
+rm "$CMUX_AGENT_LAUNCH_CWD/.no-session-journal"
+
+# 11. Same when there is no state file at all (fresh machine, client repo).
+rm -f "$SJ_STATE_FILE"
+touch "$CMUX_AGENT_LAUNCH_CWD/.no-session-journal"
+sj_enabled && fail ".no-session-journal must win on a fresh machine"
+rm "$CMUX_AGENT_LAUNCH_CWD/.no-session-journal"
 
 echo "test-enabled passed"

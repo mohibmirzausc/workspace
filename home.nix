@@ -480,7 +480,7 @@ in
       }
 
       # Session journal: one auto-maintained HTML page per cmux workspace,
-      # browsable at http://localhost:7777. Opt-in.
+      # browsable at http://localhost:7777. Enabled by default.
       claude-journal-on() {
         echo "ENABLED" > ~/.claude/session-journal-state
         echo "Session journal enabled (takes effect on the next session start)"
@@ -495,7 +495,7 @@ in
         if [ -f ~/.claude/session-journal-state ]; then
           echo "Session journal: $(cat ~/.claude/session-journal-state)"
         else
-          echo "Session journal: DISABLED (default, no state file yet)"
+          echo "Session journal: ENABLED (default, no state file yet)"
         fi
         command -v session-journal >/dev/null 2>&1 && session-journal status
       }
