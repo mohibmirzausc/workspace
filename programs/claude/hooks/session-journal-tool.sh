@@ -33,15 +33,28 @@ case "$tool" in
     cmd=$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null)
     case "$cmd" in
       *"git commit"*)
-        # Skip commits that failed — a non-zero result means nothing landed.
+        # Read the subject from git rather than parsing it out of the command
+        # string. This does double duty: it sidesteps quoting entirely (the
+        # command may use -m "...", -m '...', -F, a heredoc, or --amend), and it
+        # means a FAILED commit logs nothing — if the commit did not land, HEAD
+        # still points at the previous one, which we skip as already-journalled.
+        #
+        # Deliberately not reading `.tool_response`: that schema is undocumented
+        # and guessing at its field names is exactly what produced the earlier
+        # subagent-transcript bug. git is the source of truth here.
+        head_sha=$(git -C "$(sj_repo_root)" rev-parse HEAD 2>/dev/null) || exit 0
+        [ -n "$head_sha" ] || exit 0
+
+        seen="$SJ_RUNTIME_DIR/$(sj_wsid8)/last-commit"
+        [ "$(cat "$seen" 2>/dev/null)" = "$head_sha" ] && exit 0
+
+        msg=$(git -C "$(sj_repo_root)" log -1 --pretty=%s 2>/dev/null | cut -c1-160)
+        [ -n "$msg" ] || exit 0
+
         sj_init || exit 0
-        # Pull the subject out of -m "..." or -m '...'; fall back to a bare label.
-        msg=$(printf '%s' "$cmd" | sed -n 's/.*-m[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-        [ -z "$msg" ] && msg=$(printf '%s' "$cmd" | sed -n "s/.*-m[[:space:]]*'\([^']*\)'.*/\1/p" | head -1)
-        [ -z "$msg" ] && msg="(commit)"
-        # Only the subject line; commit bodies are long and already in git.
-        msg=$(printf '%s' "$msg" | head -1 | cut -c1-160)
-        sj_append "commit" "hook" "Commit: $msg" "" || true
+        mkdir -p "$(dirname "$seen")" 2>/dev/null
+        printf '%s\n' "$head_sha" >"$seen" 2>/dev/null || true
+        sj_append "commit" "hook" "Commit: $msg" "${head_sha:0:8}" || true
         ;;
     esac
     ;;

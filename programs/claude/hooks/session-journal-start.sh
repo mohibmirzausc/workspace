@@ -29,6 +29,9 @@ SJ_SOURCE=hook sj_append "session" "hook" \
   "session_id: ${SJ_SESSION_ID:-unknown}" || true
 sj_meta_touch || true
 
+# NOTE the explicit `exit 0` after this block: a bare trailing `jq` would make
+# ITS status the hook's, so a jq failure would surface as a hook error inside
+# the user's session.
 jq -n --arg d "$(sj_dir)" '{
   hookSpecificOutput: {
     hookEventName: "SessionStart",
@@ -50,3 +53,5 @@ jq -n --arg d "$(sj_dir)" '{
     )
   }
 }'
+
+exit 0

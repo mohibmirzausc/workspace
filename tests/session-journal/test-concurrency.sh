@@ -18,14 +18,20 @@ mkdir -p "$d"
 f="$d/entries.txt"
 
 WRITERS=8
-PER=40
+PER=20
 EXPECTED=$((WRITERS * PER))
+
+# Bodies must exceed the filesystem's atomic-write size or this test is
+# VACUOUS: at 400 bytes it passed even with sj_lock stubbed out to a no-op,
+# because small writes do not interleave anyway. At 20KB they demonstrably do
+# (2 torn lines observed unlocked), so the lock is what this actually tests.
+BIG=$(head -c 20000 </dev/zero | tr '\0' 'y')
 
 for w in $(seq 1 $WRITERS); do
   (
     . "$LIB"
     for i in $(seq 1 $PER); do
-      sj_append "progress" "agent" "w$w-i$i" "$(head -c 400 </dev/zero | tr '\0' 'y')"
+      sj_append "progress" "agent" "w$w-i$i" "$BIG"
     done
   ) &
 done

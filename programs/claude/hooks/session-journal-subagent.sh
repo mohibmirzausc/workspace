@@ -21,24 +21,20 @@ SJ_SESSION_ID=$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/nul
 [ -z "$SJ_SESSION_ID" ] && SJ_SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
 export SJ_SESSION_ID
 
-# Optional debug capture: set SJ_CAPTURE_PAYLOAD to a path to record the real
-# payload shape. Used during live verification, since the SubagentStop schema
-# is not something we could confirm offline.
-if [ -n "${SJ_CAPTURE_PAYLOAD:-}" ]; then
-  printf '%s' "$payload" >"$SJ_CAPTURE_PAYLOAD" 2>/dev/null || true
-fi
-
 atype=$(printf '%s' "$payload" |
   jq -r '.agent_type // .subagent_type // .agentType // .agent // empty' 2>/dev/null)
 [ -z "$atype" ] && atype="subagent"
 
-# The field carrying the report varies; try the plausible names in order.
+# `.result` is the field observed live; the rest are defensive in case the
+# harness renames it. Cheap — it is one jq call, not extra process spawns.
 summary=$(printf '%s' "$payload" |
   jq -r '.result // .final_message // .output // .response // .last_message // empty' 2>/dev/null)
 
 # Pull the last assistant text block out of a transcript.
 sj_last_assistant_text() {
-  tail -80 "$1" 2>/dev/null | jq -rs '
+  # tail -c before tail -n: -n bounds LINES, not bytes, so a transcript with a
+  # few enormous lines (80 x 10MB observed) stalls the hook for ~10s.
+  tail -c 2000000 "$1" 2>/dev/null | tail -80 | jq -rs '
     [ .[]
       | select(.type == "assistant")
       | .message.content[]?

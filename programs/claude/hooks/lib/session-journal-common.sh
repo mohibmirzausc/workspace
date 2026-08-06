@@ -114,6 +114,11 @@ sj_dir() { printf '%s/%s' "$SJ_PAGES_DIR" "$(sj_slug)"; }
 # file in a client repo's root and nothing there is ever recorded, regardless of
 # the global setting.
 sj_enabled() {
+  # Everything downstream builds JSON with jq. Without it there is nothing this
+  # can usefully do, and pressing on would leave hooks exiting non-zero (127),
+  # which surfaces as an error inside the user's Claude session.
+  command -v jq >/dev/null 2>&1 || return 1
+
   case "${SESSION_JOURNAL:-}" in
     0 | off | false | no) return 1 ;;
     1 | on | true | yes) return 0 ;;
@@ -147,20 +152,45 @@ sj_enabled() {
 # deliver 1ms — process spawn dominates, so a 3000-iteration cap took ~18-26s in
 # practice. That is a catastrophic stall inside a Stop/PostToolUse hook, which
 # runs on every single turn.
+SJ_LOCK_WAIT="${SJ_LOCK_WAIT:-2}"    # seconds to wait for a live holder
+SJ_LOCK_STALE="${SJ_LOCK_STALE:-30}" # a lock older than this is presumed abandoned
+
 sj_lock() {
   local dir="$1/.lock"
-  local deadline=$(($(date +%s) + 2))
+  local deadline=$(($(date +%s) + SJ_LOCK_WAIT))
+
   until mkdir "$dir" 2>/dev/null; do
-    if [ "$(date +%s)" -ge "$deadline" ]; then
-      # Assume the holder crashed without unlocking and steal the lock. Losing
-      # one entry beats wedging a hook.
+    # An unwritable parent can never yield the lock. Retrying for the full
+    # deadline turns a permission error into a multi-second hook stall, so
+    # bail immediately — this is not contention.
+    [ -w "$1" ] || return 1
+
+    # Steal ONLY a provably stale lock. An earlier version stole purely on a
+    # timeout, which removed a live holder's lock while it was still inside its
+    # critical section — three writers were observed holding it at once, and
+    # meta.json (a read-modify-write) silently lost updates as a result.
+    local age
+    age=$(sj_file_age "$dir")
+    if [ -n "$age" ] && [ "$age" -gt "$SJ_LOCK_STALE" ]; then
       rmdir "$dir" 2>/dev/null || true
       mkdir "$dir" 2>/dev/null && return 0
-      return 1
     fi
+
+    # Give up rather than stall a hook. Callers treat this as "skip this write":
+    # a dropped journal entry is strictly better than a wedged Claude session.
+    [ "$(date +%s)" -ge "$deadline" ] && return 1
     sleep 0.01
   done
   return 0
+}
+
+# Age in whole seconds of a path, or empty if it cannot be stat'd.
+sj_file_age() {
+  local mtime now
+  mtime=$(stat -f %m "$1" 2>/dev/null) || return 0
+  [ -n "$mtime" ] || return 0
+  now=$(date +%s)
+  printf '%s' "$((now - mtime))"
 }
 
 sj_unlock() { rmdir "$1/.lock" 2>/dev/null || true; }
@@ -245,6 +275,11 @@ sj_init() {
   local dir tpl
   dir=$(sj_dir)
   mkdir -p "$dir" || return 1
+  # Journals hold user prompts, agent reasoning, filenames and commit subjects —
+  # potentially client-confidential. Owner-only, not the 0755/0644 that umask 022
+  # would otherwise give. (The gallery server runs as the same user, so it can
+  # still read them.)
+  chmod 700 "$dir" 2>/dev/null || true
 
   tpl="${SJ_TEMPLATE:-$SJ_LIB_SELF_DIR/journal-template.html}"
 
@@ -253,20 +288,29 @@ sj_init() {
       echo "session-journal: template missing: $tpl" >&2
       return 1
     fi
-    local tmp="$dir/index.html.tmp.$$"
+    # mktemp, not "$dir/index.html.tmp.$$": PIDs collide across concurrent
+    # subshells (observed as an intermittent `mv: No such file or directory`
+    # under 8 parallel writers), and a predictable name in a user-writable
+    # directory is a symlink-follow target for anything already running as the
+    # user. mktemp gives an unpredictable name and O_EXCL creation.
+    local tmp
+    tmp=$(mktemp "$dir/.index.html.XXXXXXXX") || return 1
     SJ_T_TITLE="$(sj_esc_html "$(sj_repo_name) · $(sj_branch_name)")" \
     SJ_T_REPO="$(sj_esc_html "$(sj_repo_name)")" \
     SJ_T_BRANCH="$(sj_esc_html "$(sj_branch_name)")" \
     SJ_T_WSID="$(sj_esc_html "${CMUX_WORKSPACE_ID:-$(sj_wsid8)}")" \
     SJ_T_CWD="$(sj_esc_html "$(sj_repo_root)")" \
     SJ_T_CREATED="$(date +%F)" \
-      sj_render_template "$tpl" >"$tmp" && mv -f "$tmp" "$dir/index.html" || {
+      sj_render_template "$tpl" >"$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$dir/index.html" || {
       rm -f "$tmp"
       return 1
     }
   fi
 
-  [ -f "$dir/entries.txt" ] || : >"$dir/entries.txt"
+  if [ ! -f "$dir/entries.txt" ]; then
+    : >"$dir/entries.txt"
+    chmod 600 "$dir/entries.txt" 2>/dev/null || true
+  fi
   sj_meta_init
 }
 
@@ -282,10 +326,13 @@ sj_init() {
 
 # stdin: complete JSON document. Caller must already hold the lock.
 sj_meta_write() {
-  local dir="$1"
-  local tmp="$dir/meta.json.tmp.$$"
+  local dir="$1" tmp
+  # See sj_init: mktemp rather than a $$-suffixed name — PIDs collide across
+  # concurrent subshells, and a predictable path is a symlink-follow target.
+  tmp=$(mktemp "$dir/.meta.json.XXXXXXXX") || return 1
   cat >"$tmp" || { rm -f "$tmp"; return 1; }
   if jq -e . "$tmp" >/dev/null 2>&1; then
+    chmod 600 "$tmp" 2>/dev/null || true
     mv -f "$tmp" "$dir/meta.json"
     return 0
   fi
@@ -346,17 +393,30 @@ sj_meta_touch() {
   local today
   today=$(date +%F)
 
-  # Cheap pre-check outside the lock. Racy by design: the worst case is a
-  # redundant write, which the in-lock jq then makes idempotent anyway.
-  local changed
-  changed=$(jq -r --arg s "$sid" --arg p "$pid" --arg d "$today" '
-    (.date != $d)
-    or ($s != "" and (((.session_ids // []) | index($s)) == null))
-    or ($p != "" and (((.pane_ids    // []) | index($p)) == null))
-  ' "$dir/meta.json" 2>/dev/null)
-  [ "$changed" = "true" ] || return 0
+  # Retry the whole read-modify-write a few times. sj_lock gives up rather than
+  # stall a hook, and this update is idempotent, so re-checking and retrying is
+  # both safe and the difference between recording a session id and silently
+  # dropping it under contention from many panes and subagents.
+  local attempt=0
+  while [ "$attempt" -lt 5 ]; do
+    attempt=$((attempt + 1))
 
-  sj_lock "$dir" || return 1
+    # Cheap pre-check outside the lock. Racy by design: the worst case is a
+    # redundant write, which the in-lock jq then makes idempotent anyway.
+    local changed
+    changed=$(jq -r --arg s "$sid" --arg p "$pid" --arg d "$today" '
+      (.date != $d)
+      or ($s != "" and (((.session_ids // []) | index($s)) == null))
+      or ($p != "" and (((.pane_ids    // []) | index($p)) == null))
+    ' "$dir/meta.json" 2>/dev/null)
+    [ "$changed" = "true" ] || return 0
+
+    if sj_lock "$dir"; then
+      break
+    fi
+    [ "$attempt" -ge 5 ] && return 1
+    sleep 0.05
+  done
   jq --arg s "$sid" --arg p "$pid" --arg d "$today" \
     --arg u "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
       .date = $d

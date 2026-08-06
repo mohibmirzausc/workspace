@@ -53,20 +53,40 @@ printf '{"session_id":"s1"}' | bash "$H/session-journal-stop.sh" >/dev/null
 assert_eq "$(wc -l <"$d/entries.txt")" "$before" "no empty flush"
 
 # --- PostToolUse: git commits are captured, ordinary commands are not ---------
+# The subject is read from git, not parsed out of the command string, so any
+# invocation form works and a FAILED commit logs nothing.
+git -C "$CMUX_AGENT_LAUNCH_CWD" init -q -b main 2>/dev/null
+git -C "$CMUX_AGENT_LAUNCH_CWD" config user.email t@t 2>/dev/null
+git -C "$CMUX_AGENT_LAUNCH_CWD" config user.name t 2>/dev/null
+git -C "$CMUX_AGENT_LAUNCH_CWD" commit -q --allow-empty -m "feat: a thing" 2>/dev/null
+
 printf '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"git commit -m \\"feat: a thing\\""}}' |
   bash "$H/session-journal-tool.sh"
 assert_eq "$(tail -1 "$d/entries.txt" | jq -r .kind)" "commit"
-assert_contains "$(tail -1 "$d/entries.txt" | jq -r .title)" "feat: a thing" "subject extracted"
+assert_contains "$(tail -1 "$d/entries.txt" | jq -r .title)" "feat: a thing" "subject read from git"
+
+# The same HEAD must not be logged twice (the hook can fire more than once).
+before=$(wc -l <"$d/entries.txt")
+printf '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"git commit -m \\"feat: a thing\\""}}' |
+  bash "$H/session-journal-tool.sh"
+assert_eq "$(wc -l <"$d/entries.txt")" "$before" "same HEAD not logged twice"
+
+# A FAILED commit leaves HEAD unchanged, so nothing new is written.
+before=$(wc -l <"$d/entries.txt")
+printf '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"git commit -m \\"never landed\\""}}' |
+  bash "$H/session-journal-tool.sh"
+assert_eq "$(wc -l <"$d/entries.txt")" "$before" "failed commit must not be logged"
+
+# A new commit IS logged, whatever quoting the command used.
+git -C "$CMUX_AGENT_LAUNCH_CWD" commit -q --allow-empty -m "fix: quoted" 2>/dev/null
+printf '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"git commit -F /tmp/msg"}}' |
+  bash "$H/session-journal-tool.sh"
+assert_contains "$(tail -1 "$d/entries.txt" | jq -r .title)" "fix: quoted" "works regardless of -m quoting"
 
 before=$(wc -l <"$d/entries.txt")
 printf '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"ls -la"}}' |
   bash "$H/session-journal-tool.sh"
 assert_eq "$(wc -l <"$d/entries.txt")" "$before" "ordinary bash must not be logged"
-
-# Single-quoted commit messages work too.
-printf '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"git commit -m '"'"'fix: quoted'"'"'"}}' |
-  bash "$H/session-journal-tool.sh"
-assert_contains "$(tail -1 "$d/entries.txt" | jq -r .title)" "fix: quoted"
 
 # --- SubagentStop ------------------------------------------------------------
 printf '{"session_id":"s1","agent_type":"Explore","result":"Found 3 call sites.\\nAll in tests."}' |
@@ -134,7 +154,6 @@ assert_contains "$out" "logged no reasoning" "nudge fires after silent work"
 printf '{"session_id":"s9","tool_name":"Edit","tool_input":{"file_path":"%s/y.ts"}}' \
   "$CMUX_AGENT_LAUNCH_CWD" | bash "$H/session-journal-tool.sh"
 out=$(printf '{"session_id":"s9"}' | bash "$H/session-journal-stop.sh")
-assert_contains "$out" "" ""
 printf '%s' "$out" | grep -q "logged no reasoning" && fail "must not nudge when reasoning exists"
 
 # --- UserPromptSubmit --------------------------------------------------------
@@ -164,7 +183,6 @@ tlen=$(tail -1 "$d/entries.txt" | jq -r .title | wc -c | tr -d ' ')
 [ "$tlen" -le 130 ] || fail "prompt title not truncated: $tlen chars"
 
 # Leading blank lines are skipped rather than producing an empty entry.
-before=$(wc -l <"$d/entries.txt")
 printf '{"session_id":"s1","prompt":"\\n\\n   \\nreal content"}' |
   bash "$H/session-journal-prompt.sh" >/dev/null
 assert_contains "$(tail -1 "$d/entries.txt" | jq -r .title)" "real content" "skips blank lines"

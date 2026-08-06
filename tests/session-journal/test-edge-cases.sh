@@ -12,20 +12,48 @@ trap teardown_sandbox EXIT
 . "$LIB"
 echo ENABLED >"$SJ_STATE_FILE"
 
-# --- Stale lock must not stall a hook ----------------------------------------
-# A 3000-iteration cap with `sleep 0.001` took ~18-26s in practice, because
-# process spawn dominates. That is unacceptable inside a per-turn Stop hook.
+# --- Locking: give up fast, steal only what is provably stale ----------------
+# Two separate requirements, and an earlier version got the tradeoff wrong in
+# both directions:
+#   1. A 3000-iteration cap with `sleep 0.001` stalled 18-26s (process spawn
+#      dominates), which is unacceptable in a hook that runs every turn.
+#   2. Stealing purely on a timeout removed a LIVE holder's lock mid-critical-
+#      section — three writers were observed holding it at once, and meta.json
+#      (a read-modify-write) silently lost updates.
 d=$(sj_dir)
 mkdir -p "$d"
 sj_init >/dev/null
-mkdir "$d/.lock" # simulate a holder that crashed without unlocking
+
+# A FRESH lock belongs to a live holder: do NOT steal it, and do not stall.
+mkdir "$d/.lock"
+before=$(wc -l <"$d/entries.txt")
+start=$(date +%s)
+sj_append progress agent "must not appear" ""
+elapsed=$(($(date +%s) - start))
+[ "$elapsed" -le 5 ] || fail "waited ${elapsed}s on a live lock; must give up fast"
+assert_eq "$(wc -l <"$d/entries.txt")" "$before" "must not write while another holder has the lock"
+[ -d "$d/.lock" ] || fail "a live holder's lock must not be stolen"
+
+# An OLD lock is presumed abandoned and IS stolen, so a crash cannot wedge the
+# journal forever.
+touch -t 202001010000 "$d/.lock"
 start=$(date +%s)
 sj_append progress agent "after stale lock" ""
-end=$(date +%s)
-elapsed=$((end - start))
-[ "$elapsed" -le 5 ] || fail "stale-lock recovery took ${elapsed}s; must be a few seconds"
-assert_eq "$(tail -1 "$d/entries.txt" | jq -r .title)" "after stale lock" "entry written after steal"
+elapsed=$(($(date +%s) - start))
+[ "$elapsed" -le 5 ] || fail "stale-lock recovery took ${elapsed}s"
+assert_eq "$(tail -1 "$d/entries.txt" | jq -r .title)" "after stale lock" "entry written after stealing a stale lock"
 [ -d "$d/.lock" ] && fail "lock left behind after steal"
+
+# An unwritable journal dir is a permission error, not contention: bail at once
+# rather than burning the full wait deadline on every hook.
+if [ "$(id -u)" -ne 0 ]; then
+  chmod 500 "$d"
+  start=$(date +%s)
+  sj_append progress agent "unwritable" "" 2>/dev/null
+  elapsed=$(($(date +%s) - start))
+  chmod 700 "$d"
+  [ "$elapsed" -le 1 ] || fail "unwritable dir stalled ${elapsed}s; must fail immediately"
+fi
 
 # --- Blank lines in the edit buffer must not crash the Stop hook -------------
 # `grep -c .` prints "0" AND exits 1 on no match, producing "0\n0".
@@ -131,5 +159,55 @@ sleep 1
 sj_meta_touch
 m2=$(stat -f %m "$d/meta.json")
 assert_eq "$m1" "$m2" "no-op touch must not rewrite (empty pane id is not a change)"
+
+# --- Journals are owner-only -------------------------------------------------
+# They hold user prompts, agent reasoning, filenames and commit subjects, which
+# may be client-confidential. umask 022 would otherwise make them world-readable.
+jd=$(sj_dir)
+assert_eq "$(stat -f %Lp "$jd")" "700" "journal dir is owner-only"
+for f in index.html entries.txt meta.json; do
+  assert_eq "$(stat -f %Lp "$jd/$f")" "600" "$f is owner-only"
+done
+
+# --- Temp files must not be predictable, and must not collide ----------------
+# "$dir/meta.json.tmp.$$" collided across concurrent subshells (intermittent
+# `mv: No such file or directory`) and was a symlink-follow target.
+# Match an ASSIGNMENT, not the comments that explain why $$ was removed.
+grep -nE '^[[:space:]]*(local[[:space:]]+)?tmp=.*\$\$' "$LIB" &&
+  fail "predictable \$\$ temp name still assigned"
+grep -q 'mktemp' "$LIB" || fail "mktemp not used for temp files"
+
+# Hammer meta writes from parallel writers; no mv errors, no torn file, no litter.
+err=$(
+  for i in $(seq 1 8); do
+    (
+      . "$LIB"
+      for j in $(seq 1 12); do SJ_SESSION_ID="p$i-$j" sj_meta_touch; done
+    ) &
+  done
+  wait
+  2>&1
+)
+case "$err" in
+  *"No such file or directory"*) fail "temp-file race under concurrent meta writes: $err" ;;
+esac
+jq -e . "$jd/meta.json" >/dev/null || fail "meta.json torn under concurrent writers"
+assert_eq "$(find "$jd" -name '.meta.json.*' -o -name 'meta.json.tmp*' | wc -l | tr -d ' ')" "0" "no temp litter"
+
+# --- Every hook must exit 0 even with jq missing ------------------------------
+# A non-zero hook surfaces as an error inside the user's Claude session.
+# session-journal-start.sh previously ended on a bare `jq -n`, so its status
+# became the hook's: exit 127 when jq was absent.
+JQLESS=$(mktemp -d)
+mkdir -p "$JQLESS/bin"
+for c in bash cat date git mkdir rmdir stat printf sed awk grep tr cut head tail sort wc find basename dirname shasum mktemp mv rm chmod touch sleep id; do
+  p=$(command -v "$c" 2>/dev/null) && ln -sf "$p" "$JQLESS/bin/$c" 2>/dev/null
+done
+for h in start tool subagent stop prompt; do
+  printf '{"session_id":"x"}' |
+    env -i HOME="$JQLESS" PATH="$JQLESS/bin" bash "$H/session-journal-$h.sh" >/dev/null 2>&1 ||
+    fail "$h must exit 0 when jq is missing"
+done
+rm -rf "$JQLESS"
 
 echo "test-edge-cases passed"
