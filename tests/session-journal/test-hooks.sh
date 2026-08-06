@@ -109,6 +109,43 @@ out=$(printf '{"session_id":"s9"}' | bash "$H/session-journal-stop.sh")
 assert_contains "$out" "" ""
 printf '%s' "$out" | grep -q "logged no reasoning" && fail "must not nudge when reasoning exists"
 
+# --- UserPromptSubmit --------------------------------------------------------
+# Prompts are the best index of what a session was doing, but only a truncated
+# first line is stored — these land in ~/html-pages as plaintext.
+export CMUX_WORKSPACE_ID="11111111-2222-3333-4444-555555555555"
+d=$("$H/session-journal" path)
+printf '{"session_id":"s1","prompt":"Fix the auth bug in the login flow"}' |
+  bash "$H/session-journal-prompt.sh" >/dev/null
+last=$(tail -1 "$d/entries.txt")
+assert_eq "$(printf '%s' "$last" | jq -r .kind)" "prompt"
+assert_contains "$(printf '%s' "$last" | jq -r .title)" "Fix the auth bug" "prompt captured"
+
+# Only the FIRST line, and no body: we index the session, not archive it.
+printf '{"session_id":"s1","prompt":"first line here\\nsecond line\\nthird line"}' |
+  bash "$H/session-journal-prompt.sh" >/dev/null
+last=$(tail -1 "$d/entries.txt")
+assert_contains "$(printf '%s' "$last" | jq -r .title)" "first line here"
+printf '%s' "$last" | jq -r .title | grep -q "second line" && fail "must store only the first line"
+assert_eq "$(printf '%s' "$last" | jq -r .body)" "" "prompt body must stay empty"
+
+# Long prompts are capped at ~120 chars.
+long=$(head -c 400 </dev/zero | tr '\0' 'z')
+printf '{"session_id":"s1","prompt":"%s"}' "$long" |
+  bash "$H/session-journal-prompt.sh" >/dev/null
+tlen=$(tail -1 "$d/entries.txt" | jq -r .title | wc -c | tr -d ' ')
+[ "$tlen" -le 130 ] || fail "prompt title not truncated: $tlen chars"
+
+# Leading blank lines are skipped rather than producing an empty entry.
+before=$(wc -l <"$d/entries.txt")
+printf '{"session_id":"s1","prompt":"\\n\\n   \\nreal content"}' |
+  bash "$H/session-journal-prompt.sh" >/dev/null
+assert_contains "$(tail -1 "$d/entries.txt" | jq -r .title)" "real content" "skips blank lines"
+
+# An empty prompt writes nothing at all.
+before=$(wc -l <"$d/entries.txt")
+printf '{"session_id":"s1","prompt":""}' | bash "$H/session-journal-prompt.sh" >/dev/null
+assert_eq "$(wc -l <"$d/entries.txt")" "$before" "empty prompt writes nothing"
+
 # --- Disabled ----------------------------------------------------------------
 echo DISABLED >"$SJ_STATE_FILE"
 before=$(wc -l <"$d/entries.txt")
@@ -121,7 +158,7 @@ assert_eq "$(wc -l <"$d/entries.txt")" "$before" "no writes when disabled"
 
 # --- Malformed input must never crash a hook ---------------------------------
 echo ENABLED >"$SJ_STATE_FILE"
-for h in start tool subagent stop; do
+for h in start tool subagent stop prompt; do
   echo 'not json at all' | bash "$H/session-journal-$h.sh" >/dev/null 2>&1 ||
     fail "$h must survive malformed stdin"
   printf '' | bash "$H/session-journal-$h.sh" >/dev/null 2>&1 ||

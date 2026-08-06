@@ -44,6 +44,9 @@
   .e[data-source="agent"]{border-left-color:var(--agent)}
   .e[data-source="subagent"]{border-left-color:var(--sub)}
   .e[data-kind="blocker"]{border-left-color:var(--warn)}
+  /* Prompts are navigation anchors, not events — set them apart. */
+  .e[data-kind="prompt"]{background:#1b1d2b;border-left-color:var(--accent)}
+  .e[data-kind="prompt"] .t{color:var(--accent)}
   .m{display:flex;gap:10px;align-items:baseline;font-size:11px;color:var(--dim);flex-wrap:wrap}
   .k{color:var(--accent);text-transform:uppercase;letter-spacing:.6px}
   .t{margin:3px 0 0;font-size:13.5px;color:var(--ink)}
@@ -77,6 +80,7 @@
 <div class="bar" role="group" aria-label="Filter entries">
   <button data-f="all" aria-pressed="true">all</button>
   <button data-f="agent" aria-pressed="false">reasoning</button>
+  <button data-f="prompt" aria-pressed="false">prompts</button>
   <button data-f="hook" aria-pressed="false">activity</button>
   <button data-f="subagent" aria-pressed="false">subagents</button>
   <span id="live">connecting…</span>
@@ -123,7 +127,12 @@
 
   function render() {
     var list = entries.filter(function (e) {
-      return filter === 'all' || e.source === filter;
+      if (filter === 'all') return true;
+      // "prompts" selects a kind; the others select a source. Prompts are
+      // written by a hook, so filtering them by source would not work.
+      if (filter === 'prompt') return e.kind === 'prompt';
+      if (filter === 'hook') return e.source === 'hook' && e.kind !== 'prompt';
+      return e.source === filter;
     }).slice().reverse();
 
     countEl.textContent = entries.length + (entries.length === 1 ? ' entry' : ' entries');

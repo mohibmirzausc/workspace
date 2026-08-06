@@ -14,7 +14,7 @@ SJ_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/session-journal-common.sh
 . "$SJ_LIB_DIR/lib/session-journal-common.sh"
 
-SJ_KINDS="decision progress blocker milestone question files commit subagent session"
+SJ_KINDS="decision progress blocker milestone question files commit subagent session prompt"
 
 die() {
   echo "session-journal: $*" >&2
@@ -32,7 +32,8 @@ usage: session-journal <command>
   path                       print the journal directory
   status                     print whether journaling is enabled
 
-kinds: decision progress blocker milestone question files commit subagent session
+kinds: decision progress blocker milestone question
+       (files commit subagent session prompt are written by the hooks)
 EOF
   exit 2
 }
