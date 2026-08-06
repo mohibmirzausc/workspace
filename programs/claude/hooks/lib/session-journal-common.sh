@@ -176,3 +176,101 @@ sj_append() {
   sj_unlock "$dir"
   return 0
 }
+
+# --- meta.json ---------------------------------------------------------------
+#
+# The gallery reads this sidecar for title/style/date and ignores our marker
+# fields, so the markers exist for filesystem discovery rather than for the UI.
+#
+# ALWAYS write via tmp + mv: rename(2) is atomic within a filesystem, so a
+# reader never observes a partial file. This matters more than it looks — the
+# server wraps its sidecar parse in try/catch and falls back to title-only
+# extraction, so a torn meta.json fails completely silently.
+
+# stdin: complete JSON document. Caller must already hold the lock.
+sj_meta_write() {
+  local dir="$1"
+  local tmp="$dir/meta.json.tmp.$$"
+  cat >"$tmp" || { rm -f "$tmp"; return 1; }
+  if jq -e . "$tmp" >/dev/null 2>&1; then
+    mv -f "$tmp" "$dir/meta.json"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+
+sj_meta_init() {
+  local dir
+  dir=$(sj_dir)
+  [ -d "$dir" ] || return 1
+  [ -f "$dir/meta.json" ] && return 0
+
+  local now repo branch common
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  repo=$(sj_repo_name)
+  branch=$(sj_branch_name)
+  common=$(git -C "$(sj_repo_root)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || printf '')
+
+  sj_lock "$dir" || return 1
+  # Re-check inside the lock: another pane may have created it while we waited.
+  if [ ! -f "$dir/meta.json" ]; then
+    jq -n \
+      --arg title "$repo · $branch" \
+      --arg date "$(date +%F)" \
+      --arg ws "${CMUX_WORKSPACE_ID:-}" \
+      --arg cwd "$(sj_repo_root)" \
+      --arg launch "${CMUX_AGENT_LAUNCH_CWD:-}" \
+      --arg repo "$repo" \
+      --arg branch "$branch" \
+      --arg common "$common" \
+      --arg started "$now" \
+      --arg updated "$now" \
+      '{kind:"session-journal", title:$title, style:"Session journal",
+        keywords:"live session log · decisions · progress",
+        recreate:"Session journal — auto-maintained by the session-journal hooks.",
+        date:$date, cmux_workspace_id:$ws, session_ids:[], pane_ids:[],
+        cwd:$cwd, launch_cwd:$launch, repo:$repo, branch:$branch,
+        git_common_dir:$common, started:$started, updated:$updated}' |
+      sj_meta_write "$dir"
+  fi
+  sj_unlock "$dir"
+  return 0
+}
+
+# Refresh date/updated and accumulate session + pane ids.
+#
+# Writes ONLY when content would actually change: meta.json is a .json file and
+# therefore inside the gallery server's fs.watch filter, so a needless write
+# broadcasts an SSE reload to every open tab.
+sj_meta_touch() {
+  local dir
+  dir=$(sj_dir)
+  [ -f "$dir/meta.json" ] || return 0
+
+  local sid="${SJ_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
+  local pid="${CMUX_PANEL_ID:-}"
+  local today
+  today=$(date +%F)
+
+  # Cheap pre-check outside the lock. Racy by design: the worst case is a
+  # redundant write, which the in-lock jq then makes idempotent anyway.
+  local changed
+  changed=$(jq -r --arg s "$sid" --arg p "$pid" --arg d "$today" '
+    (.date != $d)
+    or ($s != "" and (((.session_ids // []) | index($s)) == null))
+    or ($p != "" and (((.pane_ids    // []) | index($p)) == null))
+  ' "$dir/meta.json" 2>/dev/null)
+  [ "$changed" = "true" ] || return 0
+
+  sj_lock "$dir" || return 1
+  jq --arg s "$sid" --arg p "$pid" --arg d "$today" \
+    --arg u "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .date = $d
+    | .updated = $u
+    | .session_ids = (((.session_ids // []) + (if $s == "" then [] else [$s] end)) | unique)
+    | .pane_ids    = (((.pane_ids    // []) + (if $p == "" then [] else [$p] end)) | unique)
+  ' "$dir/meta.json" | sj_meta_write "$dir"
+  sj_unlock "$dir"
+  return 0
+}
