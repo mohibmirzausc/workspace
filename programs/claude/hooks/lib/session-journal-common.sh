@@ -177,6 +177,72 @@ sj_append() {
   return 0
 }
 
+# --- Page rendering ----------------------------------------------------------
+
+# Escape a value for interpolation into HTML text/attributes.
+sj_esc_html() {
+  printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+
+# Substitute {{PLACEHOLDER}}s in the template.
+#
+# awk with index()/substr() rather than sed: sed's replacement text treats & as
+# "the whole match", so escaping a branch name to `a&amp;b` and feeding it to
+# sed yields `a{{BRANCH}}amp;b`. awk does literal string replacement, so escaped
+# HTML survives intact.
+sj_render_template() {
+  local tpl="$1"
+  awk 'BEGIN{
+      M["{{TITLE}}"]        = ENVIRON["SJ_T_TITLE"];
+      M["{{REPO}}"]         = ENVIRON["SJ_T_REPO"];
+      M["{{BRANCH}}"]       = ENVIRON["SJ_T_BRANCH"];
+      M["{{WORKSPACE_ID}}"] = ENVIRON["SJ_T_WSID"];
+      M["{{CWD}}"]          = ENVIRON["SJ_T_CWD"];
+      M["{{CREATED}}"]      = ENVIRON["SJ_T_CREATED"];
+    }
+    {
+      for (k in M) {
+        while ((i = index($0, k)) > 0)
+          $0 = substr($0, 1, i - 1) M[k] substr($0, i + length(k));
+      }
+      print;
+    }' "$tpl"
+}
+
+# --- init --------------------------------------------------------------------
+
+# ORDER MATTERS: index.html is written FIRST. The gallery skips any directory
+# whose index.html cannot be stat'd, so a journal created in the other order is
+# invisible in the gallery with no error surfaced anywhere.
+sj_init() {
+  local dir tpl
+  dir=$(sj_dir)
+  mkdir -p "$dir" || return 1
+
+  tpl="${SJ_TEMPLATE:-$(dirname "${BASH_SOURCE[0]}")/journal-template.html}"
+
+  if [ ! -f "$dir/index.html" ]; then
+    if [ ! -f "$tpl" ]; then
+      echo "session-journal: template missing: $tpl" >&2
+      return 1
+    fi
+    local tmp="$dir/index.html.tmp.$$"
+    SJ_T_TITLE="$(sj_esc_html "$(sj_repo_name) · $(sj_branch_name)")" \
+    SJ_T_REPO="$(sj_esc_html "$(sj_repo_name)")" \
+    SJ_T_BRANCH="$(sj_esc_html "$(sj_branch_name)")" \
+    SJ_T_WSID="$(sj_esc_html "${CMUX_WORKSPACE_ID:-$(sj_wsid8)}")" \
+    SJ_T_CWD="$(sj_esc_html "$(sj_repo_root)")" \
+    SJ_T_CREATED="$(date +%F)" \
+      sj_render_template "$tpl" >"$tmp" && mv -f "$tmp" "$dir/index.html" || {
+      rm -f "$tmp"
+      return 1
+    }
+  fi
+
+  [ -f "$dir/entries.txt" ] || : >"$dir/entries.txt"
+  sj_meta_init
+}
+
 # --- meta.json ---------------------------------------------------------------
 #
 # The gallery reads this sidecar for title/style/date and ignores our marker

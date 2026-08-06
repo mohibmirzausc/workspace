@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# session-journal — per-cmux-workspace session journal.
+#
+#   session-journal init
+#   session-journal add --kind <kind> --title <t> [--body <b> | --body-stdin]
+#   session-journal tail [-n N]
+#   session-journal path
+#   session-journal status
+#
+# Exits 0 when journaling is disabled so that a hook never fails because of us.
+set -uo pipefail
+
+SJ_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/session-journal-common.sh
+. "$SJ_LIB_DIR/lib/session-journal-common.sh"
+
+SJ_KINDS="decision progress blocker milestone question files commit subagent session"
+
+die() {
+  echo "session-journal: $*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<'EOF'
+usage: session-journal <command>
+
+  init                       create the journal for this workspace
+  add --kind K --title T     append an entry
+      [--body B | --body-stdin] [--source agent|hook|subagent]
+  tail [-n N]                last N entries (default 20)
+  path                       print the journal directory
+  status                     print whether journaling is enabled
+
+kinds: decision progress blocker milestone question files commit subagent session
+EOF
+  exit 2
+}
+
+cmd_init() {
+  sj_enabled || exit 0
+  sj_init || die "init failed"
+}
+
+cmd_add() {
+  local kind="" title="" body="" source="${SJ_SOURCE:-agent}" from_stdin=0
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kind) kind="${2:-}"; shift 2 ;;
+      --title) title="${2:-}"; shift 2 ;;
+      --body) body="${2:-}"; shift 2 ;;
+      --body-stdin) from_stdin=1; shift ;;
+      --source) source="${2:-}"; shift 2 ;;
+      -h | --help) usage ;;
+      *) die "unknown flag: $1" ;;
+    esac
+  done
+
+  # Validate BEFORE the enabled check so typos surface even while disabled.
+  [ -n "$kind" ] || die "--kind is required"
+  [ -n "$title" ] || die "--title is required"
+  case " $SJ_KINDS " in
+    *" $kind "*) ;;
+    *) die "invalid --kind: $kind (one of: $SJ_KINDS)" ;;
+  esac
+
+  sj_enabled || exit 0
+  [ "$from_stdin" -eq 1 ] && body=$(cat)
+
+  # Auto-create rather than requiring an explicit init; never fail a hook.
+  sj_init || exit 0
+  sj_append "$kind" "$source" "$title" "$body" || exit 0
+  sj_meta_touch || true
+}
+
+cmd_tail() {
+  sj_enabled || exit 0
+  local n=20
+  if [ "${1:-}" = "-n" ]; then
+    n="${2:-20}"
+  fi
+  local f
+  f="$(sj_dir)/entries.txt"
+  [ -f "$f" ] || exit 0
+  tail -n "$n" "$f"
+}
+
+cmd_path() { sj_dir; }
+
+cmd_status() {
+  if sj_enabled; then
+    echo "ENABLED  $(sj_dir)"
+  else
+    echo "DISABLED ($(sj_dir))"
+  fi
+}
+
+case "${1:-}" in
+  init) shift; cmd_init "$@" ;;
+  add) shift; cmd_add "$@" ;;
+  tail) shift; cmd_tail "$@" ;;
+  path) shift; cmd_path "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  *) usage ;;
+esac
