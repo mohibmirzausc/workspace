@@ -43,51 +43,70 @@ sj_last_assistant_text() {
     ] | last // empty' 2>/dev/null
 }
 
-# Fall back to the subagent's OWN transcript.
+# Locate the subagent's OWN transcript.
 #
 # Verified live: the payload's `transcript_path` points at the PARENT session's
 # transcript, so reading it captures the parent's narration rather than the
-# subagent's report. The subagent's real transcript lives beside it under
-# `subagents/agent-<id>.jsonl`, with an `agent-<id>.meta.json` sidecar carrying
-# agentType. Resolve that directory and take the most recently modified entry —
-# this hook fires as the subagent finishes, so the newest file is ours.
-if [ -z "$summary" ]; then
-  tp=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
-  sub_id=$(printf '%s' "$payload" | jq -r '.agent_id // .agentId // .subagent_id // empty' 2>/dev/null)
+# subagent's report. The subagent's real transcript lives under
+#
+#   <dir of transcript_path>/<session-id>/subagents/agent-<id>.jsonl
+#
+# with an `agent-<id>.meta.json` sidecar carrying agentType and description.
+# NOTE the `<session-id>/` component: an earlier version looked in
+# `<dir>/subagents` (one level too shallow), which NEVER existed. Every
+# SubagentStop therefore fell through to the parent transcript and logged the
+# main agent's narration as if it were a subagent report — 59 such entries in a
+# session that ran only 6 real subagents. `transcript_path` is
+# `<dir>/<session-id>.jsonl`, so strip the extension to get the sibling dir.
+tp=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
+sub_id=$(printf '%s' "$payload" | jq -r '.agent_id // .agentId // .subagent_id // empty' 2>/dev/null)
 
-  if [ -n "$tp" ]; then
-    sub_dir="$(dirname "$tp")/subagents"
-    cand=""
+cand=""
+if [ -n "$tp" ]; then
+  for sub_dir in "${tp%.jsonl}/subagents" "$(dirname "$tp")/subagents"; do
+    [ -d "$sub_dir" ] || continue
     # Prefer an exact id match when the payload gives us one.
     if [ -n "$sub_id" ] && [ -f "$sub_dir/agent-$sub_id.jsonl" ]; then
       cand="$sub_dir/agent-$sub_id.jsonl"
-    elif [ -d "$sub_dir" ]; then
+    else
+      # This hook fires as the subagent finishes, so the newest file is ours.
       cand=$(ls -t "$sub_dir"/agent-*.jsonl 2>/dev/null | head -1)
     fi
-    [ -n "$cand" ] && [ -f "$cand" ] && summary=$(sj_last_assistant_text "$cand")
-
-    # If the agent type was not in the payload, the sidecar has it.
-    if [ "$atype" = "subagent" ] && [ -n "$cand" ]; then
-      meta="${cand%.jsonl}.meta.json"
-      if [ -f "$meta" ]; then
-        t=$(jq -r '.agentType // .agent_type // empty' "$meta" 2>/dev/null)
-        [ -n "$t" ] && atype="$t"
-      fi
-    fi
-
-    # Last resort: the parent transcript. Better than nothing, but it will read
-    # as the parent's voice, so only use it if the subagent's own is missing.
-    if [ -z "$summary" ] && [ -f "$tp" ]; then
-      summary=$(sj_last_assistant_text "$tp")
-    fi
-  fi
+    [ -n "$cand" ] && break
+  done
 fi
 
+# GATE: only record when a subagent transcript actually exists.
+#
+# Without this, a SubagentStop that fires with no resolvable subagent (or on the
+# main session's own turn end) reads the PARENT transcript and writes the main
+# agent's last message as a "subagent report" — duplicating narration the human
+# has already read, and burying the handful of genuine reports. A missed entry
+# is far cheaper than a journal that is 60% noise.
+[ -n "$cand" ] && [ -f "$cand" ] || exit 0
+
+# The sidecar carries both the agent type and the human-written task description.
+desc=""
+meta="${cand%.jsonl}.meta.json"
+if [ -f "$meta" ]; then
+  [ "$atype" = "subagent" ] &&
+    { t=$(jq -r '.agentType // .agent_type // empty' "$meta" 2>/dev/null); [ -n "$t" ] && atype="$t"; }
+  desc=$(jq -r '.description // empty' "$meta" 2>/dev/null)
+fi
+
+[ -z "$summary" ] && summary=$(sj_last_assistant_text "$cand")
 [ -z "$summary" ] && summary="(no report captured)"
 
 sj_init || exit 0
 
-title=$(printf '%s' "$summary" | tr '\n' ' ' | sed 's/^[[:space:]]*//' | cut -c1-120)
+# Title: prefer the sidecar's task description — it is a purpose-written phrase.
+# Slicing the report's first 120 chars yields things like
+# "## Token cost of journaling **Per session…** | Cost | Tokens |", which is
+# unskimmable in a list. Fall back to the report's first real sentence.
+title="$desc"
+if [ -z "$title" ]; then
+  title=$(printf '%s' "$summary" | sj_summarize_line 120)
+fi
 [ -z "$title" ] && title="finished"
 
 SJ_AGENT="$atype" sj_append "subagent" "subagent" "[$atype] $title" "$summary" || true

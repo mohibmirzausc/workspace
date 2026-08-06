@@ -17,6 +17,9 @@ SJ_STATE_FILE="${SJ_STATE_FILE:-$HOME/.claude/session-journal-state}"
 SJ_PAGES_DIR="${SJ_PAGES_DIR:-$HOME/html-pages}"
 SJ_RUNTIME_DIR="${SJ_RUNTIME_DIR:-$HOME/.claude/session-journal}"
 SJ_MAX_BODY="${SJ_MAX_BODY:-4096}"
+# How many recent entries an append checks for an identical predecessor. Bounded
+# so dedupe cost stays flat as a journal grows to thousands of entries.
+SJ_DEDUPE_WINDOW="${SJ_DEDUPE_WINDOW:-40}"
 
 # --- Identity ----------------------------------------------------------------
 
@@ -195,6 +198,45 @@ sj_file_age() {
 
 sj_unlock() { rmdir "$1/.lock" 2>/dev/null || true; }
 
+# --- Titles ------------------------------------------------------------------
+
+# stdin: prose (usually markdown). Args: max length.
+#
+# Produce a human-skimmable one-liner. A blind `cut -c1-120` of a markdown
+# report gives titles like "## Token cost **Per session** | Cost | Tokens |",
+# which is unreadable in a list, so: skip markdown structure (headings, table
+# rows, list bullets, code fences) to reach the first line of actual prose,
+# strip inline markup, and cut at a sentence boundary when one is in range.
+sj_summarize_line() {
+  local max="${1:-120}"
+  awk -v max="$max" '
+    # Track fenced code blocks so their contents are never used as a title.
+    /^[[:space:]]*```/ { fence = !fence; next }
+    fence { next }
+    {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      if (line == "") next
+      if (line ~ /^#+[[:space:]]*/) { sub(/^#+[[:space:]]*/, "", line) }  # heading text is fine
+      else if (line ~ /^[|>]/) next                                       # table row / quote
+      else if (line ~ /^([-*+]|[0-9]+\.)[[:space:]]/) sub(/^([-*+]|[0-9]+\.)[[:space:]]+/, "", line)
+      else if (line ~ /^[-=]{3,}$/) next                                  # setext rule
+      if (line == "") next
+      print line
+      exit
+    }
+  ' | sed -e 's/\*\*//g' -e 's/`//g' -e 's/__//g' |
+    awk -v max="$max" '{
+      # Cut at the first sentence end that fits, else hard-truncate on a word
+      # boundary so the title never ends mid-word.
+      if (match($0, /[.!?](  *|$)/) && RSTART <= max) { print substr($0, 1, RSTART); exit }
+      if (length($0) <= max) { print; exit }
+      s = substr($0, 1, max)
+      if (match(s, /[[:space:]][^[:space:]]*$/)) s = substr(s, 1, RSTART - 1)
+      print s "…"
+    }' | sed -e 's/[[:space:]]*$//'
+}
+
 # --- Append ------------------------------------------------------------------
 
 # One JSON object per line. jq -c does the escaping, so newlines, quotes and
@@ -213,6 +255,12 @@ sj_append() {
     body="${body:0:$SJ_MAX_BODY}…[truncated]"
   fi
 
+  # Content hash for dedupe: kind + title + body, deliberately EXCLUDING the
+  # timestamp, session id and pane id so the same payload is recognised across
+  # sessions and panes. Computed BEFORE the jq call that serializes it.
+  local sig
+  sig=$(printf '%s\037%s\037%s' "$kind" "$title" "$body" | shasum -a 256 2>/dev/null | cut -c1-16)
+
   local line
   line=$(jq -nc \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -224,9 +272,36 @@ sj_append() {
     --arg pane_id "${CMUX_PANEL_ID:-}" \
     --arg workspace_id "${CMUX_WORKSPACE_ID:-}" \
     --arg agent "${SJ_AGENT:-main}" \
+    --arg sig "$sig" \
     '{ts:$ts, kind:$kind, source:$source, title:$title, body:$body,
       session_id:$session_id, pane_id:$pane_id, workspace_id:$workspace_id,
-      agent:$agent}') || return 1
+      agent:$agent, sig:$sig}') || return 1
+
+  # Suppress an exact repeat of a recent entry.
+  #
+  # Compaction re-fires SessionStart/SubagentStop, which replayed the identical
+  # report minutes apart (observed: the same 2KB body written twice, either side
+  # of a `Session compact` entry). Retries and hooks racing on one turn do the
+  # same.
+  #
+  # Runs OUTSIDE the lock, with grep rather than jq. Both matter:
+  #   - An in-lock check lengthened the critical section by ~500ms (a jq spawn,
+  #     flat in journal size), so with 8 concurrent writers the last one blew
+  #     sj_lock's 2s deadline and its entry was DROPPED. Measured: 7 of 160
+  #     appends lost.
+  #   - grep -F on the sig field costs no process spawn beyond grep itself, and
+  #     the sig is a 16-hex-char hash, so a fixed-string match on the last
+  #     SJ_DEDUPE_WINDOW lines cannot false-positive on body text.
+  # Racing here is harmless: the worst case is a duplicate slipping through, and
+  # a duplicate is a cosmetic flaw where a lost entry is data loss.
+  #
+  # Bounded to a window rather than the whole file so cost stays flat as journals
+  # grow to thousands of entries; a repeat further back is real recurrence.
+  if [ -n "$sig" ] && [ -s "$dir/entries.txt" ] &&
+    tail -n "$SJ_DEDUPE_WINDOW" "$dir/entries.txt" 2>/dev/null |
+    grep -qF "\"sig\":\"$sig\""; then
+    return 0
+  fi
 
   sj_lock "$dir" || return 1
   printf '%s\n' "$line" >>"$dir/entries.txt"

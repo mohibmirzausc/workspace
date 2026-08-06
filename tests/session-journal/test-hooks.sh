@@ -89,55 +89,66 @@ printf '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"ls -la"}}
 assert_eq "$(wc -l <"$d/entries.txt")" "$before" "ordinary bash must not be logged"
 
 # --- SubagentStop ------------------------------------------------------------
-printf '{"session_id":"s1","agent_type":"Explore","result":"Found 3 call sites.\\nAll in tests."}' |
-  bash "$H/session-journal-subagent.sh" >/dev/null
-last=$(tail -1 "$d/entries.txt")
-assert_eq "$(printf '%s' "$last" | jq -r .source)" "subagent"
-assert_eq "$(printf '%s' "$last" | jq -r .agent)" "Explore"
-assert_contains "$(printf '%s' "$last" | jq -r .title)" "Explore" "agent type in title"
-assert_contains "$(printf '%s' "$last" | jq -r .body)" "Found 3 call sites" "report captured"
-
-# Unknown payload shape must still produce an entry rather than vanishing.
-printf '{"session_id":"s1"}' | bash "$H/session-journal-subagent.sh" >/dev/null
-assert_eq "$(tail -1 "$d/entries.txt" | jq -r .source)" "subagent" "degrades gracefully"
-
-# Transcript fallback. VERIFIED LIVE: `transcript_path` points at the PARENT
-# session's transcript, so a naive read captures the parent's narration instead
-# of the subagent's report. The subagent's own transcript lives beside it under
-# subagents/agent-<id>.jsonl. This asserts we prefer the right one.
+#
+# The transcript layout, VERIFIED against real sessions, is
+#   <dir>/<session-id>/subagents/agent-<id>.jsonl
+# i.e. a directory named for the session, NOT a `subagents` dir alongside the
+# transcript file. An earlier version looked one level too shallow, so the
+# lookup never resolved and every SubagentStop fell through to reading the
+# PARENT transcript — writing the main agent's own narration as a "subagent
+# report". Observed: 59 such entries in a session that ran 6 real subagents.
 tr_file="$SANDBOX/transcript.jsonl"
 printf '%s\n' \
   '{"type":"assistant","message":{"content":[{"type":"text","text":"PARENT narration, must not be captured"}]}}' \
   >"$tr_file"
-mkdir -p "$SANDBOX/subagents"
+sub_dir="${tr_file%.jsonl}/subagents"
+mkdir -p "$sub_dir"
 printf '%s\n' \
   '{"type":"assistant","message":{"content":[{"type":"text","text":"first"}]}}' \
   '{"type":"assistant","message":{"content":[{"type":"text","text":"THE SUBAGENT REPORT"}]}}' \
-  >"$SANDBOX/subagents/agent-abc123.jsonl"
-printf '{"agentType":"Explore","description":"probe"}' \
-  >"$SANDBOX/subagents/agent-abc123.meta.json"
+  >"$sub_dir/agent-abc123.jsonl"
+printf '{"agentType":"Explore","description":"probe the call sites"}' \
+  >"$sub_dir/agent-abc123.meta.json"
 
 printf '{"session_id":"s1","transcript_path":"%s"}' "$tr_file" |
   bash "$H/session-journal-subagent.sh" >/dev/null
 last=$(tail -1 "$d/entries.txt")
+assert_eq "$(printf '%s' "$last" | jq -r .source)" "subagent"
 assert_contains "$(printf '%s' "$last" | jq -r .body)" "THE SUBAGENT REPORT" "reads the subagent's own transcript"
 printf '%s' "$last" | jq -r .body | grep -q "PARENT narration" &&
   fail "captured the parent transcript instead of the subagent's"
 assert_eq "$(printf '%s' "$last" | jq -r .agent)" "Explore" "agent type recovered from the meta sidecar"
+# The sidecar's description is a purpose-written phrase; a 120-char slice of a
+# markdown report is not. Prefer it.
+assert_contains "$(printf '%s' "$last" | jq -r .title)" "probe the call sites" "sidecar description used as title"
+
+# A payload that carries the report inline is still honoured.
+printf '{"session_id":"s1","agent_type":"Explore","transcript_path":"%s","result":"Found 3 call sites.\\nAll in tests."}' "$tr_file" |
+  bash "$H/session-journal-subagent.sh" >/dev/null
+assert_contains "$(tail -1 "$d/entries.txt" | jq -r .body)" "Found 3 call sites" "inline result captured"
 
 # An explicit agent_id selects that exact transcript, not merely the newest.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"OLDER SPECIFIC ONE"}]}}' \
-  >"$SANDBOX/subagents/agent-older.jsonl"
-touch -t 202001010000 "$SANDBOX/subagents/agent-older.jsonl"
+  >"$sub_dir/agent-older.jsonl"
+touch -t 202001010000 "$sub_dir/agent-older.jsonl"
 printf '{"session_id":"s1","agent_type":"Plan","agent_id":"older","transcript_path":"%s"}' "$tr_file" |
   bash "$H/session-journal-subagent.sh" >/dev/null
 assert_contains "$(tail -1 "$d/entries.txt" | jq -r .body)" "OLDER SPECIFIC ONE" "agent_id wins over recency"
 
-# Parent transcript is still the last resort when no subagents dir exists.
-rm -rf "$SANDBOX/subagents"
+# THE GATE: with no subagent transcript to read, record NOTHING. Falling back to
+# the parent transcript here is what produced the 59-entry pollution, so this
+# asserts the absence of an entry, not a graceful degradation to one.
+rm -rf "${tr_file%.jsonl}"
+before=$(wc -l <"$d/entries.txt")
 printf '{"session_id":"s1","agent_type":"Plan","transcript_path":"%s"}' "$tr_file" |
-  bash "$H/session-journal-subagent.sh" >/dev/null
-assert_contains "$(tail -1 "$d/entries.txt" | jq -r .body)" "PARENT narration" "falls back to parent as last resort"
+  bash "$H/session-journal-subagent.sh" >/dev/null || fail "must still exit 0"
+assert_eq "$(wc -l <"$d/entries.txt")" "$before" "no subagent transcript -> no entry"
+grep -q "PARENT narration" "$d/entries.txt" &&
+  fail "parent narration leaked into the journal as a subagent report"
+
+# Likewise for a payload with no transcript_path at all.
+printf '{"session_id":"s1"}' | bash "$H/session-journal-subagent.sh" >/dev/null || fail "must exit 0"
+assert_eq "$(wc -l <"$d/entries.txt")" "$before" "empty payload -> no entry"
 
 # --- Nudge -------------------------------------------------------------------
 # Fresh workspace with hook-only activity: Stop should nudge.
