@@ -61,10 +61,14 @@
                     from = {
                       pointing_button = "button4";
                     };
+                    # Use the dedicated mission_control key rather than
+                    # control+up_arrow: the latter depends on symbolic hotkey 32,
+                    # which is absent from com.apple.symbolichotkeys on this
+                    # machine (every ID present is enabled=false), so the chord
+                    # resolves to nothing. mission_control needs no such binding.
                     to = [
                       {
-                        key_code = "up_arrow";
-                        modifiers = [ "control" ];
+                        key_code = "mission_control";
                       }
                     ];
                   }
@@ -134,10 +138,10 @@
               from = {
                 pointing_button = "button4";
               };
+              # Keep in sync with the inline rule above.
               to = [
                 {
-                  key_code = "up_arrow";
-                  modifiers = [ "control" ];
+                  key_code = "mission_control";
                 }
               ];
             }
