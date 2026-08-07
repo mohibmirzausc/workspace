@@ -242,7 +242,21 @@
       "flycut"
       "fossa"
       "gcloud-cli"
-      "karabiner-elements"
+      # greedy: the cask is marked auto_updates upstream, so `brew bundle`
+      # skips it and defers to Karabiner's own updater -- which left this
+      # machine stranded on 15.7.0 (Nov 2025) while 16.1.0 was current.
+      # greedy upgrades it on rebuild regardless. Set per-cask rather than
+      # via onActivation.greedy so the other auto_updates casks (cmux,
+      # raycast, linearmouse, thaw) keep self-updating on their own schedule.
+      #
+      # NOTE: Karabiner 16.0.0+ requires a NEW Accessibility grant for
+      # Karabiner-Core-Service. TCC grants cannot be automated (SIP-protected),
+      # so after the upgrade lands, approve it in System Settings > Privacy &
+      # Security > Accessibility or Karabiner will silently stop working.
+      {
+        name = "karabiner-elements";
+        greedy = true;
+      }
       "linearmouse"   # Fast-scroll when holding modifier key (configured in home.nix)
       "superwhisper"
       "raycast"
