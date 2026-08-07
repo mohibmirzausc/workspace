@@ -1,0 +1,41 @@
+# Global justfile — recipes available from any directory.
+#
+# Managed by home-manager (programs/just.nix), symlinked to
+# ~/.config/just/justfile. Run these anywhere:
+#   - `just <recipe>` when the current dir has NO local justfile (the shell
+#     wrapper in home.nix falls back to --global-justfile), or
+#   - `just -g <recipe>` explicitly, even inside a project that has its own justfile.
+#
+# List recipes:  just -g   (or just `just` in a dir with no local justfile)
+
+# Default: show the available global recipes.
+default:
+    @just -g --list --unsorted
+
+# Switch the nix-darwin / home-manager config (mirrors the `homeswitch` shell fn).
+switch:
+    sudo darwin-rebuild switch --flake ~/src/workspace
+
+# Update flake inputs in the workspace config.
+update:
+    cd ~/src/workspace && nix flake update
+
+# Garbage-collect nix generations older than 14 days (opt-in cleanup).
+gc days="14":
+    sudo nix-collect-garbage --delete-older-than {{days}}d
+
+# Show the current external IP.
+myip:
+    @curl -fsSL https://api.ipify.org && echo
+
+# Make a directory and cd into it is shell-only; instead: create nested dirs.
+mkdir path:
+    mkdir -p {{path}}
+
+# Serve the current directory over HTTP on PORT (default 8000).
+serve port="8000":
+    python3 -m http.server {{port}}
+
+# Show the largest files/dirs under the current directory (top 20).
+biggest:
+    @du -ah . 2>/dev/null | sort -rh | head -20

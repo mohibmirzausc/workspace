@@ -12,6 +12,7 @@ in
     ./programs/raycast/raycast.nix
     ./programs/ghostty.nix
     ./programs/cmux.nix
+    ./programs/just.nix
     ./programs/zellij.nix
     ./programs/tmux.nix
     ./programs/ticktick-sdk/config.nix
@@ -384,6 +385,19 @@ in
       }
 
       alias ci='git commit -m WIP'
+
+      # `just` with global fallback: if the current directory tree has a local
+      # justfile, use it as normal; otherwise fall back to the global justfile
+      # at ~/.config/just/justfile (managed in programs/just/justfile). This lets
+      # global recipes run from anywhere while local project justfiles still win.
+      # Bare `just` (no args) in a dir with no local justfile lists global recipes.
+      just() {
+        if command just --dump >/dev/null 2>&1; then
+          command just "$@"
+        else
+          command just --global-justfile "$@"
+        fi
+      }
 
       # `fly` -> Concourse CI (Homebrew's flyctl formula keeps recreating a
       # /opt/homebrew/bin/fly symlink on upgrade, which shadows Concourse).
