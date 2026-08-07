@@ -187,6 +187,11 @@ in
   #
   #  /etc/profiles/per-user/mohib/etc/profile.d/hm-session-vars.sh
   #
+  # The session-journal CLI lives alongside the hooks that call it, so the hooks
+  # directory goes on PATH. This is what lets the agent (and the user) invoke
+  # `session-journal add ...` by name.
+  home.sessionPath = [ "$HOME/.claude/hooks" ];
+
   home.sessionVariables = {
     # EDITOR = "emacs";
 
@@ -216,6 +221,22 @@ in
   # Ensure the gallery data directory exists (mutable user content, not in repo).
   home.activation.ensureHtmlPagesDir = lib.hm.dag.entryAfter ["writeBoundary"] ''
     $DRY_RUN_CMD mkdir -p "${htmlPagesDir}"
+  '';
+
+  # Session journal on/off toggle. Installed as a MUTABLE COPY rather than a
+  # `home.file` symlink so `claude-journal-on/off` can actually write to it --
+  # a symlink would point into the read-only nix store. (Note: ~/.claude/beep-state
+  # IS a store symlink, which is why `claude-beep-mute` cannot persist. Same
+  # technique as home.activation.installLinearMouseConfig below.)
+  #
+  # Seeded once and never overwritten, so the user's choice survives homeswitch.
+  home.activation.installSessionJournalState = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    STATE="$HOME/.claude/session-journal-state"
+    if [ ! -f "$STATE" ]; then
+      $DRY_RUN_CMD mkdir -p "$HOME/.claude"
+      $DRY_RUN_CMD cp ${./programs/claude/session-journal-state} "$STATE"
+      $DRY_RUN_CMD chmod 644 "$STATE"
+    fi
   '';
 
   # Clone agentic practice logs repository if it doesn't exist
@@ -474,6 +495,27 @@ in
         else
           echo "Claude Code beep: ENABLED (default)"
         fi
+      }
+
+      # Session journal: one auto-maintained HTML page per cmux workspace,
+      # browsable at http://localhost:7777. Enabled by default.
+      claude-journal-on() {
+        echo "ENABLED" > ~/.claude/session-journal-state
+        echo "Session journal enabled (takes effect on the next session start)"
+      }
+
+      claude-journal-off() {
+        echo "DISABLED" > ~/.claude/session-journal-state
+        echo "Session journal disabled (takes effect immediately)"
+      }
+
+      claude-journal-status() {
+        if [ -f ~/.claude/session-journal-state ]; then
+          echo "Session journal: $(cat ~/.claude/session-journal-state)"
+        else
+          echo "Session journal: ENABLED (default, no state file yet)"
+        fi
+        command -v session-journal >/dev/null 2>&1 && session-journal status
       }
 
     '';

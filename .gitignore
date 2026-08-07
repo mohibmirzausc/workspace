@@ -1,3 +1,5 @@
 result
 .worktrees/
 .DS_Store
+.playwright-mcp/
+.pi/
