@@ -62,8 +62,17 @@ let
     }
 
     # ── Slack MCP (no secret needed) ──
-    # Slack's official remote server authenticates over OAuth on first use, so
-    # no token belongs in this config. Run `/mcp` in Claude Code to authorize.
+    # Slack's official remote server authorizes over OAuth, but its auth server
+    # advertises "registration_endpoint": null — dynamic client registration is
+    # unsupported. Without a pre-registered clientId, Claude Code fails with
+    # "Incompatible auth server: does not support dynamic client registration".
+    #
+    # The clientId below is Slack's own published value, copied from the .mcp.json
+    # in github.com/slackapi/slack-skills-plugin. It identifies the Slack-side app,
+    # not this machine, and is NOT a secret — hence no sops key. The callbackPort
+    # is fixed because the app's registered redirect URI hardcodes it.
+    #
+    # Run /mcp in Claude Code to complete the browser sign-in.
     {
       sopsKey = null;
       description = "Slack MCP server";
@@ -71,7 +80,11 @@ let
         ${pkgs.jq}/bin/jq '
           .mcpServers["slack"] = {
             type: "http",
-            url: "https://mcp.slack.com/mcp"
+            url: "https://mcp.slack.com/mcp",
+            oauth: {
+              clientId: "1601185624273.8899143856786",
+              callbackPort: 3118
+            }
           }
         ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
       '';
