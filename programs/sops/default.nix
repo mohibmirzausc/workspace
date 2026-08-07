@@ -61,6 +61,22 @@ let
       '';
     }
 
+    # ── Slack MCP (no secret needed) ──
+    # Slack's official remote server authenticates over OAuth on first use, so
+    # no token belongs in this config. Run `/mcp` in Claude Code to authorize.
+    {
+      sopsKey = null;
+      description = "Slack MCP server";
+      script = ''
+        ${pkgs.jq}/bin/jq '
+          .mcpServers["slack"] = {
+            type: "http",
+            url: "https://mcp.slack.com/mcp"
+          }
+        ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
+      '';
+    }
+
     # ── Other secrets ──
     # Example: write a dotfile with secrets
     # {
