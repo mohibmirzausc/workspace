@@ -40,10 +40,12 @@ All logs are stored in: `~/.claude/claude_accessible/agentic-practice-logs/`
 5. **Log the error** with the template below.
 
 6. **Commit and push the log**:
+   - First, `cd ~/.claude/claude_accessible/agentic-practice-logs && git pull origin main` to get the latest state and avoid merge conflicts
    - Read metadata.json to get the next error ID
    - Create the error log file: `~/.claude/claude_accessible/agentic-practice-logs/errors/error-XXX.md`
    - Update metadata.json with incremented nextErrorId, totalErrors, and current timestamp for lastUpdated
-   - Use Bash tool to git add, commit with message: "Log error #XXX: [Short descriptive name]", and push
+   - Use Bash tool to git add, commit with message: "Log error #XXX: [Short descriptive name]", and push to main
+   - IMPORTANT: Do NOT initialize a new git repo - the repo should already exist with remote configured via home-manager
    - If push fails, the commit will remain local (silent failure - no warnings to user)
 
 ## Log Template

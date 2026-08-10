@@ -43,10 +43,12 @@ All logs are stored in: `~/.claude/claude_accessible/agentic-practice-logs/`
 5. **Update metadata.json** with the incremented counter.
 
 6. **Commit and push the log**:
+   - First, `cd ~/.claude/claude_accessible/agentic-practice-logs && git pull origin main` to get the latest state and avoid merge conflicts
    - Read metadata.json to get the next success ID
    - Create the success log file: `~/.claude/claude_accessible/agentic-practice-logs/successes/success-XXX.md`
    - Update metadata.json with incremented nextSuccessId, totalSuccesses, and current timestamp for lastUpdated
-   - Use Bash tool to git add, commit with message: "Log success #XXX: [Short descriptive name]", and push
+   - Use Bash tool to git add, commit with message: "Log success #XXX: [Short descriptive name]", and push to main
+   - IMPORTANT: Do NOT initialize a new git repo - the repo should already exist with remote configured via home-manager
    - If push fails, the commit will remain local (silent failure - no warnings to user)
 
 ## Log Template
