@@ -191,6 +191,25 @@
     # Concourse's `fly` CLI at /usr/local/bin/fly. See home.activation.removeBrewFlyLink.
     brews = [
       "flyctl"
+      # Tailscale CLI. Connectivity on this machine comes from the standalone
+      # macsys Tailscale.app and its network system extension, NOT from a
+      # tailscaled we run ourselves -- so do NOT `brew services start
+      # tailscale`. That would stand up a second, competing client.
+      #
+      # The formula bundles its own tailscaled binary; we install it only for
+      # the `tailscale` CLI and leave the daemon unstarted. Keep the formula and
+      # the app on the same version (both 1.102.2 as of 2026-08-13): the CLI and
+      # daemon share a version-sensitive protocol, and the app self-updates on
+      # its own schedule, so this can drift and need a `brew upgrade tailscale`.
+      #
+      # Caveat: the app's system extension does not expose a socket at the
+      # default /var/run/tailscaled.socket, so plain `tailscale status` reports
+      # "failed to connect to local Tailscale service" even when the app is
+      # connected. Read-only queries that don't need the daemon (`version`,
+      # `whois`-style lookups against an explicit socket) still work. The app's
+      # own CLI at /Applications/Tailscale.app/Contents/MacOS/Tailscale is what
+      # can talk to the running daemon.
+      "tailscale"
       "pi-coding-agent"  # Pi terminal coding agent (pi.dev). Homebrew ships it
                          # ahead of nixpkgs and autoUpdate/upgrade keep it current.
       # nono (nono.sh, github.com/nolabs-ai/nono): capability sandbox for AI
