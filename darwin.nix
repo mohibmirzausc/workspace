@@ -197,18 +197,21 @@
       # tailscale`. That would stand up a second, competing client.
       #
       # The formula bundles its own tailscaled binary; we install it only for
-      # the `tailscale` CLI and leave the daemon unstarted. Keep the formula and
-      # the app on the same version (both 1.102.2 as of 2026-08-13): the CLI and
-      # daemon share a version-sensitive protocol, and the app self-updates on
-      # its own schedule, so this can drift and need a `brew upgrade tailscale`.
+      # the `tailscale` CLI and leave the daemon unstarted.
       #
-      # Caveat: the app's system extension does not expose a socket at the
-      # default /var/run/tailscaled.socket, so plain `tailscale status` reports
-      # "failed to connect to local Tailscale service" even when the app is
-      # connected. Read-only queries that don't need the daemon (`version`,
-      # `whois`-style lookups against an explicit socket) still work. The app's
-      # own CLI at /Applications/Tailscale.app/Contents/MacOS/Tailscale is what
-      # can talk to the running daemon.
+      # This CLI does drive the app's daemon -- `tailscale status` returns the
+      # real tailnet, verified on 2026-08-13. It prints a harmless version-skew
+      # warning first:
+      #
+      #   Warning: client version "1.102.2-teb67e5dcb" != tailscaled server
+      #   version "1.102.2-t6cac91817-g6ff0ddc72"
+      #
+      # Same 1.102.2 tag, different builds -- Homebrew's vs Tailscale's official
+      # macsys build. Matching version numbers won't silence it, since the two
+      # ship independent builds; expect it to persist and to change shape as the
+      # app self-updates. If a subcommand ever fails outright on protocol skew,
+      # /Applications/Tailscale.app/Contents/MacOS/Tailscale is the exact-match
+      # fallback.
       "tailscale"
       "pi-coding-agent"  # Pi terminal coding agent (pi.dev). Homebrew ships it
                          # ahead of nixpkgs and autoUpdate/upgrade keep it current.
