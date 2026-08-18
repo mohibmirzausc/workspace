@@ -233,6 +233,18 @@
       #
       # In homebrew-core, so unlike microsandbox it needs no `brew trust`.
       "nono"
+      # ttyd (tsl0922.github.io/ttyd): serves a terminal over HTTP/WebSocket, so
+      # a local shell or TUI is reachable from a browser -- handy for driving a
+      # long-running session from another device on the tailnet.
+      #
+      # In nixpkgs too (same 1.7.7), but Homebrew keeps it: the bottle links
+      # against the brew openssl@3/libwebsockets already here for other formulae,
+      # and autoUpdate/upgrade track releases without waiting on a flake bump.
+      #
+      # Binds 0.0.0.0 by default. Prefer `ttyd -i lo0` (or a Tailscale interface)
+      # over exposing an unauthenticated shell on every interface; `-c user:pass`
+      # adds basic auth.
+      "ttyd"
       # microsandbox (microsandbox.dev): runs untrusted code -- AI agents,
       # plugins, CI jobs -- in hardware-isolated microVMs that boot in
       # milliseconds. Installs the `msb` CLI (not `microsandbox`).
