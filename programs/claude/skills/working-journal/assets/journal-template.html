@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- ============================================================
+     WORKING JOURNAL TEMPLATE  (working-journal skill)
+     Claude: edit ONLY the THEME vars, the CONFIG block (TITLE,
+     SUBTITLE, FORM_ID, WAVE_LABELS) and the SCHEMA array.
+     The engine handles: prose Entries before response cards,
+     wave grouping, the floating wave selector with progress dots,
+     per-wave copy buttons, conditionals (showIf), per-question
+     notes, autosave/resume, and the INTAKE-JSON output.
+     APPEND new waves to SCHEMA; never rewrite an earlier wave.
+     Roll a fresh style per html-page. Keep the Fillability Floor.
+     Remember the html-page <dl> stamp before </body>.
+     ============================================================ -->
+<title id="docTitle">Working Journal</title>
+<style>
+  /* ---- THEME ----------------------------------------------------
+     Claude: REPLACE these variables (and the header ::before glyph)
+     to match the style you rolled per html-page's recency check.
+     The values below are a neutral warm-paper default — do NOT ship
+     them unchanged; every journal gets its own rolled style.
+     Keep the STRUCTURE below the theme block intact.
+     --------------------------------------------------------------- */
+  :root {
+    --bg: #e8e0cc;
+    --paper: #f6f0dd;
+    --panel: #f6f0dd;
+    --panel2: #efe7d0;
+    --accent: #7d3c2e;
+    --accent2: #4a6b52;
+    --ok: #4a6b52;
+    --text: #2e2618;
+    --muted: #6d6047;
+    --border: #c4b48f;
+    --ink: #3a3018;
+    --radius: 3px;
+    --font: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --hand: "Bradley Hand", "Segoe Script", "Brush Script MT", cursive;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; font-family:var(--font); color:var(--text); line-height:1.62;
+    padding:0 0 150px;
+    background-color:#e8e0cc;
+    background-image:
+      radial-gradient(circle at 18% 22%, rgba(160,140,100,.10) 0 2px, transparent 2px),
+      radial-gradient(circle at 74% 61%, rgba(140,120,85,.08) 0 3px, transparent 3px),
+      radial-gradient(circle at 44% 88%, rgba(150,130,95,.07) 0 2px, transparent 2px),
+      linear-gradient(180deg, #ece4d0, #e4dbc4);
+  }
+  header {
+    text-align:center; padding:56px 20px 30px;
+    border-bottom:3px double var(--accent);
+    background:linear-gradient(180deg, rgba(125,60,46,.05), transparent);
+    position:relative;
+  }
+  header::before {
+    content:"⚜"; display:block; font-size:26px; color:var(--accent); margin-bottom:10px; opacity:.75;
+  }
+  header h1 { margin:0; font-size:34px; letter-spacing:.6px; font-weight:600; font-variant:small-caps; }
+  header h1 .accent { color:var(--accent); font-style:italic; font-variant:normal; }
+  header p { color:var(--muted); margin:10px auto 0; font-style:italic; max-width:640px; }
+  .wrap { max-width:860px; margin:0 auto; padding:0 20px; }
+
+  .progress-bar { position:sticky; top:0; z-index:20; background:rgba(240,232,210,.95);
+    backdrop-filter:blur(6px); padding:11px 20px; border-bottom:1px solid var(--border); }
+  .progress-track { height:7px; background:#ded2b2; border-radius:0; overflow:hidden; max-width:860px; margin:0 auto;
+    border:1px solid var(--border); }
+  .progress-fill { height:100%; width:0; background:repeating-linear-gradient(45deg,var(--accent),var(--accent) 6px,#964d3b 6px,#964d3b 12px); transition:width .3s; }
+  .progress-label { text-align:center; font-size:12px; color:var(--muted); margin:6px 0 0; font-variant:small-caps; letter-spacing:.6px; }
+
+  /* Narrative "specimen plate" blocks */
+  .plate { background:var(--paper); border:1px solid var(--border); border-left:5px solid var(--accent);
+    padding:24px 26px; margin:30px 0 0; box-shadow:2px 3px 0 rgba(120,100,70,.13);
+    scroll-margin-top:74px; }
+  .plate h2 { margin:0 0 4px; font-size:23px; font-variant:small-caps; letter-spacing:.5px; color:var(--ink);
+    border-bottom:1px solid var(--border); padding-bottom:7px; }
+  .plate h3 { margin:20px 0 6px; font-size:16px; font-style:italic; color:var(--accent); }
+  .plate .plateno { font-family:var(--hand); font-size:13px; color:var(--accent); float:right; font-style:normal; }
+  .plate p { margin:10px 0; }
+  .plate ul { margin:10px 0; padding-left:22px; }
+  .plate li { margin:5px 0; }
+  .plate code { background:#e6dcbe; border:1px solid var(--border); padding:1px 5px; font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .plate pre { background:#2e2618; color:#e8dfc4; padding:13px 15px; overflow-x:auto; font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; line-height:1.5; border:1px solid #1c1810; }
+  .plate pre code { background:none; border:none; color:inherit; padding:0; }
+  .plate table { width:100%; border-collapse:collapse; margin:14px 0; font-size:13.5px; }
+  .plate th { text-align:left; background:#e2d7b6; border:1px solid var(--border); padding:7px 9px;
+    font-variant:small-caps; letter-spacing:.4px; }
+  .plate td { border:1px solid var(--border); padding:7px 9px; vertical-align:top; }
+  .plate tr:nth-child(even) td { background:rgba(226,215,182,.35); }
+  .marginalia { font-family:var(--hand); color:var(--accent); font-size:14.5px;
+    border-left:2px dotted var(--accent); padding:4px 0 4px 13px; margin:14px 0; line-height:1.5; }
+  .verdict { display:inline-block; font-variant:small-caps; letter-spacing:.7px; font-size:12px;
+    padding:3px 10px; border:1px solid var(--border); background:#e2d7b6; margin-right:6px; }
+  .verdict.bad  { background:#e8cfc6; border-color:#a8624e; color:#7d3c2e; }
+  .verdict.good { background:#d3e0cf; border-color:#4a6b52; color:#33502f; }
+  .verdict.warn { background:#eee0bb; border-color:#a98a3c; color:#6d5518; }
+
+  section.card { background:#fbf7ea; border:1px solid var(--accent); border-top:none;
+    border-radius:0; padding:20px 24px 20px; margin:0 0 10px; scroll-margin-top:80px;
+    box-shadow:2px 3px 0 rgba(120,100,70,.13);
+    background-image:repeating-linear-gradient(180deg, transparent, transparent 27px, rgba(150,130,95,.16) 27px, rgba(150,130,95,.16) 28px); }
+  section.card > h2 { margin:0 0 4px; font-size:17px; display:flex; align-items:center; gap:9px;
+    font-variant:small-caps; letter-spacing:.5px; color:var(--accent); }
+  section.card > h2 .ico { font-size:19px; }
+  section.card > .sub { color:var(--muted); margin:0 0 14px; font-size:13px; font-style:italic; }
+  .q { margin:16px 0; padding-top:14px; border-top:1px dashed var(--border); }
+  .q:first-of-type { border-top:none; padding-top:0; }
+  .q.hidden { display:none; }
+  .q label.qlabel { display:block; font-weight:600; margin-bottom:8px; }
+  .q .hint { color:var(--muted); font-size:12px; font-weight:400; margin-left:6px; font-style:italic; }
+  input[type="text"],input[type="number"],textarea,select { width:100%; background:#fffdf5; color:var(--text);
+    border:1px solid var(--border); border-radius:2px; padding:11px 12px; font-size:16px; font-family:inherit; }
+  textarea { min-height:70px; resize:vertical; }
+  input:focus,textarea:focus,select:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
+  .opts { display:flex; flex-wrap:wrap; gap:8px; }
+  .opt { display:inline-flex; align-items:center; gap:7px; background:#fffdf5; border:1px solid var(--border);
+    padding:9px 13px; border-radius:2px; cursor:pointer; font-size:14px; user-select:none; transition:all .15s; min-height:42px; }
+  .opt:hover { border-color:var(--accent); }
+  .opt input { accent-color:var(--accent); margin:0; }
+  .opt.checked { background:#e5d9bb; border-color:var(--accent); box-shadow:inset 2px 2px 0 rgba(125,60,46,.14); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:560px){ .grid2 { grid-template-columns:1fr; } }
+  .row-label { font-size:12px; color:var(--muted); margin-bottom:4px; display:block; }
+  .note-wrap { margin-top:8px; }
+  .note-toggle { font-size:13px; color:var(--accent); cursor:pointer; user-select:none; background:none;
+    border:none; padding:6px 0; font-family:var(--font); min-height:40px; font-variant:normal;
+    text-transform:none; font-style:italic; text-decoration:underline; text-underline-offset:3px; }
+  .note-box { display:none; margin-top:6px; }
+  .note-box.show { display:block; }
+  /* keep the label text and the skip control on one baseline, never ragged */
+  .q label.qlabel { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 10px; }
+  .q label.qlabel > .hint { flex:1 1 auto; min-width:0; margin-left:0; }
+  .skip { font-size:12px; color:var(--muted); margin-left:auto; cursor:pointer; user-select:none;
+    font-style:italic; display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+    padding:6px 8px; border:1px dashed var(--border); background:rgba(226,215,182,.4); flex:0 0 auto; }
+  .skip:hover { border-color:var(--accent); color:var(--accent); }
+  .skip input { margin:0; accent-color:var(--accent); }
+  .actions { position:fixed; bottom:0; left:0; right:0; background:rgba(240,232,210,.97); backdrop-filter:blur(6px);
+    border-top:3px double var(--accent); padding:13px 20px; display:flex; gap:12px; justify-content:center;
+    align-items:center; flex-wrap:wrap; }
+  button { font-family:var(--font); font-size:14px; font-weight:600; border-radius:2px; padding:12px 22px;
+    cursor:pointer; border:1px solid var(--accent); background:#efe7d0; color:var(--ink); min-height:44px;
+    font-variant:small-caps; letter-spacing:.5px; }
+  button.primary { background:var(--accent); color:#f6f0dd; border-color:#5d2b20; }
+  button:hover { filter:brightness(1.05); }
+  .toast { position:fixed; bottom:88px; left:50%; transform:translateX(-50%); background:var(--accent2); color:#f2f6ef;
+    padding:10px 18px; border-radius:2px; font-size:13px; opacity:0; transition:opacity .3s; pointer-events:none; font-weight:600; }
+  .toast.show { opacity:1; }
+  .out { background:#2e2618; border:1px solid #1c1810; border-radius:2px; padding:14px; white-space:pre-wrap;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; color:#dcd0a8; display:none; margin-top:12px; }
+  .pill-note { font-size:13.5px; color:var(--ink); background:#f2ead4; border:1px solid var(--border);
+    border-left:4px solid var(--accent2); border-radius:0; padding:12px 14px; margin:20px 0 0; }
+  .stamp { max-width:860px; margin:36px auto 0; padding:0 20px; }
+  .stamp details { background:var(--paper); border:1px solid var(--border); border-radius:0; padding:11px 15px;
+    font-size:12px; color:var(--muted); }
+  .stamp summary { cursor:pointer; font-variant:small-caps; letter-spacing:.5px; }
+  .stamp dt { font-weight:600; color:var(--text); margin-top:6px; font-variant:small-caps; }
+  .stamp dd { margin:0 0 4px; }
+  /* wide content must never break the page on a phone */
+  .plate table { display:block; width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .plate pre { max-width:100%; overflow-x:auto; }
+  .plate code { overflow-wrap:anywhere; word-break:break-word; }
+  .plate, section.card, .q, body { max-width:100%; }
+  body { overflow-x:hidden; }
+  @media (max-width:560px){
+    header h1 { font-size:25px; }
+    .plate { padding:18px 16px; }
+    .plate pre { font-size:11.5px; }
+    .plate table { font-size:12px; }
+    .plate td, .plate th { padding:5px 6px; }
+    section.card { padding:16px 15px 8px; }
+  }
+  @media (prefers-reduced-motion: reduce){ * { transition:none !important; } }
+
+  /* ── WAVE DIVIDER ─────────────────────────────────────────── */
+  .wave-break { margin:64px 0 8px; scroll-margin-top:74px; text-align:center; position:relative; }
+  .wave-break::before { content:""; position:absolute; left:0; right:0; top:50%;
+    border-top:3px double var(--accent); }
+  .wave-break span { position:relative; background:#e8e0cc; padding:0 20px;
+    font-variant:small-caps; letter-spacing:2px; font-size:15px; color:var(--accent); font-weight:600; }
+  .wave-meta { text-align:center; font-style:italic; color:var(--muted); font-size:13px; margin:0 0 6px; }
+  .status-done { color:#33502f; font-weight:600; }
+  .status-open { color:#7d3c2e; font-weight:600; }
+  .ledger { width:100%; border-collapse:collapse; margin:14px 0; font-size:13.5px; }
+  .ledger th { text-align:left; background:#e2d7b6; border:1px solid var(--border); padding:7px 9px;
+    font-variant:small-caps; letter-spacing:.4px; }
+  .ledger td { border:1px solid var(--border); padding:7px 9px; vertical-align:top; }
+  .answered { background:#eef2e9; border-left:3px solid var(--accent2); padding:10px 13px; margin:12px 0;
+    font-size:13.5px; }
+  .answered strong { color:#33502f; }
+
+  /* ── WAVE SELECTOR (floating index tab) ───────────────────── */
+  .wavenav { position:fixed; top:96px; right:18px; z-index:40; width:206px;
+    background:var(--paper); border:1px solid var(--accent); box-shadow:3px 4px 0 rgba(120,100,70,.20);
+    font-size:13px; max-height:calc(100vh - 190px); display:flex; flex-direction:column; }
+  .wavenav h4 { margin:0; padding:0; }
+  .wavenav h4 button { width:100%; border:none; border-radius:0; margin:0; padding:9px 12px; font-variant:small-caps; letter-spacing:1px; font-size:12px;
+    background:var(--accent); color:var(--paper); display:flex; justify-content:space-between;
+    align-items:center; cursor:pointer; user-select:none; min-height:40px; box-sizing:border-box;
+    font-variant:small-caps; letter-spacing:1px; font-size:12px; font-family:inherit; font-weight:600; }
+  .wavenav h4 button:focus-visible { outline:2px solid var(--text); outline-offset:-3px; }
+  .wavenav h4 .tog { font-size:14px; line-height:1; }
+  .wavenav .body { overflow-y:auto; padding:6px 0 8px; }
+  .wavenav.collapsed .body { display:none; }
+  .wavenav .wgrp { padding:7px 12px 3px; font-variant:small-caps; letter-spacing:.9px; font-size:11px;
+    color:var(--accent); border-top:1px dashed var(--border); margin-top:4px; font-weight:600; }
+  .wavenav .wgrp:first-child { border-top:none; margin-top:0; }
+  .wavenav a { display:flex; gap:7px; align-items:baseline; padding:7px 12px; color:var(--text);
+    text-decoration:none; line-height:1.32; border-left:3px solid transparent; min-height:40px;
+    box-sizing:border-box; }
+  .wavenav a:hover { background:#ece2c6; }
+  .wavenav a.active { border-left-color:var(--accent); background:#e5d9bb; font-weight:600; }
+  .wavenav a .pl { color:var(--accent); font-size:10.5px; flex:0 0 auto; font-variant:small-caps;
+    letter-spacing:.5px; min-width:30px; }
+  .wavenav a .tx { flex:1 1 auto; }
+  .wavenav a .dot { flex:0 0 auto; font-size:9px; opacity:.85; }
+  /* mobile: becomes a bottom-anchored drawer above the action bar */
+  @media (max-width: 980px){
+    .wavenav { position:fixed; top:auto; bottom:calc(var(--actionbar-h, 72px) + 10px);
+      right:10px; left:10px; width:auto; max-height:46vh; }
+    .wavenav.collapsed { width:auto; }
+  }
+
+  /* ── per-wave copy bar ────────────────────────────────────── */
+  .wavecopy { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; justify-content:flex-end;
+    margin:0 0 34px; padding:12px 14px; background:var(--panel2); border:1px solid var(--border);
+    border-top:none; }
+  .wavecopy button { min-height:44px; }
+  .wavecopy .wc-note { font-size:12.5px; color:var(--muted); font-style:italic; }
+  @media (max-width:560px){ .wavecopy { justify-content:stretch; } .wavecopy button { width:100%; } }
+</style>
+</head>
+<body>
+
+<script>
+/* ============================================================
+   CONFIG — Claude edits these. See SKILL.md.
+   ============================================================ */
+const TITLE    = "Working Journal: *Subject* Investigation";
+const SUBTITLE = "One-line framing: what this journal tracks and why it exists.";
+const FORM_ID  = "subject-investigation";      // localStorage key + JSON form name
+
+// Section term. Constant across journals; only the visual style rotates.
+const ENTRY_WORD = "Entry";
+
+// Wave labels, keyed by the `wave` number on each section.
+const WAVE_LABELS = {
+  1: "Wave I — 1 Jan 2026",
+};
+
+/* SCHEMA — sections in document order.
+   Each section:
+     id       unique slug
+     wave     which wave it belongs to (groups nav + scopes the copy button)
+     entry    roman numeral, continuous across waves; omit for prose-only sections
+     title    card heading (also the nav label)
+     ico      optional emoji
+     sub      one line under the card heading
+     prose    the Entry narrative (HTML). Rendered BEFORE the response card.
+     questions  intake-form question objects; [] renders prose only.
+
+   Question types: text | number | textarea | radio | checkbox | matrix
+   Optional per question: hint, placeholder, prefill, showIf:{id, equals|in}
+
+   STRUCTURAL RULES (see SKILL.md):
+     - Append new waves; never rewrite an old one.
+     - Every wave after the first OPENS with a ledger section (You said -> Done).
+     - Every wave CLOSES with a carry-forward table of open threads.
+   ============================================================ */
+const SCHEMA = [
+  {
+    id: "finding_one", wave: 1, entry: "I",
+    title: "Does this match what you know?", ico: "🔍",
+    sub: "Correct anything below.",
+    prose: `
+      <h2>What I found</h2>
+      <p>Narrative with <strong>evidence</strong>, not assertions. Show real output:</p>
+      <pre><code>measured value : 42
+expected       : 40</code></pre>
+      <table>
+        <tr><th>Thing</th><th>Before</th><th>After</th></tr>
+        <tr><td>Example</td><td>x</td><td>y</td></tr>
+      </table>
+      <div class="marginalia">A caveat, a correction, or something I'm unsure about.</div>
+    `,
+    questions: [
+      { id: "f1_ok", type: "radio", label: "Is that reading correct?",
+        options: ["Yes", "No — see note", "Not sure"] },
+    ]
+  },
+  {
+    id: "w1_carry", wave: 1,
+    title: "", ico: "",
+    prose: `
+      <h2>Open threads</h2>
+      <table class="ledger">
+        <tr><th>Thread</th><th>State</th><th>Waiting on</th></tr>
+        <tr><td>Example</td><td class="status-open">open</td><td>Your answer</td></tr>
+      </table>
+      <div class="marginalia">Every wave ends with this table. If a thread isn't here, it's been dropped.</div>
+    `,
+    questions: []
+  },
+
+  /* ══════ WAVE II — append below, never edit above ══════
+  {
+    id: "w2_divider", wave: 2, title: "",
+    prose: `
+      <div class="wave-break"><span>Wave II — 2 Jan 2026</span></div>
+      <p class="wave-meta">What I did with your Wave I answers.</p>
+    `,
+    questions: []
+  },
+  {
+    id: "w2_ledger", wave: 2, entry: "II",
+    title: "Wave II — anything look wrong?", ico: "✔",
+    sub: "Flag anything I misread.",
+    prose: `
+      <h2>What I did with your answers</h2>
+      <table class="ledger">
+        <tr><th>You said</th><th>Done</th></tr>
+        <tr><td>…</td><td class="status-done">✔ …</td></tr>
+        <tr><td>…</td><td class="status-open">⏳ still running</td></tr>
+      </table>
+    `,
+    questions: [
+      { id: "w2_ok", type: "radio", label: "Anything in that table I got wrong?",
+        options: ["All correct", "Something's off (note below)", "Haven't checked"] },
+    ]
+  },
+  */
+];
+/* ============================================================
+   ENGINE — generally no need to edit below this line.
+   ============================================================ */
+</script>
+
+<header>
+  <h1 id="hTitle"></h1>
+  <p id="hSub"></p>
+</header>
+
+<div class="progress-bar">
+  <div class="progress-track"><div class="progress-fill" id="pfill"></div></div>
+  <div class="progress-label" id="plabel">0% answered</div>
+</div>
+
+<div class="wrap">
+  <p class="pill-note">💡 Answer what you can — skip anything you're unsure about (we'll cover it in conversation). Use <b>“💬 note to Claude”</b> under any question to talk back, not just answer. Your progress auto-saves in this browser. When done: <b>Generate Summary → Copy</b>, then paste back to Claude.</p>
+  <form id="form"></form>
+  <pre class="out" id="out"></pre>
+</div>
+
+
+<nav class="wavenav collapsed" id="wavenav" aria-label="Wave navigation">
+  <h4><button type="button" id="wavenavToggle" aria-expanded="false" aria-controls="wavenavBody">Entries &amp; Waves <span class="tog" id="wavenavTog" aria-hidden="true">▸</span></button></h4>
+  <div class="body" id="wavenavBody"></div>
+</nav>
+
+<div class="actions">
+  <button type="button" id="saveBtn">💾 Save draft</button>
+  <button type="button" class="primary" id="genBtn">✨ Generate Summary</button>
+  <button type="button" id="copyBtn" style="display:none;">📋 Copy for Claude</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- html-page STAMP — Claude: fill these in to match the chosen style so the gallery indexes it. -->
+<div class="stamp">
+  <details>
+    <summary>About this page's design</summary>
+    <dl>
+      <dt>Style</dt><dd>EDIT ME — the style you rolled</dd>
+      <dt>Keywords</dt><dd>EDIT · ME · 3–5 defining words</dd>
+      <dt>Recreate prompt</dt><dd>EDIT ME — one line to recreate this style.</dd>
+      <dt>Interactivity</dt><dd>Working journal — append-only waves of narrative Entries interleaved with response cards; floating wave selector, per-wave copy, conditional reveals, per-question notes, structured JSON round-trip. Intake form — sectioned questions, conditional reveals, per-question notes, structured JSON round-trip.</dd>
+    </dl>
+  </details>
+</div>
+
+<script>
+const STORE_KEY = "intake_" + FORM_ID;
+document.getElementById("docTitle").textContent = TITLE.replace(/\*/g,"");
+document.getElementById("hTitle").innerHTML = TITLE.replace(/\*(.+?)\*/g,'<span class="accent">$1</span>');
+document.getElementById("hSub").textContent = SUBTITLE;
+
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch(e){}
+const form = document.getElementById("form");
+
+function el(tag, attrs={}, ...kids){
+  const n=document.createElement(tag);
+  for(const k in attrs){ if(k==="class")n.className=attrs[k]; else if(k==="html")n.innerHTML=attrs[k]; else n.setAttribute(k,attrs[k]); }
+  kids.forEach(c=> n.appendChild(typeof c==="string"?document.createTextNode(c):c));
+  return n;
+}
+
+// ── normalize the schema before anything reads it ──────────────
+// Authoring slips that would otherwise fail silently or blank the page:
+//   • `questions` omitted (not []) threw before any render
+//   • `wave: "2"` (string) split one wave into two nav groups + two
+//     copy buttons, each emitting half the answers
+//   • duplicate section ids made the second Entry unreachable by nav
+const __seenIds = new Set();
+SCHEMA.forEach((s, i) => {
+  if (!Array.isArray(s.questions)) s.questions = [];
+  s.wave = Number(s.wave) || 1;
+  if (__seenIds.has(s.id)) {
+    console.warn("working-journal: duplicate section id \"" + s.id + "\" — renaming to keep nav reachable");
+    s.id = s.id + "_" + i;
+  }
+  __seenIds.add(s.id);
+});
+// warn if waves aren't appended in order (append-only rule violated)
+(function(){
+  const ws = SCHEMA.map(s => s.wave);
+  for (let i = 1; i < ws.length; i++) if (ws[i] < ws[i-1]) {
+    console.warn("working-journal: wave " + ws[i] + " appears after wave " + ws[i-1] +
+                 " — nav order will contradict document order. Append waves in order.");
+    break;
+  }
+})();
+// warn on duplicate Entry numerals (breaks the citable-numbering contract)
+(function(){
+  const seen = new Set();
+  SCHEMA.forEach(s => { if (s.entry) {
+    if (seen.has(s.entry)) console.warn("working-journal: duplicate Entry numeral " + s.entry);
+    seen.add(s.entry);
+  }});
+})();
+
+// flatten questions for lookups
+const ALLQ = {};
+SCHEMA.forEach(s=>s.questions.forEach(q=>ALLQ[q.id]=q));
+
+function addNoteChannel(wrap, qid){
+  const nw = el("div",{class:"note-wrap"});
+  const btn = el("button",{type:"button",class:"note-toggle"}, "💬 note to Claude");
+  const box = el("textarea",{class:"note-box","data-note":qid, "aria-label":"Note to Claude", placeholder:"Talk back: a caveat, a question, 'not sure because…', context…"});
+  if(saved["note::"+qid]){ box.value=saved["note::"+qid]; box.classList.add("show"); }
+  btn.addEventListener("click",()=> box.classList.toggle("show"));
+  nw.appendChild(btn); nw.appendChild(box);
+  wrap.appendChild(nw);
+}
+
+function buildSkip(wrap, qid){
+  const lbl = wrap.querySelector("label.qlabel");
+  const skip = el("label",{class:"skip"});
+  const cb = el("input",{type:"checkbox","data-skip":qid, style:"accent-color:var(--muted);"});
+  if(saved["skip::"+qid]) cb.checked=true;
+  cb.addEventListener("change",()=>{ persist(); updateProgress(); });
+  skip.appendChild(cb); skip.appendChild(document.createTextNode(" skip / not sure"));
+  lbl.appendChild(skip);
+}
+
+SCHEMA.forEach(sec=>{
+  // Narrative block rendered BEFORE the question card (documentation-with-intake layout)
+  if(sec.prose){
+    const plate=el("div",{class:"plate", id:"plate-"+sec.id});
+    // Auto-stamp the Entry numeral unless the author already placed one
+    const stamp = sec.entry && !/class="plateno"/.test(sec.prose)
+      ? '<span class="plateno">' + ENTRY_WORD + ' ' + sec.entry + '</span>' : '';
+    plate.innerHTML = stamp + sec.prose;
+    form.appendChild(plate);
+  }
+  const card=el("section",{class:"card", id:"sec-"+sec.id});
+  const h2=el("h2",{});
+  if(sec.ico) h2.appendChild(el("span",{class:"ico"},sec.ico));
+  h2.appendChild(document.createTextNode(sec.title));
+  card.appendChild(h2);
+  if(sec.sub) card.appendChild(el("p",{class:"sub"},sec.sub));
+
+  sec.questions.forEach(q=>{
+    const wrap=el("div",{class:"q", id:"q-"+q.id, "data-qid":q.id});
+    const lab=el("label",{class:"qlabel"});
+    lab.appendChild(document.createTextNode(q.label));
+    if(q.hint) lab.appendChild(el("span",{class:"hint"}," — "+q.hint));
+    wrap.appendChild(lab);
+
+    if(q.type==="text"||q.type==="number"){
+      const inp=el("input",{type:q.type==="number"?"number":"text","data-id":q.id, placeholder:q.placeholder||"", "aria-label":q.label});
+      if(saved[q.id]!==undefined) inp.value=saved[q.id]; else if(q.prefill) inp.value=q.prefill;
+      wrap.appendChild(inp);
+    } else if(q.type==="textarea"){
+      const inp=el("textarea",{"data-id":q.id, placeholder:q.placeholder||"", "aria-label":q.label});
+      if(saved[q.id]!==undefined) inp.value=saved[q.id]; else if(q.prefill) inp.value=q.prefill;
+      wrap.appendChild(inp);
+    } else if(q.type==="radio"||q.type==="checkbox"){
+      const opts=el("div",{class:"opts"});
+      const cur = saved[q.id]!==undefined ? saved[q.id] : q.prefill;
+      q.options.forEach(o=>{
+        const labo=el("label",{class:"opt"});
+        const inp=el("input",{type:q.type, name:q.id, value:o, "data-id":q.id});
+        if(q.type==="checkbox" && Array.isArray(cur) && cur.includes(o)){ inp.checked=true; labo.classList.add("checked"); }
+        if(q.type==="radio" && cur===o){ inp.checked=true; labo.classList.add("checked"); }
+        inp.addEventListener("change",()=>{
+          if(q.type==="radio") opts.querySelectorAll(".opt").forEach(x=>x.classList.remove("checked"));
+          labo.classList.toggle("checked", inp.checked);
+          persist(); applyConditionals(); updateProgress();
+        });
+        labo.appendChild(inp); labo.appendChild(document.createTextNode(o));
+        opts.appendChild(labo);
+      });
+      wrap.appendChild(opts);
+    } else if(q.type==="matrix"){
+      const grid=el("div",{});
+      q.rows.forEach(r=>{
+        const row=el("div",{class:"grid2", style:"margin-bottom:8px; align-items:end;"});
+        const left=el("div",{});
+        left.appendChild(el("span",{class:"row-label"}, r));
+        const sel=el("select",{"data-matrix":q.id,"data-row":r, "aria-label":q.label+" — "+r});
+        ["— status —", ...q.statuses].forEach(s=> sel.appendChild(el("option",{value:s==="— status —"?"":s}, s)));
+        const mkey="matrix::"+q.id+"::"+r;
+        if(saved[mkey]) sel.value=saved[mkey];
+        left.appendChild(sel);
+        const right=el("div",{});
+        right.appendChild(el("span",{class:"row-label"}, "note (optional)"));
+        const note=el("input",{type:"text","data-matrixnote":q.id,"data-row":r, placeholder:"detail for Claude"});
+        const nkey="matrixnote::"+q.id+"::"+r;
+        if(saved[nkey]) note.value=saved[nkey];
+        right.appendChild(note);
+        row.appendChild(left); row.appendChild(right);
+        grid.appendChild(row);
+      });
+      wrap.appendChild(grid);
+    }
+
+    if(q.type!=="matrix"){ buildSkip(wrap, q.id); addNoteChannel(wrap, q.id); }
+    card.appendChild(wrap);
+  });
+  if(sec.questions && sec.questions.length) form.appendChild(card);
+});
+
+function conditionMet(cond){
+  if(!cond) return true;
+  const src = collectRaw()[cond.id];
+  if(src===undefined) return false;
+  if(cond.equals!==undefined){
+    return Array.isArray(src) ? src.includes(cond.equals) : src===cond.equals;
+  }
+  if(cond.in!==undefined){
+    if(Array.isArray(src)) return src.some(v=>cond.in.includes(v));
+    return cond.in.includes(src);
+  }
+  return true;
+}
+function applyConditionals(){
+  SCHEMA.forEach(s=>s.questions.forEach(q=>{
+    if(q.showIf){
+      const wrap=document.getElementById("q-"+q.id);
+      if(wrap) wrap.classList.toggle("hidden", !conditionMet(q.showIf));
+    }
+  }));
+}
+
+// raw answer values (no notes/skips), used for conditionals + progress
+function collectRaw(){
+  const data={};
+  form.querySelectorAll("input,textarea,select").forEach(inp=>{
+    const id=inp.getAttribute("data-id"); if(!id) return;
+    if(inp.type==="checkbox"){ if(inp.checked){ data[id]=data[id]||[]; data[id].push(inp.value);} }
+    else if(inp.type==="radio"){ if(inp.checked) data[id]=inp.value; }
+    else { if(inp.value.trim()!=="") data[id]=inp.value.trim(); }
+  });
+  return data;
+}
+
+function persist(){
+  const store={};
+  form.querySelectorAll("input,textarea,select").forEach(inp=>{
+    const id=inp.getAttribute("data-id");
+    if(id){
+      if(inp.type==="checkbox"){ if(inp.checked){ store[id]=store[id]||[]; store[id].push(inp.value);} }
+      else if(inp.type==="radio"){ if(inp.checked) store[id]=inp.value; }
+      else if(inp.value.trim()!=="") store[id]=inp.value.trim();
+    }
+    const note=inp.getAttribute("data-note"); if(note && inp.value.trim()!=="") store["note::"+note]=inp.value.trim();
+    const skip=inp.getAttribute("data-skip"); if(skip && inp.checked) store["skip::"+skip]=true;
+    const mx=inp.getAttribute("data-matrix"), mxr=inp.getAttribute("data-row");
+    if(mx && inp.value) store["matrix::"+mx+"::"+mxr]=inp.value;
+    const mn=inp.getAttribute("data-matrixnote"), mnr=inp.getAttribute("data-row");
+    if(mn && inp.value.trim()!=="") store["matrixnote::"+mn+"::"+mnr]=inp.value.trim();
+  });
+  localStorage.setItem(STORE_KEY, JSON.stringify(store));
+}
+
+function visibleQuestions(){
+  const out=[];
+  SCHEMA.forEach(s=>s.questions.forEach(q=>{
+    if(q.showIf && !conditionMet(q.showIf)) return;
+    out.push(q);
+  }));
+  return out;
+}
+
+function updateProgress(){
+  const raw=collectRaw();
+  const vis=visibleQuestions();
+  let total=0, answered=0;
+  vis.forEach(q=>{
+    if(q.type==="matrix"){ q.rows.forEach(r=>{ total++; if(saved2matrix(q.id,r)) answered++; }); }
+    else { total++; const sk=document.querySelector('[data-skip="'+q.id+'"]'); if(raw[q.id]!==undefined || (sk&&sk.checked)) answered++; }
+  });
+  const pct= total?Math.min(100,Math.round(answered/total*100)):0;
+  document.getElementById("pfill").style.width=pct+"%";
+  document.getElementById("plabel").textContent=pct+"% answered ("+answered+"/"+total+")";
+  if (window.__navProgress) window.__navProgress();
+}
+function saved2matrix(qid,row){
+  const sel=document.querySelector('[data-matrix="'+qid+'"][data-row="'+CSS.escape(row)+'"]');
+  return sel && sel.value;
+}
+
+
+/* Answers may legitimately contain ``` fences (engineering journals quote code).
+   The human preamble echoes answers verbatim, so an answer containing
+   ```INTAKE-JSON would forge a payload appearing BEFORE the real one and win
+   first-fence extraction. Neutralize fences in the DISPLAY text only — the
+   machine block is JSON.stringify'd and always exact. */
+function deFence(t){ return String(t).replace(/```/g, "\u02bc\u02bc\u02bc"); }
+
+function generate(){
+  persist();
+  const raw=collectRaw();
+  const answers={};
+  const human=["=== "+TITLE+" — SUMMARY ===",""];
+  SCHEMA.forEach(sec=>{
+    const rows=[];
+    sec.questions.forEach(q=>{
+      if(q.showIf && !conditionMet(q.showIf)) return; // skip hidden
+      const skipEl=document.querySelector('[data-skip="'+q.id+'"]');
+      const skipped = skipEl && skipEl.checked;
+      const noteEl=document.querySelector('[data-note="'+q.id+'"]');
+      const note = noteEl ? noteEl.value.trim() : "";
+      if(q.type==="matrix"){
+        const val={}, notes={};
+        q.rows.forEach(r=>{
+          const sel=document.querySelector('[data-matrix="'+q.id+'"][data-row="'+CSS.escape(r)+'"]');
+          const nt=document.querySelector('[data-matrixnote="'+q.id+'"][data-row="'+CSS.escape(r)+'"]');
+          if(sel&&sel.value) val[r]=sel.value;
+          if(nt&&nt.value.trim()) notes[r]=nt.value.trim();
+        });
+        if(Object.keys(val).length||Object.keys(notes).length){
+          answers[q.id]={value:val, notes:notes};
+          rows.push("  • "+q.label+":");
+          q.rows.forEach(r=>{ if(val[r]||notes[r]) rows.push("      - "+r+": "+deFence(val[r]||"—")+(notes[r]?(" ("+deFence(notes[r])+")"):"")); });
+        }
+      } else {
+        const v=raw[q.id];
+        if(skipped){ answers[q.id]={skipped:true, ...(note?{note}:{})}; rows.push("  • "+q.label+": [skipped]"+(note?(" — note: "+deFence(note)):"")); }
+        else if(v!==undefined){ answers[q.id]={value:Array.isArray(v)?v:v, ...(note?{note}:{})};
+          rows.push("  • "+q.label+": "+deFence(Array.isArray(v)?v.join(", "):v)+(note?("  — note: "+deFence(note)):"")); }
+        else if(note){ answers[q.id]={note}; rows.push("  • "+q.label+": (no answer) — note: "+deFence(note)); }
+      }
+    });
+    if(rows.length){ human.push("["+sec.title+"]", ...rows, ""); }
+  });
+  const json={ form: FORM_ID, answers };
+  const block = "```INTAKE-JSON\n"+JSON.stringify(json,null,2)+"\n```";
+  const full = human.join("\n")+"\n\n--- paste the block below to Claude ---\n\n"+block;
+  const out=document.getElementById("out");
+  out.textContent=full; out.style.display="block";
+  document.getElementById("copyBtn").style.display="inline-block";
+  out.scrollIntoView({behavior:"smooth", block:"center"});
+  window.__lastOut = block; // copy the machine block specifically
+  window.__lastFull = full;
+  toast("Summary ready — Copy & paste to Claude");
+}
+
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1900); }
+
+form.addEventListener("input", ()=>{ persist(); applyConditionals(); updateProgress(); });
+document.getElementById("saveBtn").addEventListener("click",()=>{ persist(); toast("Draft saved"); });
+document.getElementById("genBtn").addEventListener("click", generate);
+document.getElementById("copyBtn").addEventListener("click",()=>{
+  navigator.clipboard.writeText(window.__lastFull||"")
+    .then(()=>toast("Copied — paste to Claude"))
+    .catch(()=>{ // clipboard blocked (insecure context / permission): show it instead
+      const o=document.getElementById("out");
+      o.textContent = window.__lastFull||""; o.style.display="block";
+      o.scrollIntoView({behavior:"smooth", block:"center"});
+      toast("Clipboard blocked — copy from the box below");
+    });
+});
+
+applyConditionals();
+updateProgress();
+
+/* ── wave selector: derived from SCHEMA `wave` + `entry` fields ── */
+(function(){
+  const body = document.getElementById("wavenavBody");
+  const nav  = document.getElementById("wavenav");
+  const anchors = [];
+  const waves = [...new Set(SCHEMA.map(s => s.wave || 1))].sort((a,b)=>a-b);
+
+  waves.forEach(w => {
+    const secs = SCHEMA.filter(s => (s.wave || 1) === w);
+    const g = document.createElement("div");
+    g.className = "wgrp";
+    g.textContent = (WAVE_LABELS[w] || ("Wave " + w));
+    body.appendChild(g);
+    secs.forEach(sec => {
+      const isProse = !sec.questions || sec.questions.length === 0;
+      const target = document.getElementById("plate-" + sec.id)
+                  || document.getElementById("sec-" + sec.id);
+      if (!target) return;
+      // A prose-only section with no title is a divider — it belongs to the
+      // wave heading already shown above, so don't list it again.
+      if (isProse && !sec.title) return;
+      const a = document.createElement("a");
+      a.href = "#";
+      const nQ = sec.questions ? sec.questions.length : 0;
+      a.innerHTML = '<span class="pl">' + (sec.entry || "·") + '</span>' +
+                    '<span class="tx">' + (sec.title || "") + '</span>' +
+                    (nQ ? '<span class="dot" data-count="'+sec.id+'">○</span>' : '');
+      a.addEventListener("click", e => {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+        if (window.innerWidth <= 980) nav.classList.add("collapsed");
+      });
+      body.appendChild(a);
+      anchors.push({ a, id: sec.id, el: target });
+    });
+  });
+
+  const togBtn = document.getElementById("wavenavToggle");
+  togBtn.addEventListener("click", () => {
+    nav.classList.toggle("collapsed");
+    const open = !nav.classList.contains("collapsed");
+    document.getElementById("wavenavTog").textContent = open ? "▾" : "▸";
+    togBtn.setAttribute("aria-expanded", String(open));
+  });
+  if (window.innerWidth > 980) {
+    nav.classList.remove("collapsed");
+    document.getElementById("wavenavTog").textContent = "▾";
+    togBtn.setAttribute("aria-expanded", "true");
+  }
+
+  function markActive(){
+    let best = null, bestTop = -Infinity;
+    anchors.forEach(x => {
+      const tp = x.el.getBoundingClientRect().top;
+      if (tp < 140 && tp > bestTop) { bestTop = tp; best = x; }
+    });
+    anchors.forEach(x => x.a.classList.toggle("active", x === best));
+  }
+  window.__navProgress = function(){
+    anchors.forEach(x => {
+      const dot = x.a.querySelector('.dot'); if (!dot) return;
+      const sec = SCHEMA.find(s => s.id === x.id); if (!sec) return;
+      const vis = sec.questions.filter(q => !q.showIf || conditionMet(q.showIf));
+      const raw = collectRaw();
+      let done = 0;
+      vis.forEach(q => {
+        if (q.type === "matrix") {
+          if (q.rows.some(r => { const sel=document.querySelector('[data-matrix="'+q.id+'"][data-row="'+CSS.escape(r)+'"]'); return sel && sel.value; })) done++;
+        } else {
+          const sk = document.querySelector('[data-skip="'+q.id+'"]');
+          if (raw[q.id] !== undefined || (sk && sk.checked)) done++;
+        }
+      });
+      dot.textContent = done === 0 ? "○" : (done >= vis.length ? "●" : "◐");
+      dot.title = done + "/" + vis.length + " answered";
+    });
+  };
+  let tick;
+  addEventListener("scroll", () => { clearTimeout(tick); tick = setTimeout(markActive, 60); }, {passive:true});
+  markActive();
+  setTimeout(() => window.__navProgress && window.__navProgress(), 60);
+})();
+
+
+  // keep the wave nav clear of the sticky action bar on small screens
+  (function(){
+    const setH = () => {
+      const a = document.querySelector('.actions');
+      if (a) document.documentElement.style.setProperty('--actionbar-h', Math.ceil(a.getBoundingClientRect().height) + 'px');
+    };
+    setH(); addEventListener('resize', setH);
+  })();
+
+
+
+/* ── per-wave copy buttons ──────────────────────────────────── */
+function generateWave(waveNum){
+  persist();
+  const raw = collectRaw();
+  const answers = {};
+  const label = WAVE_LABELS[waveNum] || ("Wave " + waveNum);
+  const human = ["=== " + TITLE.replace(/\*/g,"") + " — " + label + " ===", ""];
+  SCHEMA.filter(s => (s.wave || 1) === waveNum).forEach(sec => {
+    const rows = [];
+    (sec.questions || []).forEach(q => {
+      if (q.showIf && !conditionMet(q.showIf)) return;
+      const skipEl = document.querySelector('[data-skip="'+q.id+'"]');
+      const skipped = skipEl && skipEl.checked;
+      const noteEl = document.querySelector('[data-note="'+q.id+'"]');
+      const note = noteEl ? noteEl.value.trim() : "";
+      if (q.type === "matrix") {
+        const val = {}, notes = {};
+        q.rows.forEach(r => {
+          const sel = document.querySelector('[data-matrix="'+q.id+'"][data-row="'+CSS.escape(r)+'"]');
+          const nt  = document.querySelector('[data-matrixnote="'+q.id+'"][data-row="'+CSS.escape(r)+'"]');
+          if (sel && sel.value) val[r] = sel.value;
+          if (nt && nt.value.trim()) notes[r] = nt.value.trim();
+        });
+        if (Object.keys(val).length || Object.keys(notes).length) {
+          answers[q.id] = { value: val, notes };
+          rows.push("  • " + q.label + ":");
+          q.rows.forEach(r => { if (val[r]||notes[r]) rows.push("      - " + r + ": " + deFence(val[r]||"—") + (notes[r]?(" ("+deFence(notes[r])+")"):"")); });
+        }
+      } else {
+        const v = raw[q.id];
+        if (skipped) { answers[q.id] = { skipped:true, ...(note?{note}:{}) }; rows.push("  • " + q.label + ": [skipped]" + (note?(" — note: "+deFence(note)):"")); }
+        else if (v !== undefined) { answers[q.id] = { value:v, ...(note?{note}:{}) }; rows.push("  • " + q.label + ": " + deFence(Array.isArray(v)?v.join(", "):v) + (note?("  — note: "+deFence(note)):"")); }
+        else if (note) { answers[q.id] = { note }; rows.push("  • " + q.label + ": (no answer) — note: " + deFence(note)); }
+      }
+    });
+    if (rows.length) human.push("[" + sec.title + "]", ...rows, "");
+  });
+  const block = "```INTAKE-JSON\n" + JSON.stringify({ form: FORM_ID, wave: waveNum, answers }, null, 2) + "\n```";
+  return { human: human.join("\n"), block, count: Object.keys(answers).length };
+}
+
+(function mountWaveCopy(){
+  const waves = [...new Set(SCHEMA.map(s => s.wave || 1))].sort((a,b)=>a-b);
+  waves.forEach(w => {
+    const secs = SCHEMA.filter(s => (s.wave||1) === w);
+    const last = secs[secs.length-1]; if (!last) return;
+    const anchorEl = document.getElementById("sec-"+last.id) || document.getElementById("plate-"+last.id);
+    if (!anchorEl) return;
+    const bar = document.createElement("div");
+    bar.className = "wavecopy";
+    const label = WAVE_LABELS[w] || ("Wave " + w);
+    bar.innerHTML = '<button type="button" class="primary">📋 Copy ' + label + ' answers</button>' +
+                    '<span class="wc-note"></span>';
+    const btn = bar.querySelector("button"), note = bar.querySelector(".wc-note");
+    btn.addEventListener("click", () => {
+      const { human, block, count } = generateWave(w);
+      if (!count) { note.textContent = "nothing answered in this wave yet"; return; }
+      const payload = human + "\n\n--- paste the block below to Claude ---\n\n" + block;
+      navigator.clipboard.writeText(payload).then(() => {
+        note.textContent = "copied " + count + " answer" + (count===1?"":"s") + " — paste to Claude";
+        toast("Copied " + label + " answers");
+      }).catch(() => {
+        const out = document.getElementById("out");
+        out.textContent = payload; out.style.display = "block";
+        out.scrollIntoView({behavior:"smooth", block:"center"});
+        note.textContent = "clipboard blocked — copy from the box below";
+      });
+    });
+    anchorEl.insertAdjacentElement("afterend", bar);
+  });
+})();
+
+</script>
+</body>
+</html>
