@@ -41,6 +41,45 @@ in the source repo's `.claude-plugin/marketplace.json`.
 Private marketplace repos are cloned over your existing GitHub auth (SSH keys or `gh`),
 so the repo must be readable by your account.
 
+### Currently declared
+
+| Plugin | Marketplace | Source |
+| --- | --- | --- |
+| `superpowers` | `superpowers-marketplace` | `obra/superpowers-marketplace` |
+| `momentum` | `momentum-tracker` | `mechanical-orchard/momentum-tracker` |
+
+Both halves must be present for a plugin to be reproducible. `superpowers` was listed in
+`enabledPlugins` without a matching `extraKnownMarketplaces` entry, so it only resolved
+because its marketplace had been registered imperatively in `~/.claude/plugins/` — a
+fresh machine would have enabled a plugin from an unknown marketplace. Its source is now
+declared too.
+
+### Upgrading a plugin
+
+`settings.json` declares *which* plugins are enabled, not which **version**. There is
+no version or pin field in `extraKnownMarketplaces` / `enabledPlugins`, and `homeswitch`
+does not upgrade plugins — once a plugin is in the cache, Claude Code keeps using that
+version until an explicit update runs. So a plugin can sit silently stale for months
+while upstream moves on (momentum did exactly this: declared at 0.14.0, upstream 0.17.0).
+
+Unlike `claude plugin marketplace add`, the update commands only write to the mutable
+`~/.claude/plugins/` cache, never to `settings.json` — so they work fine here despite
+the read-only Nix store symlink:
+
+```bash
+claude plugin marketplace update momentum-tracker && \
+    claude plugin update momentum@momentum-tracker
+```
+
+Restart Claude Code afterwards to load the new version, and confirm with
+`claude plugin list`.
+
+To avoid doing this by hand, open `/plugin` → Marketplaces → select the marketplace →
+enable auto-update. That toggle is mutable per-machine state, so Nix cannot capture it
+and it must be set once per machine. There *is* an `autoUpdate: true` field on
+`extraKnownMarketplaces` entries, but it is honoured only in **managed** (org-deployed)
+settings, so it cannot be used from this repo's user-scope `settings.json`.
+
 ## What's Not Here
 
 Runtime state remains in `~/.claude/` and is NOT version controlled:
