@@ -146,6 +146,10 @@ in
     # See home.activation.installLinearMouseConfig.
 
     # Claude Code configuration
+    ".claude/CLAUDE.md" = {
+      source = ./programs/claude/CLAUDE.md;
+      force = true;
+    };
     ".claude/settings.json" = {
       source = ./programs/claude/settings.json;
       force = true;
