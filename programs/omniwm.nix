@@ -23,17 +23,25 @@
 # explore in the GUI, `rm ~/.config/omniwm/settings.toml` first to let the app
 # own a real file again, then copy the result back here.
 #
-# Two things are deliberately NOT tracked, because OmniWM regenerates them as
-# runtime state and they would produce churn in every diff:
+# The file is tracked in FULL, including the sections that look machine-written.
+# Do not be tempted to "clean up" the two array-of-table sections:
 #
-#   [[appRules]]    auto-discovered per-app minimum window sizes, each carrying
-#                   a freshly generated UUID `id`. Real, intentional rules
-#                   (float/tile/assign-to-workspace) can be added here later --
-#                   see `omniwmctl rule add --help`.
-#   [[workspaces]]  live workspace list + per-workspace monitorAssignment.
+#   [[workspaces]]  Looks like runtime state (UUID `id` per entry) but carries
+#                   real configuration: the custom workspace displayNames
+#                   (1 = briefcase, 6 = heart, 7 = rocket) and, more
+#                   importantly, each workspace's monitorAssignment -- 6 and 7
+#                   are pinned to "secondary", the rest to "main". Stripping
+#                   this silently loses the emoji names and un-pins the
+#                   multi-monitor layout.
+#   [[appRules]]    Per-app minimum window sizes. These do appear to be probed
+#                   by the app rather than hand-set, but they are kept anyway:
+#                   they are harmless, and the cost of guessing wrong here is
+#                   losing settings. Intentional rules (float/tile/
+#                   assign-to-workspace) can be added alongside them -- see
+#                   `omniwmctl rule add`.
 #
-# Dropping them means the app recreates them on first launch from its own
-# defaults, which is what we want.
+# In short: OmniWM mixes config and derived state in one file with no marker
+# distinguishing them, so the safe default is to track everything verbatim.
 
 {
   home.file.".config/omniwm/settings.toml" = lib.mkIf pkgs.stdenv.isDarwin {
