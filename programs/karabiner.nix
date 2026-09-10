@@ -29,7 +29,7 @@
           complex_modifications = {
             rules = [
               {
-                description = "Caps Lock → Option+Shift (held) or Escape (alone)";
+                description = "Caps Lock → Hyper (held) or Escape (alone)";
                 manipulators = [
                   {
                     type = "basic";
@@ -39,10 +39,27 @@
                         optional = [ "any" ];
                       };
                     };
+                    # Hyper (ctrl+opt+shift+cmd) rather than opt+shift.
+                    #
+                    # opt+shift+<letter> is NOT a plain keystroke on the US
+                    # layout: macOS resolves it to a special character before any
+                    # hotkey consumer sees a letter. Verified via UCKeyTranslate
+                    # against the live layout: opt+shift+g -> "˝", which is a
+                    # DEAD KEY (commits no character on its own), so Raycast
+                    # records a degenerate chord and never matches it. Adding
+                    # ctrl+cmd means no letter resolves to a character at all.
+                    #
+                    # lazy = true: the modifier only asserts once another key
+                    # joins it. Without it, a quick Caps Lock+<key> press can
+                    # resolve Caps Lock as "alone" (-> escape) while the letter
+                    # goes out bare, so the chord silently never reaches Raycast.
+                    # That race is timing/load dependent, which is what made
+                    # this come and go with no daemon restart and no log entry.
                     to = [
                       {
                         key_code = "right_shift";
-                        modifiers = [ "right_option" ];
+                        modifiers = [ "right_option" "right_control" "right_command" ];
+                        lazy = true;
                       }
                     ];
                     to_if_alone = [
@@ -50,6 +67,11 @@
                         key_code = "escape";
                       }
                     ];
+                    # Pin the alone-vs-held threshold instead of inheriting the
+                    # default, so escape-vs-hyper stays deterministic under load.
+                    parameters = {
+                      "basic.to_if_alone_timeout_milliseconds" = 150;
+                    };
                   }
                 ];
               }
