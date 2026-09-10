@@ -292,6 +292,17 @@
         greedy = true;
       }
       "linearmouse"   # Fast-scroll when holding modifier key (configured in home.nix)
+      # Tiling window manager (arm64 + macOS 26 only). Ships an `omniwmctl`
+      # CLI symlinked out of the app bundle for scripting layouts.
+      #
+      # NOTE: needs a one-time Accessibility grant in System Settings >
+      # Privacy & Security > Accessibility to move windows at all. TCC grants
+      # are SIP-protected and cannot be automated from here, so the app will
+      # launch but silently do nothing until it is approved by hand.
+      #
+      # Pre-1.0 (0.6.9) and very low adoption upstream (single-digit installs
+      # per year via brew), so treat breakage across updates as expected.
+      "omniwm"
       "superwhisper"
       "raycast"
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
