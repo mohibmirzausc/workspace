@@ -328,35 +328,35 @@ binding = "Unassigned"
 id = "assignFocusedWindowToScratchpad.10"
 
 [[hotkeys]]
-binding = "Hyper+1"
+binding = "RightControl+RightOption+RightShift+RightCommand+1"
 id = "switchWorkspace.0"
 
 [[hotkeys]]
-binding = "Hyper+Shift+1"
+binding = "Unassigned"
 id = "moveToWorkspace.0"
 
 [[hotkeys]]
-binding = "Hyper+2"
+binding = "RightControl+RightOption+RightShift+RightCommand+2"
 id = "switchWorkspace.1"
 
 [[hotkeys]]
-binding = "Hyper+Shift+2"
+binding = "Unassigned"
 id = "moveToWorkspace.1"
 
 [[hotkeys]]
-binding = "Hyper+3"
+binding = "RightControl+RightOption+RightShift+RightCommand+3"
 id = "switchWorkspace.2"
 
 [[hotkeys]]
-binding = "Hyper+Shift+3"
+binding = "Unassigned"
 id = "moveToWorkspace.2"
 
 [[hotkeys]]
-binding = "Hyper+4"
+binding = "RightControl+RightOption+RightShift+RightCommand+4"
 id = "switchWorkspace.3"
 
 [[hotkeys]]
-binding = "Hyper+Shift+4"
+binding = "Unassigned"
 id = "moveToWorkspace.3"
 
 [[hotkeys]]
@@ -472,7 +472,7 @@ binding = "Unassigned"
 id = "moveToWorkspaceSlot.9"
 
 [[hotkeys]]
-binding = "Hyper+Tab"
+binding = "RightControl+RightOption+RightShift+RightCommand+Tab"
 id = "workspaceBackAndForth"
 
 [[hotkeys]]
@@ -972,7 +972,7 @@ binding = "Unassigned"
 id = "closeFocusedWindow"
 
 [[hotkeys]]
-binding = "Hyper+M"
+binding = "RightControl+RightOption+RightShift+RightCommand+M"
 id = "openMenuAnywhere"
 
 [[hotkeys]]
