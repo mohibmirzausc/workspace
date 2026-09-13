@@ -29,7 +29,7 @@
           complex_modifications = {
             rules = [
               {
-                description = "Caps Lock → Hyper (held) or Escape (alone)";
+                description = "Caps Lock → Hyper";
                 manipulators = [
                   {
                     type = "basic";
@@ -49,29 +49,25 @@
                     # records a degenerate chord and never matches it. Adding
                     # ctrl+cmd means no letter resolves to a character at all.
                     #
-                    # lazy = true: the modifier only asserts once another key
-                    # joins it. Without it, a quick Caps Lock+<key> press can
-                    # resolve Caps Lock as "alone" (-> escape) while the letter
-                    # goes out bare, so the chord silently never reaches Raycast.
-                    # That race is timing/load dependent, which is what made
-                    # this come and go with no daemon restart and no log entry.
+                    # Caps Lock is a pure Hyper modifier: no to_if_alone, so a
+                    # quick tap emits nothing at all rather than Escape. Escape
+                    # remains on its own key.
+                    #
+                    # lazy is deliberately NOT set here. It exists to stop a
+                    # fast Caps Lock+<key> press from resolving Caps Lock as
+                    # "alone" and firing Escape while the letter goes out bare.
+                    # With to_if_alone gone there is no alone-branch to lose the
+                    # race to, and lazy would only delay asserting the modifier
+                    # until another key joins -- which is what drops fast chords.
+                    # So the modifier now asserts immediately on key-down.
                     to = [
                       {
                         key_code = "right_shift";
                         modifiers = [ "right_option" "right_control" "right_command" ];
-                        lazy = true;
                       }
                     ];
-                    to_if_alone = [
-                      {
-                        key_code = "escape";
-                      }
-                    ];
-                    # Pin the alone-vs-held threshold instead of inheriting the
-                    # default, so escape-vs-hyper stays deterministic under load.
-                    parameters = {
-                      "basic.to_if_alone_timeout_milliseconds" = 150;
-                    };
+                    # No basic.to_if_alone_timeout_milliseconds either: with no
+                    # alone-branch there is no alone-vs-held threshold to pin.
                   }
                 ];
               }
