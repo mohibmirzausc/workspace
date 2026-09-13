@@ -29,7 +29,7 @@
           complex_modifications = {
             rules = [
               {
-                description = "Caps Lock → Hyper";
+                description = "Caps Lock → Super (ctrl+opt+cmd, no shift)";
                 manipulators = [
                   {
                     type = "basic";
@@ -39,31 +39,52 @@
                         optional = [ "any" ];
                       };
                     };
-                    # Hyper (ctrl+opt+shift+cmd) rather than opt+shift.
+                    # ctrl+opt+cmd -- deliberately NOT full hyper. SHIFT IS
+                    # EXCLUDED so it stays available as a discriminator:
+                    # Caps Lock+N and Caps Lock+Shift+N are then genuinely
+                    # different chords (see programs/omniwm/settings.toml, where
+                    # they are switch-workspace vs move-window-to-workspace).
                     #
-                    # opt+shift+<letter> is NOT a plain keystroke on the US
-                    # layout: macOS resolves it to a special character before any
-                    # hotkey consumer sees a letter. Verified via UCKeyTranslate
-                    # against the live layout: opt+shift+g -> "˝", which is a
-                    # DEAD KEY (commits no character on its own), so Raycast
-                    # records a degenerate chord and never matches it. Adding
-                    # ctrl+cmd means no letter resolves to a character at all.
+                    # Why this is safe -- the bug #54 fixed was NOT about shift
+                    # being present. opt+shift+<letter> is not a plain keystroke
+                    # on the US layout: macOS resolves it through the layout into
+                    # a special character before any hotkey consumer sees a
+                    # letter (opt+shift+g -> "˝", a DEAD KEY that commits no
+                    # character, so Raycast recorded a chord it could never
+                    # match). The fix was adding CONTROL: ctrl+<letter> yields a
+                    # control character and bypasses layout resolution entirely.
+                    # Shift was only along for the ride because "hyper"
+                    # conventionally means all four modifiers.
                     #
-                    # Caps Lock is a pure Hyper modifier: no to_if_alone, so a
-                    # quick tap emits nothing at all rather than Escape. Escape
-                    # remains on its own key.
+                    # Re-verified with UCKeyTranslate against the live layout --
+                    # ctrl+opt+cmd and ctrl+opt+cmd+shift are indistinguishable
+                    # in output, and neither produces a dead key:
                     #
-                    # lazy is deliberately NOT set here. It exists to stop a
-                    # fast Caps Lock+<key> press from resolving Caps Lock as
-                    # "alone" and firing Escape while the letter goes out bare.
-                    # With to_if_alone gone there is no alone-branch to lose the
-                    # race to, and lazy would only delay asserting the modifier
-                    # until another key joins -- which is what drops fast chords.
-                    # So the modifier now asserts immediately on key-down.
+                    #   chord          G     J     C     S     digits
+                    #   opt+shift      ˝     Ô     Ç     Í     (broken, #54)
+                    #   ctrl+opt+cmd   ^G    ^J    ^C    ^S    1 2 3 4
+                    #   + shift        ^G    ^J    ^C    ^S    1 2 3 4
+                    #
+                    # Caps Lock is a pure modifier: no to_if_alone, so a quick
+                    # tap emits nothing rather than Escape. Escape stays on its
+                    # own key.
+                    #
+                    # lazy is deliberately NOT set. It existed to stop a fast
+                    # Caps Lock+<key> press from resolving Caps Lock as "alone"
+                    # and firing Escape while the letter went out bare. With no
+                    # alone-branch there is no race to lose, and lazy would only
+                    # delay asserting the modifier until another key joins --
+                    # which is what drops fast chords.
+                    #
+                    # right_control carries the chord as the KEY; option and
+                    # command ride along as modifiers. (Previously right_shift
+                    # was the key -- that is what made "Caps Lock + left shift"
+                    # unexpressible, since macOS reports one shift FLAG no
+                    # matter how many shift keys are down.)
                     to = [
                       {
-                        key_code = "right_shift";
-                        modifiers = [ "right_option" "right_control" "right_command" ];
+                        key_code = "right_control";
+                        modifiers = [ "right_option" "right_command" ];
                       }
                     ];
                     # No basic.to_if_alone_timeout_milliseconds either: with no
