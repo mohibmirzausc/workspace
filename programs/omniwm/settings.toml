@@ -248,35 +248,35 @@ minHeight = 320.0
 minWidth = 660.0
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+5"
 id = "toggleScratchpad.1"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+Shift+5"
 id = "assignFocusedWindowToScratchpad.1"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+6"
 id = "toggleScratchpad.2"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+Shift+6"
 id = "assignFocusedWindowToScratchpad.2"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+7"
 id = "toggleScratchpad.3"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+Shift+7"
 id = "assignFocusedWindowToScratchpad.3"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+8"
 id = "toggleScratchpad.4"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightCommand+Shift+8"
 id = "assignFocusedWindowToScratchpad.4"
 
 [[hotkeys]]
