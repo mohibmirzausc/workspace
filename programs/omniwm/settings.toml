@@ -159,7 +159,7 @@ notchMode = "moveBelowMenuBar"
 position = "overlappingMenuBar"
 reserveLayoutSpace = false
 revealHoldMilliseconds = 200.0
-revealModifier = "option"
+revealModifier = "controlOptionCommandShift"
 showFloatingWindows = false
 showLabels = true
 systemStatsButton = true
@@ -332,7 +332,7 @@ binding = "RightControl+RightOption+RightShift+RightCommand+1"
 id = "switchWorkspace.0"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightShift+RightCommand+LeftShift+1"
 id = "moveToWorkspace.0"
 
 [[hotkeys]]
@@ -340,7 +340,7 @@ binding = "RightControl+RightOption+RightShift+RightCommand+2"
 id = "switchWorkspace.1"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightShift+RightCommand+LeftShift+2"
 id = "moveToWorkspace.1"
 
 [[hotkeys]]
@@ -348,7 +348,7 @@ binding = "RightControl+RightOption+RightShift+RightCommand+3"
 id = "switchWorkspace.2"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightShift+RightCommand+LeftShift+3"
 id = "moveToWorkspace.2"
 
 [[hotkeys]]
@@ -356,7 +356,7 @@ binding = "RightControl+RightOption+RightShift+RightCommand+4"
 id = "switchWorkspace.3"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "RightControl+RightOption+RightShift+RightCommand+LeftShift+4"
 id = "moveToWorkspace.3"
 
 [[hotkeys]]

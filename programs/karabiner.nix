@@ -168,5 +168,35 @@
       ];
     };
   };
+
+  # Force Karabiner to re-read karabiner.json after activation.
+  #
+  # Karabiner watches the config file for changes, but home-manager installs it
+  # by swapping the SYMLINK at that path to a new nix-store target. That does
+  # not modify the file Karabiner is watching, so the watcher never fires and
+  # the daemon keeps enforcing the PREVIOUS config -- silently, with no error
+  # and nothing in its log. Symptom: you rebuild, the JSON on disk is correct,
+  # and your keys still behave the old way until something unrelated (a reboot,
+  # a sleep/wake cycle) happens to restart the service.
+  #
+  # That cost a long debugging session: Karabiner's log showed its last config
+  # load at 00:31 while the rebuild had written at 00:35, so a whole batch of
+  # hotkey changes appeared to do nothing.
+  #
+  # kickstart -k restarts the console user server, which reloads the config on
+  # startup. Only the user-level agent is touched; the root Core-Service and the
+  # DriverKit extension are left alone, so this does not disturb the virtual HID
+  # device or require any privilege.
+  home.activation.reloadKarabiner = lib.mkIf pkgs.stdenv.isDarwin
+    (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      KB_AGENT="gui/$(id -u)/org.pqrs.service.agent.Karabiner-Console-User-Server"
+
+      # Only if Karabiner is actually installed and the agent is loaded --
+      # otherwise this is a no-op (e.g. a fresh machine before the cask lands).
+      if /bin/launchctl print "$KB_AGENT" >/dev/null 2>&1; then
+        $DRY_RUN_CMD /bin/launchctl kickstart -k "$KB_AGENT" || \
+          echo "warning: could not reload Karabiner; its config may be stale until restart"
+      fi
+    '');
 }
 
