@@ -248,35 +248,35 @@ minHeight = 320.0
 minWidth = 660.0
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+5"
+binding = "RightControl+RightOption+RightCommand+S"
 id = "toggleScratchpad.1"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+5"
+binding = "RightControl+RightOption+RightCommand+Shift+S"
 id = "assignFocusedWindowToScratchpad.1"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+6"
+binding = "RightControl+RightOption+RightCommand+T"
 id = "toggleScratchpad.2"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+6"
+binding = "RightControl+RightOption+RightCommand+Shift+T"
 id = "assignFocusedWindowToScratchpad.2"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+7"
+binding = "RightControl+RightOption+RightCommand+Q"
 id = "toggleScratchpad.3"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+7"
+binding = "RightControl+RightOption+RightCommand+Shift+Q"
 id = "assignFocusedWindowToScratchpad.3"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+8"
+binding = "RightControl+RightOption+RightCommand+W"
 id = "toggleScratchpad.4"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+8"
+binding = "RightControl+RightOption+RightCommand+Shift+W"
 id = "assignFocusedWindowToScratchpad.4"
 
 [[hotkeys]]
