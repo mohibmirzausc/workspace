@@ -171,6 +171,19 @@
   system.activationScripts.postActivation.text = ''
     defaults write com.apple.universalaccess closeViewScrollWheelToggle -bool true 2>/dev/null || true
     defaults write com.apple.universalaccess closeViewScrollWheelModifiersInt -int 1048576 2>/dev/null || true
+
+    # Make the menu-bar auto-hide take effect in the RUNNING session.
+    #
+    # system.defaults.NSGlobalDomain._HIHideMenuBar above writes the preference,
+    # but macOS caches it: `defaults read` reports 1 while the menu bar stays
+    # permanently visible until the next logout. Poking it through System Events
+    # applies it immediately, so activation does not leave a correct-on-disk /
+    # wrong-on-screen split.
+    #
+    # Guarded because this needs the Automation TCC grant for System Events; if
+    # that is missing the write above still lands and a logout will pick it up.
+    /usr/bin/osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to true' 2>/dev/null || \
+      echo "note: could not apply menu-bar autohide live; it will apply after logout"
   '';
 
   # Enable Touch ID for sudo (including inside tmux sessions)
