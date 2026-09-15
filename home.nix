@@ -12,6 +12,7 @@ in
     ./programs/raycast/raycast.nix
     ./programs/ghostty.nix
     ./programs/cmux.nix
+    ./programs/omniwm.nix
     ./programs/just.nix
     ./programs/zellij.nix
     ./programs/tmux.nix
