@@ -484,19 +484,19 @@ binding = "Unassigned"
 id = "switchWorkspace.previous"
 
 [[hotkeys]]
-binding = "Option+Left Arrow"
+binding = "Right Control+Right Option+Right Command+Left Arrow"
 id = "focus.left"
 
 [[hotkeys]]
-binding = "Option+Down Arrow"
+binding = "Right Control+Right Option+Right Command+Down Arrow"
 id = "focus.down"
 
 [[hotkeys]]
-binding = "Option+Up Arrow"
+binding = "Right Control+Right Option+Right Command+Up Arrow"
 id = "focus.up"
 
 [[hotkeys]]
-binding = "Option+Right Arrow"
+binding = "Right Control+Right Option+Right Command+Right Arrow"
 id = "focus.right"
 
 [[hotkeys]]
@@ -596,19 +596,19 @@ binding = "Unassigned"
 id = "moveColumnToWorkspace.8"
 
 [[hotkeys]]
-binding = "Option+Shift+Left Arrow"
+binding = "Right Control+Right Option+Shift+Right Command+Left Arrow"
 id = "move.left"
 
 [[hotkeys]]
-binding = "Option+Shift+Down Arrow"
+binding = "Right Control+Right Option+Shift+Right Command+Down Arrow"
 id = "move.down"
 
 [[hotkeys]]
-binding = "Option+Shift+Up Arrow"
+binding = "Right Control+Right Option+Shift+Right Command+Up Arrow"
 id = "move.up"
 
 [[hotkeys]]
-binding = "Option+Shift+Right Arrow"
+binding = "Right Control+Right Option+Shift+Right Command+Right Arrow"
 id = "move.right"
 
 [[hotkeys]]
@@ -868,11 +868,11 @@ binding = "Control+Option+R"
 id = "resetWindowSecondarySpan"
 
 [[hotkeys]]
-binding = "Option+Minus"
+binding = "Right Control+Right Option+Right Command+Minus"
 id = "setContainerPrimarySpan.decrease10Percent"
 
 [[hotkeys]]
-binding = "Option+Equal"
+binding = "Right Control+Right Option+Right Command+Equal"
 id = "setContainerPrimarySpan.increase10Percent"
 
 [[hotkeys]]
@@ -884,11 +884,11 @@ binding = "Unassigned"
 id = "setWindowPrimarySpan.increase10Percent"
 
 [[hotkeys]]
-binding = "Right Control+Right Option+Right Command+Minus"
+binding = "Option+Minus"
 id = "setWindowSecondarySpan.decrease10Percent"
 
 [[hotkeys]]
-binding = "Right Control+Right Option+Right Command+Equal"
+binding = "Option+Equal"
 id = "setWindowSecondarySpan.increase10Percent"
 
 [[hotkeys]]
