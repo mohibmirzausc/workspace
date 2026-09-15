@@ -10,7 +10,7 @@ mode = "dark"
 
 [borders]
 enabled = false
-width = 1.0
+width = 1.5
 
 [borders.color]
 alpha = 1.0
@@ -151,14 +151,14 @@ backgroundOpacity = 0.1
 deduplicateAppIcons = false
 enabled = true
 excludedBundleIDs = []
-height = 24.0
+height = 40.0
 hideEmptyWorkspaces = false
 hideInNativeFullscreen = false
-notchActiveZoneWidth = 180.0
+notchActiveZoneWidth = 230.0
 notchMode = "moveBelowMenuBar"
 position = "overlappingMenuBar"
 reserveLayoutSpace = false
-revealHoldMilliseconds = 200.0
+revealHoldMilliseconds = 0.0
 revealModifier = "controlOptionCommand"
 showFloatingWindows = false
 showLabels = true
@@ -248,35 +248,35 @@ minHeight = 320.0
 minWidth = 660.0
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+S"
+binding = "Right Control+Right Option+Right Command+S"
 id = "toggleScratchpad.1"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+S"
+binding = "Right Control+Right Option+Shift+Right Command+S"
 id = "assignFocusedWindowToScratchpad.1"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+T"
+binding = "Right Control+Right Option+Right Command+T"
 id = "toggleScratchpad.2"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+T"
+binding = "Right Control+Right Option+Shift+Right Command+T"
 id = "assignFocusedWindowToScratchpad.2"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Q"
+binding = "Right Control+Right Option+Right Command+E"
 id = "toggleScratchpad.3"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+Q"
+binding = "Right Control+Right Option+Shift+Right Command+E"
 id = "assignFocusedWindowToScratchpad.3"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+W"
+binding = "Right Control+Right Option+Right Command+C"
 id = "toggleScratchpad.4"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+W"
+binding = "Right Control+Right Option+Shift+Right Command+C"
 id = "assignFocusedWindowToScratchpad.4"
 
 [[hotkeys]]
@@ -328,35 +328,35 @@ binding = "Unassigned"
 id = "assignFocusedWindowToScratchpad.10"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+1"
+binding = "Right Control+Right Option+Right Command+1"
 id = "switchWorkspace.0"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+1"
+binding = "Right Control+Right Option+Shift+Right Command+1"
 id = "moveToWorkspace.0"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+2"
+binding = "Right Control+Right Option+Right Command+2"
 id = "switchWorkspace.1"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+2"
+binding = "Right Control+Right Option+Shift+Right Command+2"
 id = "moveToWorkspace.1"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+3"
+binding = "Right Control+Right Option+Right Command+3"
 id = "switchWorkspace.2"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+3"
+binding = "Right Control+Right Option+Shift+Right Command+3"
 id = "moveToWorkspace.2"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+4"
+binding = "Right Control+Right Option+Right Command+4"
 id = "switchWorkspace.3"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Shift+4"
+binding = "Right Control+Right Option+Shift+Right Command+4"
 id = "moveToWorkspace.3"
 
 [[hotkeys]]
@@ -472,7 +472,7 @@ binding = "Unassigned"
 id = "moveToWorkspaceSlot.9"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+Tab"
+binding = "Right Control+Right Option+Right Command+Tab"
 id = "workspaceBackAndForth"
 
 [[hotkeys]]
@@ -680,7 +680,7 @@ binding = "Unassigned"
 id = "moveWindowToMonitor.down"
 
 [[hotkeys]]
-binding = "Option+Return"
+binding = "Right Control+Right Option+Right Command+Return"
 id = "toggleFullscreen"
 
 [[hotkeys]]
@@ -884,11 +884,11 @@ binding = "Unassigned"
 id = "setWindowPrimarySpan.increase10Percent"
 
 [[hotkeys]]
-binding = "Option+Shift+Minus"
+binding = "Right Control+Right Option+Right Command+Minus"
 id = "setWindowSecondarySpan.decrease10Percent"
 
 [[hotkeys]]
-binding = "Option+Shift+Equal"
+binding = "Right Control+Right Option+Right Command+Equal"
 id = "setWindowSecondarySpan.increase10Percent"
 
 [[hotkeys]]
@@ -972,7 +972,7 @@ binding = "Unassigned"
 id = "closeFocusedWindow"
 
 [[hotkeys]]
-binding = "RightControl+RightOption+RightCommand+M"
+binding = "Right Control+Right Option+Right Command+M"
 id = "openMenuAnywhere"
 
 [[hotkeys]]
