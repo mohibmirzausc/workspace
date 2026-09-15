@@ -8,6 +8,14 @@ let
     bell-features = system,attention,title
     theme = dark:Catppuccin Mocha,light:Catppuccin Mocha
     mouse-scroll-multiplier = precision:1,discrete:1
+    # Slightly translucent background (default is 1 = opaque). Applies to cmux
+    # too: cmux reads ~/.config/ghostty/config directly rather than carrying its
+    # own appearance settings, so this is the single place to tune it.
+    #
+    # Trying this out -- if text legibility over busy windows suffers, either
+    # raise this back toward 1 or add `background-blur = true` to frost what is
+    # behind the window instead of showing it sharply.
+    background-opacity = 0.9
   '';
 
   tmuxKeybinds = ''
