@@ -91,11 +91,15 @@
       # temporarily draw over the SketchyBar items underneath. That overlap is
       # inherent to this setup, not a misconfiguration.
       #
-      # Note this makes two other menu-bar managers largely redundant: the `thaw`
-      # cask (Ice fork) and OmniWM's own hiddenBar (enabled, 5s rehide) are both
-      # organising a strip that is now usually offscreen. They are left alone
-      # rather than ripped out, but if the top of the screen ever misbehaves,
-      # that three-way overlap is the first thing to check.
+      # Note this makes the `thaw` cask (Ice fork menu-bar manager) largely
+      # redundant -- it is organising a strip that is now usually offscreen.
+      # Left alone rather than ripped out, but if the top of the screen ever
+      # misbehaves, that overlap is the first thing to check.
+      #
+      # OmniWM's own hiddenBar setting is NOT part of that overlap despite being
+      # enabled = true in programs/omniwm/settings.toml: the app reports
+      # "Hiding requires macOS 27 or later" and this machine runs 26.6.2, so the
+      # feature cannot activate and the stored preference is inert.
       #
       # This machine has a notch: hiding the menu bar does not reclaim it, so
       # SketchyBar items still have to route around that dead centre zone once
