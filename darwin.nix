@@ -85,6 +85,22 @@
       KeyRepeat = 2;
       # Reduce initial delay before key repeat (lower = faster, range 15-120, default 68)
       InitialKeyRepeat = 15;
+      # Auto-hide the native macOS menu bar so SketchyBar (programs/sketchybar.nix)
+      # owns the top strip. This does NOT remove the menu bar -- it slides back in
+      # whenever the cursor reaches the top of the screen, which means it will
+      # temporarily draw over the SketchyBar items underneath. That overlap is
+      # inherent to this setup, not a misconfiguration.
+      #
+      # Note this makes two other menu-bar managers largely redundant: the `thaw`
+      # cask (Ice fork) and OmniWM's own hiddenBar (enabled, 5s rehide) are both
+      # organising a strip that is now usually offscreen. They are left alone
+      # rather than ripped out, but if the top of the screen ever misbehaves,
+      # that three-way overlap is the first thing to check.
+      #
+      # This machine has a notch: hiding the menu bar does not reclaim it, so
+      # SketchyBar items still have to route around that dead centre zone once
+      # the bar grows enough to reach it.
+      _HIHideMenuBar = true;
     };
 
     # Spotlight settings - disable the default Command+Space shortcut
