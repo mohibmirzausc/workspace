@@ -51,27 +51,31 @@ COLOR_LAVENDER="${COLOR_LAVENDER:-0xffb4befe}"
 # backgrounds, leaving an empty middle. 5px margin on every side; windows clear
 # it via OmniWM's outer.top gap (5 + bar height + 5) -- see settings.toml.
 sketchybar --bar \
-  height=34 \
+  height=24 \
   position=top \
   sticky=on \
-  padding_left=8 \
-  padding_right=8 \
-  margin=5 \
-  y_offset=5 \
+  padding_left=4 \
+  padding_right=4 \
+  margin=0 \
+  y_offset=0 \
   corner_radius=0 \
   color=0x00000000 \
   topmost=off \
-  notch_width=0
+  notch_width=200
 
-# Notch strategy: nothing is center-anchored, and the two bracket backgrounds
-# sit only around the left and right item groups, so the empty middle lines up
-# with the notch on the built-in display and just reads as a gap on the LG.
+# Notch strategy: notch_width=200 makes sketchybar treat the centre 200pt as
+# unusable and push left-anchored items leftward / right-anchored items
+# rightward around it, rather than drawing underneath. Upstream set
+# notch_width=0 and relied on its item groups being narrow enough to leave the
+# middle empty on their own -- that holds on a wider display, but on this
+# 1512pt built-in panel the left group (workspaces + window pills) runs into
+# the notch and items disappear behind it.
 
 sketchybar --default \
   updates=when_shown \
-  icon.font="$FONT:Bold:14.0" \
+  icon.font="$FONT:Bold:12.0" \
   icon.color="$COLOR_FG" \
-  label.font="$FONT:Regular:14.0" \
+  label.font="$FONT:Regular:12.0" \
   label.color="$COLOR_FG" \
   padding_left=3 \
   padding_right=3 \
@@ -111,16 +115,16 @@ for idx in "${!WS_NUMS[@]}"; do
   sketchybar --add item "space.$n" left \
     --set "space.$n" \
     icon="${WS_ICONS[$idx]}" \
-    icon.font="JetBrainsMono Nerd Font Mono:Bold:18.0" \
+    icon.font="JetBrainsMono Nerd Font Mono:Bold:13.0" \
     icon.color="$COLOR_FLAMINGO" \
-    icon.padding_left=9 \
-    icon.padding_right=9 \
+    icon.padding_left=5 \
+    icon.padding_right=5 \
     label.drawing=off \
     label.padding_left=0 \
     label.padding_right=0 \
     background.padding_left=3 \
     background.padding_right=3 \
-    background.height=24 \
+    background.height=18 \
     background.corner_radius=5 \
     background.color="$COLOR_ACCENT" \
     background.drawing=off \
@@ -157,9 +161,9 @@ sketchybar --add item win.lell left \
 for i in 0 1 2; do
   sketchybar --add item "win.$i" left \
     --set "win.$i" drawing=off \
-    icon.font="sketchybar-app-font:Regular:14.0" icon.padding_left=8 icon.padding_right=4 \
-    label.max_chars=20 label.padding_left=2 label.padding_right=8 \
-    background.height=24 background.corner_radius=5 \
+    icon.font="sketchybar-app-font:Regular:12.0" icon.padding_left=8 icon.padding_right=4 \
+    label.max_chars=12 label.padding_left=2 label.padding_right=6 \
+    background.height=18 background.corner_radius=5 \
     background.padding_left=3 background.padding_right=3
 done
 
@@ -170,7 +174,7 @@ sketchybar --add item win.rell left \
 
 sketchybar --add bracket window_group win.lell win.0 win.1 win.2 win.rell \
   --set window_group background.drawing=off background.color="$COLOR_BG" \
-  background.corner_radius=9 background.height=34
+  background.corner_radius=6 background.height=22
 
 sketchybar --add item win.driver left \
   --set win.driver drawing=off updates=on \
@@ -189,7 +193,7 @@ sketchybar --add item win.driver left \
 sketchybar --add item apps right \
   --set apps \
   icon=$'\uf179' \
-  icon.font="$FONT:Regular:17.0" \
+  icon.font="$FONT:Regular:13.0" \
   icon.color="$COLOR_FG" \
   icon.padding_left=8 \
   icon.padding_right=8 \
@@ -264,7 +268,7 @@ sketchybar --add item date right \
 sketchybar --add item meeting right \
   --set meeting \
   update_freq=60 \
-  label.max_chars=32 \
+  label.max_chars=18 \
   scroll_texts=on \
   script="$PLUGINS/meeting.sh" \
   click_script="$PLUGINS/meeting.sh click" \
@@ -280,14 +284,14 @@ sketchybar --add bracket left_group space.1 space.2 space.3 space.4 \
   background.drawing=on \
   background.color="$COLOR_BG" \
   background.corner_radius=9 \
-  background.height=34
+  background.height=22
 
 sketchybar --add bracket right_group apps battery time date meeting \
   --set right_group \
   background.drawing=on \
   background.color="$COLOR_BG" \
   background.corner_radius=9 \
-  background.height=34
+  background.height=22
 
 sketchybar --update
 

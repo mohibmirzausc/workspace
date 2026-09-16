@@ -42,7 +42,16 @@ in
   # box. The MONO variant is what sketchybarrc asks for by name: it renders all
   # glyphs at one fixed cell width, so the active-workspace highlight is an
   # identical square regardless of which glyph is inside it.
-  fonts.packages = [ pkgs.nerd-fonts.jetbrains-mono ];
+  #
+  # sketchybar-app-font is a SECOND, separate font -- not part of Nerd Fonts.
+  # It maps application names to per-app glyphs and is what
+  # plugins/icon_map.sh (generated from its 2.0.x mappings) emits codepoints
+  # for. Without it the window pills and app-icon items render as \uf... boxes
+  # even though the Nerd Font is working fine for workspaces and battery.
+  fonts.packages = [
+    pkgs.nerd-fonts.jetbrains-mono
+    pkgs.sketchybar-app-font
+  ];
 
   # Disable nix-darwin's Nix management (using Determinate Nix)
   nix.enable = false;
