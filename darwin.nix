@@ -46,21 +46,28 @@ in
     ./programs/shottr.nix
   ];
 
-  # Nerd Font for SketchyBar's glyph icons (workspace pills, battery levels,
-  # app icons via plugins/icon_map.sh). Without it every icon renders as a tofu
-  # box. The MONO variant is what sketchybarrc asks for by name: it renders all
-  # glyphs at one fixed cell width, so the active-workspace highlight is an
-  # identical square regardless of which glyph is inside it.
+  # NOTE: SketchyBar's fonts are installed via Homebrew casks (see
+  # homebrew.casks below), NOT via fonts.packages.
   #
-  # sketchybar-app-font is a SECOND, separate font -- not part of Nerd Fonts.
-  # It maps application names to per-app glyphs and is what
-  # plugins/icon_map.sh (generated from its 2.0.x mappings) emits codepoints
-  # for. Without it the window pills and app-icon items render as \uf... boxes
-  # even though the Nerd Font is working fine for workspaces and battery.
-  fonts.packages = [
-    pkgs.nerd-fonts.jetbrains-mono
-    pkgs.sketchybar-app-font
-  ];
+  # nix-darwin's fonts.packages symlinks each font DERIVATION into
+  # /Library/Fonts/Nix Fonts/, leaving the actual .ttf files six directories
+  # deep (<drv>/share/fonts/truetype/NerdFonts/JetBrainsMono/*.ttf). macOS only
+  # scans the TOP LEVEL of a font directory, so nothing in there ever gets
+  # registered with CoreText and every glyph renders as a \uf... box -- in
+  # SketchyBar and in any other app. Verified by printing the codepoints to a
+  # terminal: identical boxes there.
+  #
+  # This is a confusing failure to chase because the fonts look present at
+  # every layer you would check: the .ttf exists, its cmap maps the codepoint
+  # to a real glyph with a normal advance, and CTFontCreateWithName even
+  # round-trips the family name. None of that means CoreText will serve the
+  # font to an app.
+  #
+  # nixpkgs also names these differently from upstream: its Family names are
+  # the abbreviated "JetBrainsMono NF/NFM/NFP", with the long
+  # "JetBrainsMono Nerd Font Mono" only present as the typographic family
+  # (name ID 16). The Homebrew casks use the upstream names that sketchybarrc
+  # and kang's plugins ask for.
 
   # Disable nix-darwin's Nix management (using Determinate Nix)
   nix.enable = false;
@@ -374,6 +381,19 @@ in
       "cmux"          # Ghostty-based macOS terminal for running AI agents in
                       # parallel; reads ~/.config/ghostty/config for appearance.
                       # cmux-specific config in programs/cmux.nix. Auto-updates.
+      # SketchyBar's two glyph fonts, from Homebrew rather than
+      # fonts.packages -- see the long note near the top of this file. Casks
+      # install the .ttf files flat into ~/Library/Fonts, which macOS actually
+      # registers, and they carry upstream's family names
+      # ("JetBrainsMono Nerd Font Mono", not nixpkgs' "JetBrainsMono NFM").
+      #
+      # font-sketchybar-app-font is a LIGATURE font and a separate thing from
+      # the Nerd Font: plugins/icon_map.sh emits literal text like ":terminal:"
+      # which it substitutes with that app's glyph. The cask ships 2.0.86,
+      # closer to the 2.0.60 mappings icon_map.sh was generated from than the
+      # 2.0.62 in nixpkgs.
+      "font-jetbrains-mono-nerd-font"
+      "font-sketchybar-app-font"
       "flycut"
       "fossa"
       "gcloud-cli"
