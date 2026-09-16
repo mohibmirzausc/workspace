@@ -162,7 +162,7 @@ for i in 0 1 2; do
   sketchybar --add item "win.$i" left \
     --set "win.$i" drawing=off \
     icon.font="sketchybar-app-font:Regular:12.0" icon.padding_left=8 icon.padding_right=4 \
-    label.max_chars=12 label.padding_left=2 label.padding_right=6 \
+    label.max_chars=10 label.padding_left=2 label.padding_right=4 \
     background.height=18 background.corner_radius=5 \
     background.padding_left=3 background.padding_right=3
 done

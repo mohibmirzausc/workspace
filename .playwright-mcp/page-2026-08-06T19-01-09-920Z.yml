@@ -1,0 +1,275 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "moab × microsandbox — the key question" [level=1] [ref=e3]
+    - paragraph [ref=e4]: The sandbox works. Getting an Anthropic key into it safely is the open decision. Skip anything outside your lane.
+  - generic [ref=e5]: 7% answered (1/14)
+  - generic [ref=e9]:
+    - paragraph [ref=e10]: "💡 Answer what you can — skip anything you're unsure about (we'll cover it in conversation). Use “💬 note to Claude” under any question to talk back, not just answer. Your progress auto-saves in this browser. When done: Generate Summary → Copy, then paste back to Claude."
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - heading "🔑 Which key, from where" [level=2] [ref=e13]:
+          - generic [ref=e14]: 🔑
+          - text: Which key, from where
+        - paragraph [ref=e15]: The blocker. We settled how to transport a key safely (op read → --secret, host-scoped to api.anthropic.com). What's unresolved is which key that should be.
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - text: Your name / team
+            - generic [ref=e18] [cursor=pointer]:
+              - checkbox "Your name / team skip / not sure" [ref=e19]
+              - text: skip / not sure
+          - textbox "so I know whose answer this is" [ref=e20]
+          - button "💬 note to Claude" [ref=e22] [cursor=pointer]
+        - generic [ref=e23]:
+          - generic [ref=e24]:
+            - text: Where should the Anthropic key for sandboxed runs come from? — Several Anthropic keys already exist across team vaults — I didn't want to pick one unilaterally.
+            - generic [ref=e25] [cursor=pointer]:
+              - checkbox "Where should the Anthropic key for sandboxed runs come from? — Several Anthropic keys already exist across team vaults — I didn't want to pick one unilaterally. skip / not sure" [ref=e26]
+              - text: skip / not sure
+          - generic [ref=e27]:
+            - generic [ref=e28] [cursor=pointer]:
+              - radio "A new key minted specifically for sandboxed moab runs" [ref=e29]
+              - text: A new key minted specifically for sandboxed moab runs
+            - generic [ref=e30] [cursor=pointer]:
+              - radio "An existing shared team key (tell me which below)" [ref=e31]
+              - text: An existing shared team key (tell me which below)
+            - generic [ref=e32] [cursor=pointer]:
+              - radio "Each engineer uses their own personal key" [ref=e33]
+              - text: Each engineer uses their own personal key
+            - generic [ref=e34] [cursor=pointer]:
+              - radio "Not sure — needs a wider conversation" [ref=e35]
+              - text: Not sure — needs a wider conversation
+          - button "💬 note to Claude" [ref=e37] [cursor=pointer]
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - text: Who should be able to run pipelines against that key?
+            - generic [ref=e40] [cursor=pointer]:
+              - checkbox "Who should be able to run pipelines against that key? skip / not sure" [ref=e41]
+              - text: skip / not sure
+          - generic [ref=e42]:
+            - generic [ref=e43] [cursor=pointer]:
+              - radio "Anyone on the team" [ref=e44]
+              - text: Anyone on the team
+            - generic [ref=e45] [cursor=pointer]:
+              - radio "A named subset of engineers" [ref=e46]
+              - text: A named subset of engineers
+            - generic [ref=e47] [cursor=pointer]:
+              - radio "Just me / one owner" [ref=e48]
+              - text: Just me / one owner
+            - generic [ref=e49] [cursor=pointer]:
+              - radio "Gated behind review" [ref=e50]
+              - text: Gated behind review
+          - button "💬 note to Claude" [ref=e52] [cursor=pointer]
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - text: What spend controls would you want before this is used regularly? — Per-token billing means a runaway loop costs money.
+            - generic [ref=e55] [cursor=pointer]:
+              - checkbox "What spend controls would you want before this is used regularly? — Per-token billing means a runaway loop costs money. skip / not sure" [ref=e56]
+              - text: skip / not sure
+          - generic [ref=e57]:
+            - generic [ref=e58] [cursor=pointer]:
+              - checkbox "A hard budget cap on the key" [ref=e59]
+              - text: A hard budget cap on the key
+            - generic [ref=e60] [cursor=pointer]:
+              - 'checkbox "Per-run token reporting (moab has `moab usage`)" [ref=e61]'
+              - text: "Per-run token reporting (moab has `moab usage`)"
+            - generic [ref=e62] [cursor=pointer]:
+              - checkbox "Alerting above a threshold" [ref=e63]
+              - text: Alerting above a threshold
+            - generic [ref=e64] [cursor=pointer]:
+              - checkbox "Separate key per project for attribution" [ref=e65]
+              - text: Separate key per project for attribution
+            - generic [ref=e66] [cursor=pointer]:
+              - checkbox "None needed at our volume" [ref=e67]
+              - text: None needed at our volume
+          - button "💬 note to Claude" [ref=e69] [cursor=pointer]
+      - generic [ref=e70]:
+        - heading "🌿 The approach itself" [level=2] [ref=e71]:
+          - generic [ref=e72]: 🌿
+          - text: The approach itself
+        - paragraph [ref=e73]: Push back here if the shape is wrong — better now than after it's embedded in everyone's workflow.
+        - generic [ref=e74]:
+          - generic [ref=e75]:
+            - text: microsandbox (a real VM) vs nono (kernel capabilities) — preference? — nono is far simpler to run but is pending infosec approval. microsandbox is a genuine hardware boundary and works today.
+            - generic [ref=e76] [cursor=pointer]:
+              - checkbox "microsandbox (a real VM) vs nono (kernel capabilities) — preference? — nono is far simpler to run but is pending infosec approval. microsandbox is a genuine hardware boundary and works today. skip / not sure" [ref=e77]
+              - text: skip / not sure
+          - generic [ref=e78]:
+            - generic [ref=e79] [cursor=pointer]:
+              - radio "microsandbox — the stronger boundary is worth the setup" [ref=e80]
+              - text: microsandbox — the stronger boundary is worth the setup
+            - generic [ref=e81] [cursor=pointer]:
+              - radio "nono once approved — simpler wins" [ref=e82]
+              - text: nono once approved — simpler wins
+            - generic [ref=e83] [cursor=pointer]:
+              - radio "Both, for different risk levels" [ref=e84]
+              - text: Both, for different risk levels
+            - generic [ref=e85] [cursor=pointer]:
+              - radio "Neither — this is over-engineered for our threat model" [ref=e86]
+              - text: Neither — this is over-engineered for our threat model
+            - generic [ref=e87] [cursor=pointer]:
+              - radio "No strong opinion" [ref=e88]
+              - text: No strong opinion
+          - button "💬 note to Claude" [ref=e90] [cursor=pointer]
+        - generic [ref=e91]:
+          - generic [ref=e92]:
+            - text: "We copy the repo and mount the copy, so the original is never touched. Right call? — A bad run is discarded rather than reverted. Cost: you inspect the copy, then push from it."
+            - generic [ref=e93] [cursor=pointer]:
+              - 'checkbox "We copy the repo and mount the copy, so the original is never touched. Right call? — A bad run is discarded rather than reverted. Cost: you inspect the copy, then push from it. skip / not sure" [ref=e94]'
+              - text: skip / not sure
+          - generic [ref=e95]:
+            - generic [ref=e96] [cursor=pointer]:
+              - radio "Yes — discard-not-revert is the right default" [ref=e97]
+              - text: Yes — discard-not-revert is the right default
+            - generic [ref=e98] [cursor=pointer]:
+              - radio "Prefer mounting the real repo directly" [ref=e99]
+              - text: Prefer mounting the real repo directly
+            - generic [ref=e100] [cursor=pointer]:
+              - radio "Depends on the pipeline" [ref=e101]
+              - text: Depends on the pipeline
+            - generic [ref=e102] [cursor=pointer]:
+              - radio "Unsure" [ref=e103]
+              - text: Unsure
+          - button "💬 note to Claude" [ref=e105] [cursor=pointer]
+        - generic [ref=e106]:
+          - generic [ref=e107]:
+            - text: What would stop you actually using this?
+            - generic [ref=e108] [cursor=pointer]:
+              - checkbox "What would stop you actually using this? skip / not sure" [ref=e109]
+              - text: skip / not sure
+          - generic [ref=e110]:
+            - generic [ref=e111] [cursor=pointer]:
+              - checkbox "Having to build a Docker image at all" [ref=e112]
+              - text: Having to build a Docker image at all
+            - generic [ref=e113] [cursor=pointer]:
+              - checkbox "Per-token cost vs. the subscription I already have" [ref=e114]
+              - text: Per-token cost vs. the subscription I already have
+            - generic [ref=e115] [cursor=pointer]:
+              - checkbox "Not being able to watch the agent work live" [ref=e116]
+              - text: Not being able to watch the agent work live
+            - generic [ref=e117] [cursor=pointer]:
+              - checkbox "Getting results back out of the copy" [ref=e118]
+              - text: Getting results back out of the copy
+            - generic [ref=e119] [cursor=pointer]:
+              - checkbox "Needing an API key I don't currently have" [ref=e120]
+              - text: Needing an API key I don't currently have
+            - generic [ref=e121] [cursor=pointer]:
+              - checkbox "Nothing — I'd use it as-is" [ref=e122]
+              - text: Nothing — I'd use it as-is
+          - button "💬 note to Claude" [ref=e124] [cursor=pointer]
+      - generic [ref=e125]:
+        - heading "🍃 What you'd run in it" [level=2] [ref=e126]:
+          - generic [ref=e127]: 🍃
+          - text: What you'd run in it
+        - paragraph [ref=e128]: Shapes what the image needs to carry and how much memory to give the VM.
+        - generic [ref=e129]:
+          - generic [ref=e130]:
+            - text: Which repo(s) would you point this at first?
+            - generic [ref=e131] [cursor=pointer]:
+              - checkbox "Which repo(s) would you point this at first? skip / not sure" [ref=e132]
+              - text: skip / not sure
+          - textbox [ref=e133]
+          - button "💬 note to Claude" [ref=e135] [cursor=pointer]
+        - generic [ref=e136]:
+          - generic [ref=e137]:
+            - text: "What would need to exist inside the sandbox for your pipelines? — It currently has: moab, Node 18, claude + the ACP adapter, git, ripgrep. Anything else has to be added to the Dockerfile."
+            - generic [ref=e138] [cursor=pointer]:
+              - 'checkbox "What would need to exist inside the sandbox for your pipelines? — It currently has: moab, Node 18, claude + the ACP adapter, git, ripgrep. Anything else has to be added to the Dockerfile. skip / not sure" [ref=e139]'
+              - text: skip / not sure
+          - generic [ref=e140]:
+            - generic [ref=e141] [cursor=pointer]:
+              - checkbox "Ruby" [ref=e142]
+              - text: Ruby
+            - generic [ref=e143] [cursor=pointer]:
+              - checkbox "Python" [ref=e144]
+              - text: Python
+            - generic [ref=e145] [cursor=pointer]:
+              - checkbox "Go" [ref=e146]
+              - text: Go
+            - generic [ref=e147] [cursor=pointer]:
+              - checkbox "Java / JVM" [ref=e148]
+              - text: Java / JVM
+            - generic [ref=e149] [cursor=pointer]:
+              - checkbox "Postgres or another database" [ref=e150]
+              - text: Postgres or another database
+            - generic [ref=e151] [cursor=pointer]:
+              - checkbox "A cloud CLI (gcloud/aws)" [ref=e152]
+              - text: A cloud CLI (gcloud/aws)
+            - generic [ref=e153] [cursor=pointer]:
+              - checkbox "Just what's there is fine" [ref=e154]
+              - text: Just what's there is fine
+          - button "💬 note to Claude" [ref=e156] [cursor=pointer]
+        - generic [ref=e157]:
+          - generic [ref=e158]:
+            - text: Should the sandbox be able to push branches and open PRs itself? — Doable — needs a GitHub token passed in the same host-scoped way, and HTTPS remotes since there's no ssh-agent in the guest.
+            - generic [ref=e159] [cursor=pointer]:
+              - checkbox "Should the sandbox be able to push branches and open PRs itself? — Doable — needs a GitHub token passed in the same host-scoped way, and HTTPS remotes since there's no ssh-agent in the guest. skip / not sure" [ref=e160]
+              - text: skip / not sure
+          - generic [ref=e161]:
+            - generic [ref=e162] [cursor=pointer]:
+              - radio "Yes — push branches and open PRs" [ref=e163]
+              - text: Yes — push branches and open PRs
+            - generic [ref=e164] [cursor=pointer]:
+              - radio "Push branches, but no PRs" [ref=e165]
+              - text: Push branches, but no PRs
+            - generic [ref=e166] [cursor=pointer]:
+              - radio "No — I'll review the copy and push myself" [ref=e167]
+              - text: No — I'll review the copy and push myself
+            - generic [ref=e168] [cursor=pointer]:
+              - radio "Unsure" [ref=e169]
+              - text: Unsure
+          - button "💬 note to Claude" [ref=e171] [cursor=pointer]
+        - generic [ref=e172]:
+          - generic [ref=e173]:
+            - text: Which agents would you want available? — Only claude-code is installed today; codex and gemini-cli are supported by moab and would just need adding.
+            - generic [ref=e174] [cursor=pointer]:
+              - checkbox "Which agents would you want available? — Only claude-code is installed today; codex and gemini-cli are supported by moab and would just need adding. skip / not sure" [ref=e175]
+              - text: skip / not sure
+          - generic [ref=e176]:
+            - generic [ref=e177] [cursor=pointer]:
+              - checkbox "claude-code" [checked] [ref=e178]
+              - text: claude-code
+            - generic [ref=e179] [cursor=pointer]:
+              - checkbox "codex" [ref=e180]
+              - text: codex
+            - generic [ref=e181] [cursor=pointer]:
+              - checkbox "gemini-cli" [ref=e182]
+              - text: gemini-cli
+          - button "💬 note to Claude" [ref=e184] [cursor=pointer]
+      - generic [ref=e185]:
+        - heading "❦ Anything I've missed" [level=2] [ref=e186]:
+          - generic [ref=e187]: ❦
+          - text: Anything I've missed
+        - paragraph [ref=e188]: The highest-signal section. Gaps and disagreements are more useful to me than agreement.
+        - generic [ref=e189]:
+          - generic [ref=e190]:
+            - text: Any security or compliance concern this raises for you? — Especially if you know of a policy I'm unaware of.
+            - generic [ref=e191] [cursor=pointer]:
+              - checkbox "Any security or compliance concern this raises for you? — Especially if you know of a policy I'm unaware of. skip / not sure" [ref=e192]
+              - text: skip / not sure
+          - textbox [ref=e193]
+          - button "💬 note to Claude" [ref=e195] [cursor=pointer]
+        - generic [ref=e196]:
+          - generic [ref=e197]:
+            - text: What am I not thinking about?
+            - generic [ref=e198] [cursor=pointer]:
+              - checkbox "What am I not thinking about? skip / not sure" [ref=e199]
+              - text: skip / not sure
+          - textbox [ref=e200]
+          - button "💬 note to Claude" [ref=e202] [cursor=pointer]
+        - generic [ref=e203]:
+          - generic [ref=e204]:
+            - text: Where could I most usefully spend the next hour on this?
+            - generic [ref=e205] [cursor=pointer]:
+              - checkbox "Where could I most usefully spend the next hour on this? skip / not sure" [ref=e206]
+              - text: skip / not sure
+          - textbox [ref=e207]
+          - button "💬 note to Claude" [ref=e209] [cursor=pointer]
+  - generic [ref=e210]:
+    - button "💾 Save draft" [ref=e211] [cursor=pointer]
+    - button "✨ Generate Summary" [ref=e212] [cursor=pointer]
+  - group [ref=e214]:
+    - generic "About this page's design" [ref=e215] [cursor=pointer]
+  - paragraph [ref=e216]:
+    - text: "Companion to the field study:"
+    - link "moab, cultivated under glass →" [ref=e217] [cursor=pointer]:
+      - /url: ../2026-08-06-moab-microsandbox-explainer/

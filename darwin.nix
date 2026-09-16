@@ -15,6 +15,13 @@ let
     PATH = "/opt/homebrew/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
     WM_BACKEND = "omniwm";
     WM_BAR_FONT = "JetBrainsMono Nerd Font";
+    # Two window pills, not the upstream default of three. Measured on this
+    # 1512pt panel: left_group occupies 4-266 and the window island 282-701,
+    # while the notch starts around 656 -- so the third pill lands underneath
+    # it. notch_width does NOT help here: it reserves the centre for
+    # CENTER-anchored items, and left-anchored items flow rightward straight
+    # past the reservation.
+    WM_WIN_MAX = "2";
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
     COLOR_DIM = "0xff7f849c";

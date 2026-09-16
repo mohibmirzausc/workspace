@@ -21,7 +21,7 @@ MAXW="${WM_WIN_MAX:-3}"
 FG="${COLOR_FG:-0xffcdd6f4}"; DIM="${COLOR_DIM:-0xff7f849c}"
 ACC="${COLOR_ACCENT:-0xffcba6f7}"; ONACC="${COLOR_ON_ACCENT:-0xff1e1e2e}"
 BG="${COLOR_BG:-0xee1e1e2e}"; FONT="${WM_BAR_FONT:-Menlo}"
-APPFONT="sketchybar-app-font:Regular:14.0"
+APPFONT="sketchybar-app-font:Regular:12.0"
 
 # ---- single-flight with coalescing ----
 if [ -d "$LOCK" ]; then
