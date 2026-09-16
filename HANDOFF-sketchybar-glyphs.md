@@ -1,6 +1,7 @@
 # Handoff: SketchyBar `\uf...` glyph bug
 
-**Status:** UNRESOLVED. Bar is functional; only Nerd Font glyph icons are wrong.
+**Status:** WORKED AROUND (text icons). Root cause still unknown, but the
+search space is now much smaller -- see "DECISIVE RESULT" below.
 **Branch:** `add-sketchybar` (PR #58). Everything below is committed and pushed.
 
 ## The symptom
@@ -63,21 +64,55 @@ Each of these was tested and is NOT the cause:
   so an item with no font set should still render Nerd Font glyphs.
 - Issue **#154** is the locale one.
 
+## DECISIVE RESULT (do this first if resuming)
+
+Runtime-created probe items rendered the SAME codepoint U+F0B1, in the SAME
+font, at the SAME 13pt size, as a **real briefcase glyph** -- confirmed by
+screenshot. Tested and all worked:
+
+  * as an `icon`, and as a `label`
+  * at 13pt, 14pt and 16pt
+  * right-anchored AND left-anchored
+  * created via sketchybarrc's EXACT mechanism (bash array under /bin/bash,
+    chained `--add --set`)
+  * a non-PUA control (U+2605 star) also rendered
+
+Meanwhile the four workspace pills sitting right next to those probes, same
+font and size, still showed literal `\uf0b1` text.
+
+**So sketchybar CAN render these characters on this machine.** Only items
+created during config load fail. That kills the font, locale, PUA, shell,
+icon-vs-label and anchor theories outright.
+
+Extra clue from the user: a glyph appeared **briefly and then reverted**,
+suggesting the icon is set correctly and then overwritten. `workspace.sh` only
+touches `icon.color` and `background.*`, never `icon` -- so whatever overwrites
+it has not been found yet. Worth instrumenting every `--set` the daemon issues.
+
+Note `plugins/wm_prime.sh` is DEAD CODE here: it shells out to `wm status`
+(kang's own multi-backend wrapper, absent in this setup), so `backend` is empty
+and it exits early.
+
+## CURRENT WORKAROUND
+
+Workspace pills are plain digits 1-4; battery uses "+"/"!"; apps and meeting
+icons are empty. No PUA codepoints are set from sketchybarrc. Bar is clean and
+fully functional. To retry glyphs later, revert commit 0408fbe.
+
 ## NEXT STEPS (untested, in priority order)
 
-1. **Finish the label-vs-icon test.** Upstream #176 reported the char renders
-   in a `label` but not an `icon`. I set that up but ran out of context before
-   getting a visual answer. If **label renders and icon does not**, that is a
-   sharp, reportable sketchybar bug and a usable workaround (move glyphs to
-   labels).
-2. **Test with sketchybar's bundled default font properly.** Our `--default`
-   sets `icon.font`, so "unset" items still inherit JetBrainsMono. Need an item
-   created before/outside that default, or explicitly `Hack Nerd Font`.
-3. **Try a non-PUA unicode char** (e.g. `★` U+2605) in an icon. If that renders
-   and PUA does not, the boundary is confirmed as PUA-specific.
-4. **File upstream** with the ruled-out list — it is strong evidence.
-5. **Workaround if abandoning:** replace glyph icons with ASCII text
-   (`1 2 3 4`, `BAT`) or app-font ligature syntax. Bar becomes fully usable.
+1. **Find what overwrites the icon.** The glyph flashes then reverts. Log every
+   `--set` the daemon issues (wrap the `sketchybar` binary in a logging shim on
+   PATH, or `fs_usage`/`dtrace` the plugin invocations) and find who rewrites
+   `space.N`'s icon after load.
+2. **Bisect the load path.** Comment sketchybarrc down to just the four
+   workspace items and reload. If they render, add back in halves until they
+   break -- the culprit is whatever gets added last.
+3. **Try setting the icons AFTER load.** Add a one-shot script that re-sets all
+   glyph icons a second or two after startup. If that sticks, it is a load-order
+   problem and that is also a clean permanent fix.
+4. **File upstream** with the ruled-out list plus the decisive result -- the
+   "works at runtime, fails at load" split is a strong, specific report.
 
 ## Environment facts
 
