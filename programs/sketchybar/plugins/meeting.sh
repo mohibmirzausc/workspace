@@ -13,7 +13,7 @@ LOCK="$CACHE_DIR/nextmeeting.lock"
 STALE_SECS=300
 mkdir -p "$CACHE_DIR"
 
-cal_icon=$'\uf073'
+cal_icon=''
 peach="${COLOR_PEACH:-0xfffab387}"   # colored text
 
 if [ "${1:-}" = "click" ]; then

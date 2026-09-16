@@ -104,22 +104,23 @@ sketchybar \
 # raw name/number); workspace.sh highlights the active one. Monitor pinning
 # lives in OmniWM's config, not here: ws1-3 -> primary display, ws4-6 ->
 # secondary if attached (see workspaces[].monitorAssignment in settings.toml).
-#   1 main   \uf005 star     2 notes  \uf02d book    3 misc  \uf059 question
-#   4 slack  \uf198 slack     5 tandem \uf007 user    6 misc  \uf059 question
-# Icons render as tofu unless darwin.nix installs nerd-fonts.jetbrains-mono.
-# The icon font is the MONO Nerd Font variant on purpose: it renders every glyph
-# at one fixed cell width, so the highlight is an identical square for all
-# workspaces (the proportional variant gives each glyph a different advance).
+# Plain digits, not Nerd Font glyphs. PUA codepoints set from sketchybarrc
+# render as literal "\uf0b1" text in this setup -- see
+# HANDOFF-sketchybar-glyphs.md. The same codepoints DO render when set from
+# the command line at runtime, so the capability is there; the load-time path
+# is what fails. Digits are legible and unambiguous in the meantime.
+# Using $FONT (the normal bar font) rather than the Nerd Font Mono variant,
+# since these are now digits rather than glyphs.
 # ---------------------------------------------------------------------------
 WS_NUMS=(1 2 3 4)
-WS_ICONS=($'\uf0b1' $'\uf120' $'\uf268' $'\uf075')
+WS_ICONS=(1 2 3 4)
 
 for idx in "${!WS_NUMS[@]}"; do
   n="${WS_NUMS[$idx]}"
   sketchybar --add item "space.$n" left \
     --set "space.$n" \
     icon="${WS_ICONS[$idx]}" \
-    icon.font="JetBrainsMono Nerd Font Mono:Bold:13.0" \
+    icon.font="$FONT:Bold:13.0" \
     icon.color="$COLOR_FLAMINGO" \
     icon.padding_left=5 \
     icon.padding_right=5 \
@@ -196,7 +197,7 @@ sketchybar --add item win.driver left \
 # macOS menu-bar status extras (see the add_extra block below).
 sketchybar --add item apps right \
   --set apps \
-  icon=$'\uf179' \
+  icon="" \
   icon.font="$FONT:Regular:13.0" \
   icon.color="$COLOR_FG" \
   icon.padding_left=8 \

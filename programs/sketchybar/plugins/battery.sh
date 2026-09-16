@@ -9,12 +9,12 @@ pct=$(echo "$info" | grep -Eo '[0-9]+%' | head -1 | tr -d '%')
 charging=""
 echo "$info" | grep -q "AC Power" && charging="yes"
 
-if [ -n "$charging" ]; then icon=$'\uf0e7'          # bolt
-elif [ "$pct" -ge 90 ]; then icon=$'\uf240'         # full
-elif [ "$pct" -ge 65 ]; then icon=$'\uf241'
-elif [ "$pct" -ge 40 ]; then icon=$'\uf242'
-elif [ "$pct" -ge 15 ]; then icon=$'\uf243'
-else icon=$'\uf244'; fi                             # empty
+if [ -n "$charging" ]; then icon='+'                # charging
+elif [ "$pct" -ge 90 ]; then icon=''
+elif [ "$pct" -ge 65 ]; then icon=''
+elif [ "$pct" -ge 40 ]; then icon=''
+elif [ "$pct" -ge 15 ]; then icon=''
+else icon='!'; fi
 
 color="${COLOR_LAVENDER:-0xffb4befe}"
 [ "$pct" -le 20 ] && [ -z "$charging" ] && color="${COLOR_RED:-0xfff38ba8}"
