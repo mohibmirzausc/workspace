@@ -119,7 +119,7 @@ for idx in "${!WS_NUMS[@]}"; do
   sketchybar --add item "space.$n" left \
     --set "space.$n" \
     icon="${WS_ICONS[$idx]}" \
-    icon.font="JetBrainsMono Nerd Font Mono:Bold:13.0" \
+    icon.font="Hack Nerd Font Mono:Bold:13.0" \
     icon.color="$COLOR_FLAMINGO" \
     icon.padding_left=5 \
     icon.padding_right=5 \

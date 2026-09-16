@@ -14,7 +14,7 @@ let
   sketchybarEnv = {
     PATH = "/opt/homebrew/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
     WM_BACKEND = "omniwm";
-    WM_BAR_FONT = "JetBrainsMono Nerd Font";
+    WM_BAR_FONT = "Hack Nerd Font";
     # ONE window pill (the focused window) to start; widen to 2 later if the
     # room is there. Upstream defaults to 3.
     #
@@ -393,6 +393,9 @@ in
       # closer to the 2.0.60 mappings icon_map.sh was generated from than the
       # 2.0.62 in nixpkgs.
       "font-jetbrains-mono-nerd-font"
+      # Second Nerd Font, installed to test whether the \uf... rendering problem
+      # is specific to JetBrainsMono or affects every Nerd Font on this machine.
+      "font-hack-nerd-font"
       "font-sketchybar-app-font"
       "flycut"
       "fossa"
