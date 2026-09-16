@@ -61,11 +61,15 @@ sketchybar --bar \
   corner_radius=0 \
   color=0x00000000 \
   topmost=off \
-  notch_width=200
+  notch_width=186
 
-# Notch strategy: notch_width=200 makes sketchybar treat the centre 200pt as
-# unusable and push left-anchored items leftward / right-anchored items
-# rightward around it, rather than drawing underneath. Upstream set
+# Notch strategy: notch_width=186 makes sketchybar treat the centre 200pt as
+# unusable for CENTRE-anchored items. Measured on this panel: the notch's left
+# edge sits 663pt from the left on a 1512pt display, so 663..849 -> 186 wide.
+#
+# Important: this does NOT move left- or right-anchored items. Those flow
+# outward-to-inward and will happily run underneath the notch, which is why
+# WM_WIN_MAX is capped in darwin.nix instead. Upstream set
 # notch_width=0 and relied on its item groups being narrow enough to leave the
 # middle empty on their own -- that holds on a wider display, but on this
 # 1512pt built-in panel the left group (workspaces + window pills) runs into
