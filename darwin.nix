@@ -374,9 +374,6 @@ in
       "cmux"          # Ghostty-based macOS terminal for running AI agents in
                       # parallel; reads ~/.config/ghostty/config for appearance.
                       # cmux-specific config in programs/cmux.nix. Auto-updates.
-      "eqmac"         # System-wide EQ + gain; boosts output volume above 100%
-                      # (e.g. to hear people better in Zoom). First launch needs
-                      # a one-time audio-driver approval in System Settings.
       "flycut"
       "fossa"
       "gcloud-cli"
@@ -407,6 +404,25 @@ in
       # Pre-1.0 (0.6.9) and very low adoption upstream (single-digit installs
       # per year via brew), so treat breakage across updates as expected.
       "omniwm"
+      # Replaces eqmac. Per-app volume and per-app EQ, a system-wide output EQ,
+      # output boost above 100%, and menu-bar device switching.
+      #
+      # PAID ($59, trial available) and marked auto_updates upstream, so
+      # `brew bundle` will not upgrade it -- it self-updates on its own
+      # schedule, same as raycast/cmux/linearmouse below. Not set greedy,
+      # unlike karabiner-elements, because nothing here depends on a pinned
+      # version.
+      #
+      # First launch needs a one-time audio-driver approval in System Settings
+      # (it installs a virtual audio device to sit in the output path), and
+      # Rogue Amoeba's installer asks for admin once. Neither can be automated.
+      #
+      # NOTE this does NOT raise microphone gain: macOS caps input volume at
+      # 100 and no userspace app exceeds that. SoundSource is for OUTPUT
+      # shaping. If the mic sounds quiet, check the input level first --
+      #   osascript -e 'input volume of (get volume settings)'
+      # Krisp/Zoom/Tandem/Tuple all lower it and do not restore it.
+      "soundsource"
       "superwhisper"
       "raycast"
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
