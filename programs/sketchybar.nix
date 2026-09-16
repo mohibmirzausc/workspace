@@ -5,110 +5,110 @@
 #
 # The BINARY is installed via Homebrew from the upstream felixkratz/formulae
 # tap (see homebrew.taps/brews in darwin.nix), not from nixpkgs -- nixpkgs
-# carries sketchybar but lags upstream releases. This module owns only the
-# config file. The launchd agent that runs it lives in darwin.nix.
+# carries sketchybar but lags upstream releases. This module owns the config.
 #
-# Coexistence with OmniWM: OmniWM's own workspaceBar is also enabled and also
-# sits at `position = "overlappingMenuBar"`, but it is a REVEAL bar -- with
-# revealHoldMilliseconds = 0 it appears only while the super key (Caps Lock) is
-# held, then hides again. So the two do not fight over that strip in normal use,
-# and OmniWM's bar is deliberately left enabled.
+# CONFIG PROVENANCE: sketchybar/{sketchybarrc,bridge.sh,plugins} are vendored
+# from
+#   https://github.com/chunkanglu/nix-config/tree/main/programs/window-manager/sketchybar
+# and adapted for this machine. Upstream drives one bar config from any of four
+# window managers; only the OmniWM path is exercised here.
 #
-# This is a starting config, not a finished bar: a left-side space/app-name
-# readout and a right-side clock + battery. SketchyBar's whole value is the
-# custom scripting, so this exists to get a working bar on screen that can then
-# be grown. Everything here is plain `sketchybar --<cmd>` calls, so it can be
-# extended incrementally.
+# The design is a bridge plus a WM-agnostic bar. bridge.sh reads OmniWM's event
+# stream and normalizes it onto three sketchybar events, so sketchybarrc never
+# has to know which window manager is running:
 #
-# NOT wired to OmniWM workspaces yet. Doing that properly needs OmniWM's IPC,
-# which is currently off (general.ipcEnabled = false in
-# programs/omniwm/settings.toml). Once enabled, `omniwmctl subscribe
-# workspace-bar,active-workspace` + `omniwmctl query workspaces` can feed a
-# workspace indicator here -- that is the natural next step.
+#   wm_workspace_changed   WM_BACKEND WM_WORKSPACE
+#   wm_windows_changed     WM_BACKEND WM_WORKSPACE WM_WINDOW_COUNT
+#   wm_focus_changed       WM_BACKEND WM_WORKSPACE WM_APP WM_TITLE
+#
+# REQUIRES OMNIWM IPC. bridge.sh runs `omniwmctl subscribe workspace-bar`,
+# which needs the socket at ~/Library/Caches/com.barut.OmniWM/ipc.sock. On
+# OmniWM 0.6.10 `general.ipcEnabled = true` in settings.toml is NOT sufficient
+# on its own -- "Enable IPC" must also be clicked once from the OmniWM menu bar
+# icon. That gate cannot be automated from nix, same class as the Accessibility
+# grant. Without it the bridge no-ops and the WM items stay blank.
+#
+# Upstream subscribes to `workspace-bar` rather than the more obvious channels,
+# and that reasoning was re-verified against this machine:
+#   * windows-changed reports EVERY managed window, including ones with
+#     hiddenReason = "workspace-inactive", so its length is the global window
+#     count rather than what is on screen.
+#   * the focus channel delivers an empty payload {}.
+# workspace-bar is the projection OmniWM's own bar renders, scoped to the
+# interaction monitor, so a single event carries workspace + count + focus.
+#
+# LOCAL ADAPTATIONS (upstream assumes helper commands from its own repo):
+#   * 4 workspace pills, not 6 -- matches [[workspaces]] in
+#     omniwm/settings.toml. The left_group bracket was trimmed to match, since
+#     naming a nonexistent space.5/space.6 item breaks the bracket.
+#   * workspace click: `wm-goto-workspace N` -> `omniwmctl command
+#     switch-workspace N`.
+#   * plugins/wm_backend.sh: `wm-keys-open` -> OmniWM's command palette, and
+#     the `wm status` label fallback -> the literal "omniwm".
+#
+# FONT: the icons are Nerd Font glyphs, so nerd-fonts.jetbrains-mono is
+# installed in darwin.nix and WM_BAR_FONT points at it. Without it they render
+# as tofu boxes; sketchybarrc itself falls back to Menlo when unset.
 
 let
-  # The config is a shell script SketchyBar executes on startup. It must be
-  # executable, so it is installed via home.file with executable = true rather
-  # than written as plain text.
-  sketchybarrc = pkgs.writeShellScript "sketchybarrc" ''
-    # sketchybar itself comes from Homebrew (felixkratz/formulae, declared in
-    # darwin.nix) rather than nixpkgs, for faster release cadence -- so its
-    # bin dir is prepended explicitly instead of via a nix store path.
-    export PATH="/opt/homebrew/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:$PATH"
+  # Every plugin shells out to sketchybar, and several to jq / omniwmctl.
+  # launchd hands the daemon PATH=/usr/bin:/bin:/usr/sbin:/sbin, and item
+  # scripts are spawned BY that daemon, so they inherit the same minimal PATH.
+  # Without this the bar draws correctly but every label renders empty -- a
+  # deceptive failure mode that already cost one debugging round here. Set on
+  # the launchd agent so sketchybarrc and all plugins inherit it.
+  barPath = "/opt/homebrew/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
-    # ---- bar ----------------------------------------------------------------
-    # Catppuccin Mocha base (#1e1e2e) at ~90% alpha, matching the ghostty theme
-    # in programs/ghostty.nix. SketchyBar colors are 0xAARRGGBB.
-    sketchybar --bar \
-      height=32 \
-      position=top \
-      padding_left=8 \
-      padding_right=8 \
-      color=0xe61e1e2e \
-      corner_radius=8 \
-      y_offset=4 \
-      margin=8 \
-      blur_radius=20
-
-    # ---- defaults applied to every item ------------------------------------
-    sketchybar --default \
-      icon.font="SF Pro:Semibold:14.0" \
-      icon.color=0xffcdd6f4 \
-      label.font="SF Pro:Semibold:13.0" \
-      label.color=0xffcdd6f4 \
-      padding_left=5 \
-      padding_right=5 \
-      icon.padding_left=6 \
-      icon.padding_right=3 \
-      label.padding_left=3 \
-      label.padding_right=6
-
-    # ---- left: focused application -----------------------------------------
-    # front_app_switched is a built-in SketchyBar event; no polling needed.
-    sketchybar --add item front_app left \
-               --set front_app \
-                     icon=󰀽 \
-                     label.font="SF Pro:Bold:13.0" \
-                     script="/opt/homebrew/bin/sketchybar --set front_app label=\"\$INFO\"" \
-               --subscribe front_app front_app_switched
-
-    # ---- right: clock ------------------------------------------------------
-    sketchybar --add item clock right \
-               --set clock \
-                     update_freq=10 \
-                     icon= \
-                     script="/opt/homebrew/bin/sketchybar --set clock label=\"\$(/bin/date '+%a %d %b  %H:%M')\""
-
-    # ---- right: battery ----------------------------------------------------
-    # Driven by the system power event plus a slow poll, so it updates on
-    # plug/unplug without burning CPU on a tight timer.
-    sketchybar --add item battery right \
-               --set battery \
-                     update_freq=120 \
-                     script="
-                       export PATH=/opt/homebrew/bin:${pkgs.coreutils}/bin:/usr/bin:/bin
-                       PCT=\$(pmset -g batt | grep -Eo '[0-9]+%' | head -1 | tr -d '%')
-                       CHARGING=\$(pmset -g batt | grep -c 'AC Power')
-                       [ -z \"\$PCT\" ] && exit 0
-                       if [ \"\$CHARGING\" -gt 0 ]; then ICON=; \
-                       elif [ \"\$PCT\" -gt 80 ]; then ICON=; \
-                       elif [ \"\$PCT\" -gt 50 ]; then ICON=; \
-                       elif [ \"\$PCT\" -gt 20 ]; then ICON=; \
-                       else ICON=; fi
-                       sketchybar --set battery icon=\"\$ICON\" label=\"\$PCT%\"
-                     " \
-               --subscribe battery power_source_change system_woke
-
-    # Render everything at once rather than item-by-item.
-    sketchybar --update
-  '';
+  # Catppuccin Mocha, matching the ghostty theme in programs/ghostty.nix.
+  # Plugins inherit sketchybar's environment but NOT shell variables exported
+  # inside sketchybarrc, so the palette has to live on the agent to be the one
+  # source of truth for both.
+  barEnv = {
+    PATH = barPath;
+    WM_BACKEND = "omniwm";
+    WM_BAR_FONT = "JetBrainsMono Nerd Font";
+    COLOR_BG = "0xee1e1e2e";
+    COLOR_FG = "0xffcdd6f4";
+    COLOR_DIM = "0xff7f849c";
+    COLOR_ACCENT = "0xffcba6f7";
+    COLOR_ON_ACCENT = "0xff1e1e2e";
+    COLOR_ITEM_BG = "0x40313244";
+    COLOR_POPUP_BG = "0xf0181825";
+    COLOR_POPUP_BORDER = "0xff45475a";
+    COLOR_BLUE = "0xff89b4fa";
+    COLOR_FLAMINGO = "0xfff2cdcd";
+    COLOR_PEACH = "0xfffab387";
+    COLOR_TEAL = "0xff94e2d5";
+    COLOR_SAPPHIRE = "0xff74c7ec";
+    COLOR_LAVENDER = "0xffb4befe";
+    COLOR_RED = "0xfff38ba8";
+  };
 in
 {
-  # No home.packages entry: the sketchybar binary is installed by Homebrew
-  # (see homebrew.brews in darwin.nix), not by nix. This module only owns the
-  # config file.
+  # sketchybarrc is exec'd directly by sketchybar, so it must be executable.
   home.file.".config/sketchybar/sketchybarrc" = lib.mkIf pkgs.stdenv.isDarwin {
-    source = sketchybarrc;
+    source = ./sketchybar/sketchybarrc;
     executable = true;
+  };
+
+  # Run by its own launchd agent; see launchd.user.agents.sketchybar-bridge.
+  home.file.".config/sketchybar/bridge.sh" = lib.mkIf pkgs.stdenv.isDarwin {
+    source = ./sketchybar/bridge.sh;
+    executable = true;
+  };
+
+  # sketchybarrc resolves these as "$CONFIG_DIR/plugins/<name>.sh" and execs
+  # each one. `recursive` links the files individually rather than symlinking
+  # the directory, which is what lets executable bits apply per file.
+  home.file.".config/sketchybar/plugins" = lib.mkIf pkgs.stdenv.isDarwin {
+    source = ./sketchybar/plugins;
+    recursive = true;
+    executable = true;
+  };
+
+  # So running a plugin or `sketchybar --reload` by hand from a login shell
+  # picks the same font as the agent.
+  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
+    WM_BAR_FONT = barEnv.WM_BAR_FONT;
   };
 }

@@ -1,9 +1,48 @@
 { config, pkgs, lib, user, home, system, ... }:
 
+let
+  # Environment shared by the sketchybar daemon and its event bridge, both
+  # declared in launchd.user.agents below. Kept here rather than in
+  # programs/sketchybar.nix because launchd agents live in nix-darwin while
+  # that module is home-manager, and crossing that boundary for one attrset is
+  # more indirection than it is worth.
+  #
+  # PATH is the load-bearing part: launchd's default omits /opt/homebrew/bin
+  # (sketchybar, omniwmctl) and jq, and plugin scripts are spawned by the
+  # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
+  # palette, read by both sketchybarrc and the plugins.
+  sketchybarEnv = {
+    PATH = "/opt/homebrew/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    WM_BACKEND = "omniwm";
+    WM_BAR_FONT = "JetBrainsMono Nerd Font";
+    COLOR_BG = "0xee1e1e2e";
+    COLOR_FG = "0xffcdd6f4";
+    COLOR_DIM = "0xff7f849c";
+    COLOR_ACCENT = "0xffcba6f7";
+    COLOR_ON_ACCENT = "0xff1e1e2e";
+    COLOR_ITEM_BG = "0x40313244";
+    COLOR_POPUP_BG = "0xf0181825";
+    COLOR_POPUP_BORDER = "0xff45475a";
+    COLOR_BLUE = "0xff89b4fa";
+    COLOR_FLAMINGO = "0xfff2cdcd";
+    COLOR_PEACH = "0xfffab387";
+    COLOR_TEAL = "0xff94e2d5";
+    COLOR_SAPPHIRE = "0xff74c7ec";
+    COLOR_LAVENDER = "0xffb4befe";
+    COLOR_RED = "0xfff38ba8";
+  };
+in
 {
   imports = [
     ./programs/shottr.nix
   ];
+
+  # Nerd Font for SketchyBar's glyph icons (workspace pills, battery levels,
+  # app icons via plugins/icon_map.sh). Without it every icon renders as a tofu
+  # box. The MONO variant is what sketchybarrc asks for by name: it renders all
+  # glyphs at one fixed cell width, so the active-workspace highlight is an
+  # identical square regardless of which glyph is inside it.
+  fonts.packages = [ pkgs.nerd-fonts.jetbrains-mono ];
 
   # Disable nix-darwin's Nix management (using Determinate Nix)
   nix.enable = false;
@@ -393,10 +432,44 @@
       # felixkratz/formulae (see homebrew.brews above). Hardcoded rather than
       # interpolated because nix has no reference to a brew-installed binary.
       ProgramArguments = [ "/opt/homebrew/bin/sketchybar" ];
+      # sketchybarrc AND every plugin inherit this environment. Both halves
+      # matter:
+      #
+      #   PATH    launchd's default is /usr/bin:/bin:/usr/sbin:/sbin, which has
+      #           neither /opt/homebrew/bin (sketchybar, omniwmctl) nor jq. Item
+      #           scripts are spawned by the daemon, so they inherit that same
+      #           minimal PATH -- without this the bar draws but every label
+      #           renders empty, which is a confusing way to fail.
+      #   COLOR_* the Catppuccin Mocha palette. Plugins inherit sketchybar's
+      #           environment but NOT variables exported inside sketchybarrc, so
+      #           this is the only place both can read one definition from.
+      EnvironmentVariables = sketchybarEnv;
       RunAtLoad = true;
       KeepAlive = true;
       StandardOutPath = "${home}/Library/Logs/sketchybar.log";
       StandardErrorPath = "${home}/Library/Logs/sketchybar.log";
+    };
+  };
+
+  # OmniWM -> SketchyBar event bridge. Translates OmniWM's IPC event stream
+  # into the three wm_* events sketchybarrc subscribes to; see the provenance
+  # notes in programs/sketchybar.nix.
+  #
+  # Depends on OmniWM IPC being enabled, which needs a one-time "Enable IPC"
+  # click in OmniWM's menu bar icon (the settings.toml flag alone is not
+  # enough on 0.6.10). The bridge is written to no-op safely when omniwmctl or
+  # sketchybar is missing, so KeepAlive will not spin on a half-set-up machine.
+  launchd.user.agents.sketchybar-bridge = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${home}/.config/sketchybar/bridge.sh"
+        "omniwm"
+      ];
+      EnvironmentVariables = sketchybarEnv;
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "${home}/Library/Logs/sketchybar-bridge.log";
+      StandardErrorPath = "${home}/Library/Logs/sketchybar-bridge.log";
     };
   };
 
