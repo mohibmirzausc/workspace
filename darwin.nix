@@ -13,8 +13,18 @@ let
   # palette, read by both sketchybarrc and the plugins.
   sketchybarEnv = {
     PATH = "/opt/homebrew/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    # UTF-8 locale. WITHOUT THIS, EVERY MULTI-BYTE ICON RENDERS AS LITERAL
+    # "\uf0b1" TEXT. launchd hands agents no locale at all, and sketchybar
+    # needs one to decode the UTF-8 bytes of a private-use-area codepoint --
+    # so the whole Nerd Font icon set silently degrades to escape text while
+    # ASCII items (and sketchybar-app-font's ligatures, which ARE ascii) keep
+    # working. That asymmetry is what made this look like a font bug.
+    #
+    # Matches upstream SketchyBar issue #154 / #176.
+    LANG = "en_US.UTF-8";
+    LC_ALL = "en_US.UTF-8";
     WM_BACKEND = "omniwm";
-    WM_BAR_FONT = "Hack Nerd Font";
+    WM_BAR_FONT = "JetBrainsMono Nerd Font";
     # ONE window pill (the focused window) to start; widen to 2 later if the
     # room is there. Upstream defaults to 3.
     #
@@ -393,8 +403,8 @@ in
       # closer to the 2.0.60 mappings icon_map.sh was generated from than the
       # 2.0.62 in nixpkgs.
       "font-jetbrains-mono-nerd-font"
-      # Second Nerd Font, installed to test whether the \uf... rendering problem
-      # is specific to JetBrainsMono or affects every Nerd Font on this machine.
+      # Hack is SketchyBar's built-in default font, so keeping it installed
+      # means the bar still renders if a custom font name is ever wrong.
       "font-hack-nerd-font"
       "font-sketchybar-app-font"
       "flycut"
