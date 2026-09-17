@@ -172,8 +172,11 @@ in
     # in sync and no opportunity for the two to drift.
     #
     # Verified against pi 0.85.1 before the move: pi loads these unmodified.
-    #   pi --skill           programs/agents/skills   -> skill discovered
-    #   pi --prompt-template programs/agents/prompts  -> templates loaded
+    #   pi --skill           programs/agents/skills            -> discovered
+    #   pi --prompt-template programs/agents/prompts           -> loaded
+    #   pi --prompt-template programs/agents/prompts /grill-me -> expanded
+    # The last one is end-to-end: a real ported prompt runs as a slash
+    # command under pi, not merely a file pi tolerates.
     #
     # Naming differs per harness for the same content, which is why these are
     # four entries and not two:
