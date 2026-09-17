@@ -162,14 +162,50 @@ in
       source = ./programs/claude/hooks;
       force = true;
     };
+
+    # Harness-neutral agent content, shared by Claude Code and Pi.
+    #
+    # programs/agents/ is the single source of truth: skills follow the Agent
+    # Skills standard (agentskills.io) that both harnesses implement, and the
+    # prompts are plain Markdown that both read. Each harness gets a symlink to
+    # the same directory rather than its own copy, so there is nothing to keep
+    # in sync and no opportunity for the two to drift.
+    #
+    # Verified against pi 0.85.1 before the move: pi loads these unmodified.
+    #   pi --skill           programs/agents/skills   -> skill discovered
+    #   pi --prompt-template programs/agents/prompts  -> templates loaded
+    #
+    # Naming differs per harness for the same content, which is why these are
+    # four entries and not two:
+    #   skills  -> ~/.claude/skills    and ~/.pi/agent/skills
+    #   prompts -> ~/.claude/commands  and ~/.pi/agent/prompts
     ".claude/commands" = {
-      source = ./programs/claude/commands;
+      source = ./programs/agents/prompts;
       recursive = true;
       force = true;
     };
-    # Symlink all skills from workspace
     ".claude/skills" = {
-      source = ./programs/claude/skills;
+      source = ./programs/agents/skills;
+      recursive = true;
+      force = true;
+    };
+
+    # Pi (pi.dev). The binary comes from the pi-coding-agent brew in darwin.nix.
+    #
+    # Only the read-only content directories are managed here. ~/.pi/agent/
+    # settings.json, auth.json, trust.json and models-store.json are all
+    # written by pi at runtime (theme, lastChangelogVersion, the default model
+    # saved with Ctrl+S in the model picker, per-project trust decisions), so
+    # symlinking them into the read-only Nix store would make pi fail on write
+    # -- the same EACCES trap documented for claude plugins in
+    # programs/claude/README.md. They stay mutable and unmanaged.
+    ".pi/agent/skills" = {
+      source = ./programs/agents/skills;
+      recursive = true;
+      force = true;
+    };
+    ".pi/agent/prompts" = {
+      source = ./programs/agents/prompts;
       recursive = true;
       force = true;
     };
