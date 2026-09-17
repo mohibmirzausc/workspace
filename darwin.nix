@@ -504,6 +504,28 @@ in
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
       "ticktick"
       "finetune"
+      # Animated desktop wallpaper from a local video file.
+      #
+      # Chosen over the open-source alternatives because it is the only one
+      # that pauses itself. Verified in the shipped binary:
+      #   windowDidChangeOcclusionState        stop rendering when covered
+      #   autoPauseOnBatteryBelow20Percent
+      #   autoPauseOnLowPowerMode
+      # That matters on a laptop -- a 60fps H.264 loop is cheap on the M4's
+      # media engine (measured ~3.6% CPU via a tuned mpv, hardware-decoded)
+      # but not free, and this config tiles windows edge-to-edge so the
+      # desktop is occluded almost all the time anyway.
+      #
+      # Own-video import is FREE (CustomWallpapersService, no paywall on that
+      # path). Pro ($12.99) gates their wallpaper GALLERY, 4K gallery
+      # downloads and lock-screen wallpapers -- none of which this needs.
+      #
+      # Signed and notarized, unlike the DIY options: Developer ID
+      # "Harsh Jadon (2RW5RZ6S29)", hardened runtime on, spctl accepts it,
+      # and the download's sha256 matches the cask pin.
+      #
+      # auto_updates upstream, so brew bundle defers to the app's own updater.
+      "wallspace"
     ];
   };
 
