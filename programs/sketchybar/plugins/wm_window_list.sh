@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Fill the pre-created "windows" island with the windows of the CURRENT OmniWM
-# workspace: up to MAXW pills (app icon + title, ~20 chars), focused highlighted,
+# workspace: up to MAXW pills showing the window/session TITLE, focused
+# highlighted,
 # and a clickable "…" on each overflow side. Click a pill to focus that window.
 #
 # The items (win.lell, win.0..2, win.rell, bracket window_group) are PRE-CREATED
@@ -184,14 +185,15 @@ PY
     if [ "$k" -lt "$slice" ] && [ "$j" -lt "$n" ]; then
       icon_result=":default:"; __icon_map "${apps[$j]}"
       case "${apps[$j]}" in cmux) icon_result=":terminal:" ;; Zen) icon_result=":firefox:" ;; esac
-      # "App - Title", or just "App" when the title added nothing (clean()
-      # returns empty for titles that echo the app name or are placeholders
-      # like "Terminal"). The app name goes in the LABEL rather than relying
-      # on the icon: the sketchybar-app-font ligature is a PUA glyph and
-      # those render as literal text in this setup, so an icon-only pill
-      # would be unidentifiable.
-      pill="${apps[$j]}"
-      [ -n "${titles[$j]}" ] && pill="${apps[$j]} - ${titles[$j]}"
+      # The SESSION/window title alone -- no "App - " prefix. The title is
+      # what distinguishes one window from another; the app name is the same
+      # across every cmux pill and just eats characters.
+      #
+      # Falls back to the app name only when there is no usable title at all:
+      # clean() returns empty for titles that merely echo the app ("Slack")
+      # or are placeholders ("Terminal"), and a blank pill would be worse
+      # than a redundant one.
+      pill="${titles[$j]:-${apps[$j]}}"
       if [ "${focs[$j]}" = "1" ]; then
         sketchybar --set "win.$k" drawing=on icon.drawing=off \
           label="$pill" label.color="$ONACC" label.font="$FONT:${WM_BAR_FONT_BOLD:-Regular}:13.0" \
