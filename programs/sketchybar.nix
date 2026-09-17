@@ -52,42 +52,27 @@
 
 let
   # Every plugin shells out to sketchybar, and several to jq / omniwmctl.
-  # launchd hands the daemon PATH=/usr/bin:/bin:/usr/sbin:/sbin, and item
-  # scripts are spawned BY that daemon, so they inherit the same minimal PATH.
-  # Without this the bar draws correctly but every label renders empty -- a
-  # deceptive failure mode that already cost one debugging round here. Set on
-  # the launchd agent so sketchybarrc and all plugins inherit it.
-  barPath = "/opt/homebrew/bin:${pkgs.jq}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-
-  # Catppuccin Mocha, matching the ghostty theme in programs/ghostty.nix.
-  # Plugins inherit sketchybar's environment but NOT shell variables exported
-  # inside sketchybarrc, so the palette has to live on the agent to be the one
-  # source of truth for both.
-  barEnv = {
-    PATH = barPath;
-    WM_BACKEND = "omniwm";
+  # NOTE: this module does NOT own the bar's environment.
+  #
+  # The launchd agents live in nix-darwin (launchd.user.agents.sketchybar in
+  # darwin.nix), and the agent's EnvironmentVariables is what sketchybarrc and
+  # every plugin actually inherit -- plugins are spawned by the daemon. So the
+  # PATH and the full Catppuccin palette are defined once, in darwin.nix's
+  # sketchybarEnv, and are deliberately not duplicated here.
+  #
+  # A previous version of this file carried its own copy of all 17 COLOR_*
+  # values. They were never read by anything: only the two font values below
+  # were referenced (via home.sessionVariables). Two identical palettes with
+  # one of them inert is a quiet trap -- edit the dead copy, rebuild, and
+  # nothing changes with no indication why. They had not diverged yet.
+  #
+  # The COLOR_X:-default fallbacks inside sketchybarrc and the plugins are
+  # a third copy, but an intentional one: they keep a plugin looking right
+  # when run by hand from a shell, outside the agent environment.
+  barFont = {
     WM_BAR_FONT = "DepartureMono Nerd Font";
     # Regular-only family; see the note in darwin.nix's sketchybarEnv.
     WM_BAR_FONT_BOLD = "Regular";
-    COLOR_BG = "0xee1e1e2e";
-    COLOR_FG = "0xffcdd6f4";
-    COLOR_DIM = "0xff7f849c";
-    COLOR_ACCENT = "0xffcba6f7";
-    COLOR_ON_ACCENT = "0xff1e1e2e";
-    COLOR_ITEM_BG = "0x40313244";
-    COLOR_POPUP_BG = "0xf0181825";
-    COLOR_POPUP_BORDER = "0xff45475a";
-    COLOR_BLUE = "0xff89b4fa";
-    COLOR_FLAMINGO = "0xfff2cdcd";
-    COLOR_PEACH = "0xfffab387";
-    COLOR_TEAL = "0xff94e2d5";
-    COLOR_SAPPHIRE = "0xff74c7ec";
-    COLOR_LAVENDER = "0xffb4befe";
-    COLOR_RED = "0xfff38ba8";
-    # Battery state colours (battery.sh): green charging, then a
-    # yellow -> peach -> red ramp as the charge falls.
-    COLOR_GREEN = "0xffa6e3a1";
-    COLOR_YELLOW = "0xfff9e2af";
   };
 in
 {
@@ -159,7 +144,7 @@ in
   # So running a plugin or `sketchybar --reload` by hand from a login shell
   # picks the same font as the agent.
   home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
-    WM_BAR_FONT = barEnv.WM_BAR_FONT;
-    WM_BAR_FONT_BOLD = barEnv.WM_BAR_FONT_BOLD;
+    WM_BAR_FONT = barFont.WM_BAR_FONT;
+    WM_BAR_FONT_BOLD = barFont.WM_BAR_FONT_BOLD;
   };
 }

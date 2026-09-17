@@ -18,11 +18,23 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 CACHE="$HOME/.cache/sketchybar"; LOCK="$CACHE/win.lock"; PENDING="$CACHE/win.pending"
 mkdir -p "$CACHE"
+# Clamp to the number of pre-created win.N items (win.0..2 in sketchybarrc).
+# Without this, WM_WIN_MAX=4 is silently WORSE than 3, not just capped: the
+# sliding window computes a 4-wide range, only 3 slots get written, and
+# `right_more` is derived from `end < n` -- which with end=4,n=4 is false, so
+# the overflow "..." is hidden too. A window disappears with no indicator.
 MAXW="${WM_WIN_MAX:-3}"
-FG="${COLOR_FG:-0xffcdd6f4}"; DIM="${COLOR_DIM:-0xff7f849c}"
+case "$MAXW" in (*[!0-9]*|'') MAXW=3 ;; esac
+[ "$MAXW" -lt 1 ] && MAXW=1
+[ "$MAXW" -gt 3 ] && MAXW=3
+# No FG here: pills are either focused (ONACC on an ACC background) or
+# unfocused (DIM), so the normal foreground colour is never used. Nor
+# APPFONT -- the app-icon glyph was dropped when the pill started showing
+# the session name, so the pills set icon.drawing=off and the label font
+# comes from sketchybarrc's --default.
+DIM="${COLOR_DIM:-0xff7f849c}"
 ACC="${COLOR_ACCENT:-0xffcba6f7}"; ONACC="${COLOR_ON_ACCENT:-0xff1e1e2e}"
 BG="${COLOR_BG:-0xee1e1e2e}"; FONT="${WM_BAR_FONT:-Menlo}"
-APPFONT="sketchybar-app-font:Regular:12.0"
 # Built from helpers/window-titles.swift by a home-manager activation script.
 CGTITLES="${CGTITLES_BIN:-$HOME/.config/sketchybar/helpers/window-titles}"
 

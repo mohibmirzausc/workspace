@@ -333,11 +333,12 @@ sketchybar --add bracket right_group apps battery time meeting \
 
 sketchybar --update
 
-# Prime the WM items: sketchybar has just started, so it has not seen any WM
-# event yet and the workspace pills would be unhighlighted until the first
-# switch. The bridge sends initial snapshots for OmniWM and nehir; paneru and
-# rift only emit on change, so ask the backend directly.
-"$PLUGINS/wm_prime.sh" &
+# No priming step: OmniWM sends an initial workspace-bar snapshot when
+# bridge.sh subscribes, so the pills highlight correctly from startup.
+# (Upstream ran a wm_prime.sh here for paneru/rift, which only emit on
+# change. That script was dead code here -- it called upstream's own `wm`
+# wrapper, which is not installed, so it exited before reaching its OmniWM
+# branch. Deleted rather than repaired, since the snapshot makes it moot.)
 
 # Clear any stale windows-island lock left by a previous (SIGKILL'd on restart)
 # sketchybar instance, then populate the island once at startup (belt and
