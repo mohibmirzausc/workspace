@@ -38,6 +38,29 @@ The third check is the end-to-end one: invoking the real ported `/grill-me`
 as a slash command expanded its body and the model acted on it, so these are
 working commands under Pi and not merely files Pi tolerates.
 
+## Frontmatter is required
+
+Every `SKILL.md` needs YAML frontmatter with `name` and `description`:
+
+```markdown
+---
+name: my-skill
+description: Use when ...
+---
+```
+
+Pi enforces this and silently **skips** a skill without it — no warning, the
+skill is simply absent. Claude Code is more lenient and will list a skill
+that has none, so a skill can work in Claude and be invisible in Pi.
+
+`nelson` hit exactly this and was fixed when the port exposed it. To audit:
+
+```bash
+for d in programs/agents/skills/*/; do
+  head -1 "$d/SKILL.md" | grep -q '^---$' || echo "NO FRONTMATTER: $(basename $d)"
+done
+```
+
 ## Adding a skill or prompt
 
 Drop it in `skills/<name>/SKILL.md` or `prompts/<name>.md`, then run
