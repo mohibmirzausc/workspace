@@ -56,6 +56,10 @@ let
     COLOR_SAPPHIRE = "0xff74c7ec";
     COLOR_LAVENDER = "0xffb4befe";
     COLOR_RED = "0xfff38ba8";
+    # Battery state colours (battery.sh): green charging, then a
+    # yellow -> peach -> red ramp as the charge falls.
+    COLOR_GREEN = "0xffa6e3a1";
+    COLOR_YELLOW = "0xfff9e2af";
   };
 in
 {

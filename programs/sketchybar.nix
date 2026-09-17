@@ -84,6 +84,10 @@ let
     COLOR_SAPPHIRE = "0xff74c7ec";
     COLOR_LAVENDER = "0xffb4befe";
     COLOR_RED = "0xfff38ba8";
+    # Battery state colours (battery.sh): green charging, then a
+    # yellow -> peach -> red ramp as the charge falls.
+    COLOR_GREEN = "0xffa6e3a1";
+    COLOR_YELLOW = "0xfff9e2af";
   };
 in
 {
@@ -107,6 +111,34 @@ in
     recursive = true;
     executable = true;
   };
+
+  # Source for the window-titles helper (see the activation script below).
+  home.file.".config/sketchybar/helpers/window-titles.swift" =
+    lib.mkIf pkgs.stdenv.isDarwin { source = ./sketchybar/helpers/window-titles.swift; };
+
+  # Compile the helper with the HOST Swift toolchain rather than nixpkgs'.
+  #
+  # It links CoreGraphics and wants the machine's own SDK; nixpkgs' swift
+  # wrapper fails outright here ("NIX_CC: unbound variable" from its
+  # setup-hook under stdenvNoCC). Building against the installed Xcode CLT
+  # also keeps it matched to the OS whose window server it queries.
+  #
+  # Rebuilt only when the source is newer than the binary, so ordinary
+  # rebuilds stay fast. A missing binary is non-fatal -- wm_window_list.sh
+  # falls back to OmniWM's (stale) titles.
+  home.activation.buildSketchybarHelpers = lib.mkIf pkgs.stdenv.isDarwin
+    (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      HELPER_DIR="$HOME/.config/sketchybar/helpers"
+      SRC="$HELPER_DIR/window-titles.swift"
+      BIN="$HELPER_DIR/window-titles"
+      if [ -f "$SRC" ] && [ -x /usr/bin/swiftc ]; then
+        if [ ! -x "$BIN" ] || [ "$SRC" -nt "$BIN" ]; then
+          $DRY_RUN_CMD /usr/bin/swiftc -O -o "$BIN.tmp" "$SRC" 2>/dev/null \
+            && $DRY_RUN_CMD mv "$BIN.tmp" "$BIN" \
+            || echo "warning: could not build window-titles helper; bar will use OmniWM titles"
+        fi
+      fi
+    '');
 
   # So running a plugin or `sketchybar --reload` by hand from a login shell
   # picks the same font as the agent.
