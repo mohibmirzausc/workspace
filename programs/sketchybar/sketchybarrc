@@ -328,7 +328,7 @@ sketchybar --add item time right \
   script="$PLUGINS/clock.sh"
 
 # Next meeting. meeting.sh reads a background-refreshed cache (Calendar.app
-# scripting is slow, so it is never run inline); click opens Calendar to today.
+# scripting is slow, so it is never run inline); click opens Google Calendar.
 sketchybar --add item meeting right \
   --set meeting \
   update_freq=60 \
