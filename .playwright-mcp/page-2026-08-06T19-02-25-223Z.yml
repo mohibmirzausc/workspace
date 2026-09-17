@@ -1,0 +1,233 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - paragraph [ref=f2e12]: A Field Study · 6 August 2026
+      - heading [level=1] [ref=f2e13]:
+        - text: moab, cultivated
+        - emphasis [ref=f2e14]: under glass
+      - paragraph [ref=f2e15]: Running our pipeline agent inside a hardware-isolated microVM — what grew, what withered, and the one problem still unsolved.
+    - generic [ref=f2e16]:
+      - heading "I Why a sandbox at all" [level=2] [ref=f2e17]:
+        - generic [ref=f2e18]: I
+        - text: Why a sandbox at all
+      - paragraph [ref=f2e19]: moab drives real coding agents against real repositories. Those agents write files and run commands.
+      - paragraph [ref=f2e20]:
+        - text: An agent that can edit code can also edit the
+        - emphasis [ref=f2e21]: wrong
+        - text: code. Our first instinct was
+        - strong [ref=f2e22]: nono
+        - text: ", a kernel-capability sandbox — but it awaits infosec approval, so this study takes the other road:"
+        - strong [ref=f2e23]: microsandbox
+        - text: (
+        - code [ref=f2e24]: msb
+        - text: ), which boots a genuine hardware-isolated microVM in a couple of seconds.
+      - generic [ref=f2e25]:
+        - generic [ref=f2e26]: The distinction that matters
+        - paragraph [ref=f2e27]:
+          - text: nono filters syscalls on
+          - emphasis [ref=f2e28]: your
+          - text: machine — fast, but your filesystem is still down there. microsandbox boots a separate Linux kernel. The guest cannot see your disk, your Keychain, or your processes, because from inside the VM
+          - strong [ref=f2e29]: they do not exist
+          - text: .
+    - generic [ref=f2e34]:
+      - heading "II The obstacle, and the cutting that took" [level=2] [ref=f2e35]:
+        - generic [ref=f2e36]: II
+        - text: The obstacle, and the cutting that took
+      - paragraph [ref=f2e37]: The first attempt failed outright — and the failure was instructive.
+      - paragraph [ref=f2e38]:
+        - text: Mounting the host
+        - code [ref=f2e39]: moab
+        - text: "binary into the guest produces a baffling error:"
+      - generic [ref=f2e40]: "# host binary, guest kernel /moab: line 0: syntax error: unterminated quoted string"
+      - paragraph [ref=f2e41]:
+        - text: The guest shell is trying to parse a
+        - strong [ref=f2e42]: Mach-O executable as a shell script
+        - text: . Your
+        - code [ref=f2e43]: moab
+        - text: is macOS arm64; the guest is Linux aarch64. No amount of mounting fixes a binary for the wrong operating system.
+      - generic [ref=f2e44]:
+        - generic [ref=f2e45]: The graft
+        - paragraph [ref=f2e46]:
+          - text: Build moab
+          - emphasis [ref=f2e47]: inside
+          - text: the image instead of carrying it in. No macOS cross-compiler is needed — Docker Desktop already runs
+          - code [ref=f2e48]: linux/arm64
+          - text: ", so it compiles natively."
+          - strong [ref=f2e49]: 47 seconds.
+      - heading "What must live in the glasshouse" [level=3] [ref=f2e50]
+      - paragraph [ref=f2e51]:
+        - text: "moab never calls the Anthropic API itself. It is an orchestrator: it walks your DOT graph and delegates each agent node over ACP. That means"
+        - emphasis [ref=f2e52]: four
+        - text: layers, and each needs its own soil.
+      - list [ref=f2e53]:
+        - listitem [ref=f2e54]:
+          - text: moab
+          - generic [ref=f2e55]: Rust · compiled for Linux in the image
+        - listitem [ref=f2e56]:
+          - text: claude-agent-acp
+          - generic [ref=f2e57]: Node · translates ACP ↔ Claude Code
+        - listitem [ref=f2e58]:
+          - text: claude
+          - generic [ref=f2e59]: Node · the agent that does the work
+        - listitem [ref=f2e60]:
+          - text: Anthropic API
+          - generic [ref=f2e61]: over the network — the only thing outside the VM
+      - paragraph [ref=f2e62]:
+        - text: "This is why the image carries Node and the Claude CLI alongside a Rust binary. It is not bloat: an adapter with no"
+        - code [ref=f2e63]: claude
+        - text: beneath it answers the handshake, then refuses the session. moab's own source documents that exact failure mode.
+      - generic [ref=f2e64]:
+        - generic [ref=f2e65]: Worth knowing
+        - paragraph [ref=f2e66]:
+          - text: Tool nodes (
+          - code [ref=f2e67]: parallelogram
+          - text: ) skip the entire chain — pure
+          - code [ref=f2e68]: sh -c
+          - text: ", zero tokens, no credentials. Our first probe pipeline used nothing else, which is precisely how we proved the VM worked before auth entered the picture."
+    - generic [ref=f2e73]:
+      - heading "III How a run actually unfolds" [level=2] [ref=f2e74]:
+        - generic [ref=f2e75]: III
+        - text: How a run actually unfolds
+      - paragraph [ref=f2e76]: Copy the repo, mount the copy, boot, run. The original is never touched.
+      - generic [ref=f2e77]: "# once per shell export ANTHROPIC_API_KEY=… # the open question — see V # once, or when moab/agent versions change ./msb/run.sh --build # per pipeline, as often as you like ./msb/run.sh ~/src/some-repo pipeline.dot"
+      - generic [ref=f2e78]:
+        - heading "Why a copy, not the repository itself" [level=3] [ref=f2e79]
+        - paragraph [ref=f2e80]:
+          - text: The agent receives a real, writable checkout it may mutate freely. Because the original is never mounted, a bad run is
+          - emphasis [ref=f2e81]: discarded
+          - text: rather than undone — no reverts, no half-applied edits. Inspect the copy afterwards; push from it only if the diff pleases you.
+      - paragraph [ref=f2e82]:
+        - text: Build artefacts (
+        - code [ref=f2e83]: target/
+        - text: ","
+        - code [ref=f2e84]: node_modules/
+        - text: ") are pruned from the copy: they are host-architecture and useless in the guest — worse, a stale macOS"
+        - code [ref=f2e85]: target/
+        - text: actively confuses a Linux cargo.
+    - generic [ref=f2e86]:
+      - heading "IV Three thorns beneath the leaves" [level=2] [ref=f2e87]:
+        - generic [ref=f2e88]: IV
+        - text: Three thorns beneath the leaves
+      - paragraph [ref=f2e89]: Each cost real time; each is now handled in the script. Recorded so you need not rediscover them.
+      - group [ref=f2e90]:
+        - generic "✿ “Not a directory (os error 20)” — the symlink trap" [ref=f2e91] [cursor=pointer]
+      - group [ref=f2e92]:
+        - generic "✿ Silent truncation that is really the OOM killer" [ref=f2e93] [cursor=pointer]
+      - group [ref=f2e94]:
+        - generic [ref=f2e95] [cursor=pointer]:
+          - text: ✿ msb image load reads stdin — there is no
+          - code [ref=f2e96]: "-"
+          - text: argument
+    - generic [ref=f2e101]:
+      - heading "V The dilemma — a key with nowhere to live" [level=2] [ref=f2e102]:
+        - generic [ref=f2e103]: V
+        - text: The dilemma — a key with nowhere to live
+      - paragraph [ref=f2e104]: Everything above works. This is the part we have not settled, and where your opinion is wanted.
+      - paragraph [ref=f2e105]: "Run an agent pipeline today and it fails at exactly one point:"
+      - generic [ref=f2e106]: "failure reason: Agent backend error: Prompt failed: Authentication required"
+      - paragraph [ref=f2e107]:
+        - text: Read that failure charitably — it is
+        - emphasis [ref=f2e108]: late
+        - text: . moab booted in the VM, spawned the adapter, the adapter located
+        - code [ref=f2e109]: claude
+        - text: ", the ACP handshake succeeded, the session opened. Every layer works. Only the credential is absent."
+      - generic [ref=f2e110]:
+        - heading "Why the VM cannot simply inherit our auth" [level=3] [ref=f2e111]
+        - paragraph [ref=f2e112]:
+          - text: Claude Code's subscription login lives in the macOS Keychain. The guest has an empty
+          - code [ref=f2e113]: $HOME
+          - text: and no Keychain at all — that is not a defect, it is the entire point of the boundary.
+          - strong [ref=f2e114]: What you do not pass in does not exist.
+        - paragraph [ref=f2e115]:
+          - text: So the VM needs an
+          - emphasis [ref=f2e116]: API key
+          - text: ", billed per-token. Fine for us: that is what the org uses. The question is how the key gets there."
+      - heading "Two ways in, measured" [level=3] [ref=f2e117]
+      - table [ref=f2e118]:
+        - caption [ref=f2e119]: Injection methods, tested directly
+        - rowgroup [ref=f2e120]:
+          - row [ref=f2e121]:
+            - columnheader "Method" [ref=f2e122]
+            - columnheader "Value visible in ps?" [ref=f2e123]
+            - columnheader "Scoped to a host?" [ref=f2e124]
+            - columnheader "Verdict" [ref=f2e125]
+        - rowgroup [ref=f2e126]:
+          - row [ref=f2e127]:
+            - cell [ref=f2e128]:
+              - code [ref=f2e129]: "-e KEY=value"
+            - cell [ref=f2e130]:
+              - strong [ref=f2e131]: Yes — 1 process
+              - text: any user process can read it
+            - cell "No" [ref=f2e132]
+            - cell "✕ rejected" [ref=f2e133]
+          - row [ref=f2e134]:
+            - cell [ref=f2e135]:
+              - code [ref=f2e136]: "--secret ENV@HOST"
+            - cell [ref=f2e137]:
+              - strong [ref=f2e138]: No — 0 processes
+              - text: only a reference is stored
+            - cell "Yes — api.anthropic.com" [ref=f2e139]
+            - cell "❦ adopted" [ref=f2e140]
+      - paragraph [ref=f2e141]:
+        - text: We measured this rather than assumed it.
+        - code [ref=f2e142]: "--secret"
+        - text: keeps only a
+        - emphasis [ref=f2e143]: reference
+        - text: to a host environment variable, reads the value at boot, and releases it solely to the listed hosts. Paired with
+        - code [ref=f2e144]: "--on-secret-violation block-and-terminate"
+        - text: ", an attempt to send the key elsewhere kills the run rather than quietly blocking it."
+      - generic [ref=f2e145]:
+        - generic [ref=f2e146]: The remaining question
+        - paragraph [ref=f2e147]:
+          - code [ref=f2e148]: "--secret"
+          - text: solves transport. It does not answer
+          - strong [ref=f2e149]: where the key comes from in the first place
+          - text: — and none of us wants a long-lived Anthropic key sitting in a dotfile.
+      - heading "Why not simply put 1Password in the Dockerfile?" [level=3] [ref=f2e150]
+      - paragraph [ref=f2e151]: "It is the natural first thought, and it does not survive contact:"
+      - generic [ref=f2e152]:
+        - paragraph [ref=f2e153]:
+          - strong [ref=f2e154]: A build-time value is permanent.
+          - text: Every
+          - code [ref=f2e155]: RUN
+          - text: line is readable via
+          - code [ref=f2e156]: docker history
+          - text: ", and the value rides along inside the tar that"
+          - code [ref=f2e157]: msb image load
+          - text: consumes. A key baked at build time is in that artefact forever.
+        - paragraph [ref=f2e158]:
+          - strong [ref=f2e159]: It would bind one person's key to a shared image
+          - text: ", so the image could not be rebuilt or shared without re-embedding someone's credential."
+        - paragraph [ref=f2e160]:
+          - strong [ref=f2e161]:
+            - text: And
+            - code [ref=f2e162]: op
+            - text: could not authenticate in there anyway.
+          - text: It needs the desktop app's biometric session — which does not exist inside a Linux VM.
+      - paragraph [ref=f2e163]:
+        - text: So the fetch belongs on the
+        - strong [ref=f2e164]: host, at launch
+        - text: ":"
+        - code [ref=f2e165]: op read
+        - text: → environment variable →
+        - code [ref=f2e166]: "--secret"
+        - text: reference. The key lives only in one process's memory, for the duration of one run. Never on disk, never in a layer.
+      - generic [ref=f2e167]:
+        - generic [ref=f2e168]: Current status
+        - paragraph [ref=f2e169]:
+          - text: This path is wired and the plumbing verified —
+          - code [ref=f2e170]: op
+          - text: 2.38.1 is installed and our org account resolves. What remains is a
+          - emphasis [ref=f2e171]: policy
+          - text: "choice, not a technical one:"
+          - strong [ref=f2e172]: which key, from which vault, and who may run it.
+          - text: Several Anthropic keys exist across team vaults, and picking one is not ours to do alone.
+    - generic [ref=f2e173]:
+      - heading "Your turn" [level=2] [ref=f2e174]
+      - paragraph [ref=f2e175]: There is a short intake form beside this page — which vault, which key, how it should be scoped, and whether you would run pipelines this way at all. Skip anything you are unsure of; the gaps are as useful as the answers.
+      - link "Open the intake form →" [ref=f2e176] [cursor=pointer]:
+        - /url: ../2026-08-06-moab-secrets-intake/
+    - contentinfo [ref=f2e177]:
+      - paragraph [ref=f2e178]: Verified end to end on Apple Silicon · msb 0.6.8 · moab 0.33.0 · 6 August 2026 Every claim on this page was executed, not assumed.
+  - group [ref=f2e180]:
+    - generic "About this page's design" [ref=f2e181] [cursor=pointer]

@@ -1,9 +1,105 @@
 { config, pkgs, lib, user, home, system, ... }:
 
+let
+  # Environment shared by the sketchybar daemon and its event bridge, both
+  # declared in launchd.user.agents below. Kept here rather than in
+  # programs/sketchybar.nix because launchd agents live in nix-darwin while
+  # that module is home-manager, and crossing that boundary for one attrset is
+  # more indirection than it is worth.
+  #
+  # PATH is the load-bearing part: launchd's default omits /opt/homebrew/bin
+  # (sketchybar, omniwmctl) and jq, and plugin scripts are spawned by the
+  # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
+  # palette, read by both sketchybarrc and the plugins.
+  sketchybarEnv = {
+    # DELIBERATELY NO ${pkgs.coreutils}/bin HERE. It used to sit ahead of
+    # /usr/bin, which shadowed BSD stat with GNU stat -- and `stat -f` means
+    # "print filesystem info" to GNU, not BSD's "use this format string". So
+    # every `stat -f %m` in the plugins failed, printing a filesystem dump
+    # whose first word is "File:"; `$(( ))` then read that as a variable name
+    # and `set -u` killed the script. 314 such crashes were in
+    # ~/Library/Logs/sketchybar.log, and it wedged both the window island and
+    # the meeting item (their locks were never reaped, so they never ran again).
+    #
+    # The plugins need stat and date, both of which are in /usr/bin, so
+    # coreutils buys nothing here. jq stays because macOS ships no jq.
+    PATH = "/opt/homebrew/bin:${pkgs.jq}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    # UTF-8 locale. WITHOUT THIS, EVERY MULTI-BYTE ICON RENDERS AS LITERAL
+    # "\uf0b1" TEXT. launchd hands agents no locale at all, and sketchybar
+    # needs one to decode the UTF-8 bytes of a private-use-area codepoint --
+    # so the whole Nerd Font icon set silently degrades to escape text while
+    # ASCII items (and sketchybar-app-font's ligatures, which ARE ascii) keep
+    # working. That asymmetry is what made this look like a font bug.
+    #
+    # Matches upstream SketchyBar issue #154 / #176.
+    LANG = "en_US.UTF-8";
+    LC_ALL = "en_US.UTF-8";
+    WM_BACKEND = "omniwm";
+    # Departure Mono: lo-fi pixel/bitmap monospace. The Nerd Font patched
+    # build, so one family covers both the text and the glyph ranges.
+    WM_BAR_FONT = "DepartureMono Nerd Font";
+    # This family ships REGULAR ONLY. CoreText does not synthesise the missing
+    # weight -- it falls back to Helvetica, silently, which does not look like
+    # a pixel font at all. So the bar's "bold" weight is Regular here.
+    # Switching back to JetBrainsMono? Set this to "Bold".
+    WM_BAR_FONT_BOLD = "Regular";
+    # ONE window pill (the focused window) to start; widen to 2 later if the
+    # room is there. Upstream defaults to 3.
+    #
+    # The constraint is the notch, measured at 663pt from the left edge on this
+    # 1512pt panel. notch_width does NOT solve this: it reserves the centre for
+    # CENTER-anchored items, while left-anchored items flow rightward straight
+    # past the reservation. So the left side has to be narrow by construction.
+    # With 3 pills the island spanned 282-701, i.e. 38pt under the notch.
+    WM_WIN_MAX = "1";
+    COLOR_BG = "0xee1e1e2e";
+    COLOR_FG = "0xffcdd6f4";
+    COLOR_DIM = "0xff7f849c";
+    COLOR_ACCENT = "0xffcba6f7";
+    COLOR_ON_ACCENT = "0xff1e1e2e";
+    COLOR_ITEM_BG = "0x40313244";
+    COLOR_POPUP_BG = "0xf0181825";
+    COLOR_POPUP_BORDER = "0xff45475a";
+    COLOR_BLUE = "0xff89b4fa";
+    COLOR_FLAMINGO = "0xfff2cdcd";
+    COLOR_PEACH = "0xfffab387";
+    COLOR_TEAL = "0xff94e2d5";
+    COLOR_SAPPHIRE = "0xff74c7ec";
+    COLOR_LAVENDER = "0xffb4befe";
+    COLOR_RED = "0xfff38ba8";
+    # Battery state colours (battery.sh): green charging, then a
+    # yellow -> peach -> red ramp as the charge falls.
+    COLOR_GREEN = "0xffa6e3a1";
+    COLOR_YELLOW = "0xfff9e2af";
+  };
+in
 {
   imports = [
     ./programs/shottr.nix
   ];
+
+  # NOTE: SketchyBar's fonts are installed via Homebrew casks (see
+  # homebrew.casks below), NOT via fonts.packages.
+  #
+  # nix-darwin's fonts.packages symlinks each font DERIVATION into
+  # /Library/Fonts/Nix Fonts/, leaving the actual .ttf files six directories
+  # deep (<drv>/share/fonts/truetype/NerdFonts/JetBrainsMono/*.ttf). macOS only
+  # scans the TOP LEVEL of a font directory, so nothing in there ever gets
+  # registered with CoreText and every glyph renders as a \uf... box -- in
+  # SketchyBar and in any other app. Verified by printing the codepoints to a
+  # terminal: identical boxes there.
+  #
+  # This is a confusing failure to chase because the fonts look present at
+  # every layer you would check: the .ttf exists, its cmap maps the codepoint
+  # to a real glyph with a normal advance, and CTFontCreateWithName even
+  # round-trips the family name. None of that means CoreText will serve the
+  # font to an app.
+  #
+  # nixpkgs also names these differently from upstream: its Family names are
+  # the abbreviated "JetBrainsMono NF/NFM/NFP", with the long
+  # "JetBrainsMono Nerd Font Mono" only present as the typographic family
+  # (name ID 16). The Homebrew casks use the upstream names that sketchybarrc
+  # and kang's plugins ask for.
 
   # Disable nix-darwin's Nix management (using Determinate Nix)
   nix.enable = false;
@@ -85,6 +181,26 @@
       KeyRepeat = 2;
       # Reduce initial delay before key repeat (lower = faster, range 15-120, default 68)
       InitialKeyRepeat = 15;
+      # Auto-hide the native macOS menu bar so SketchyBar (programs/sketchybar.nix)
+      # owns the top strip. This does NOT remove the menu bar -- it slides back in
+      # whenever the cursor reaches the top of the screen, which means it will
+      # temporarily draw over the SketchyBar items underneath. That overlap is
+      # inherent to this setup, not a misconfiguration.
+      #
+      # Note this makes the `thaw` cask (Ice fork menu-bar manager) largely
+      # redundant -- it is organising a strip that is now usually offscreen.
+      # Left alone rather than ripped out, but if the top of the screen ever
+      # misbehaves, that overlap is the first thing to check.
+      #
+      # OmniWM's own hiddenBar setting is NOT part of that overlap despite being
+      # enabled = true in programs/omniwm/settings.toml: the app reports
+      # "Hiding requires macOS 27 or later" and this machine runs 26.6.2, so the
+      # feature cannot activate and the stored preference is inert.
+      #
+      # This machine has a notch: hiding the menu bar does not reclaim it, so
+      # SketchyBar items still have to route around that dead centre zone once
+      # the bar grows enough to reach it.
+      _HIHideMenuBar = true;
     };
 
     # Spotlight settings - disable the default Command+Space shortcut
@@ -151,6 +267,19 @@
   system.activationScripts.postActivation.text = ''
     defaults write com.apple.universalaccess closeViewScrollWheelToggle -bool true 2>/dev/null || true
     defaults write com.apple.universalaccess closeViewScrollWheelModifiersInt -int 1048576 2>/dev/null || true
+
+    # Make the menu-bar auto-hide take effect in the RUNNING session.
+    #
+    # system.defaults.NSGlobalDomain._HIHideMenuBar above writes the preference,
+    # but macOS caches it: `defaults read` reports 1 while the menu bar stays
+    # permanently visible until the next logout. Poking it through System Events
+    # applies it immediately, so activation does not leave a correct-on-disk /
+    # wrong-on-screen split.
+    #
+    # Guarded because this needs the Automation TCC grant for System Events; if
+    # that is missing the write above still lands and a logout will pick it up.
+    /usr/bin/osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to true' 2>/dev/null || \
+      echo "note: could not apply menu-bar autohide live; it will apply after logout"
   '';
 
   # Enable Touch ID for sudo (including inside tmux sessions)
@@ -184,6 +313,11 @@
     # nix-darwin does not manage.
     taps = [
       "superradcompany/tap"  # microsandbox; see brews below
+      # SketchyBar's upstream tap. nixpkgs has sketchybar too (2.24.0) but lags
+      # upstream releases; taken from Homebrew for the faster cadence, same
+      # reasoning as flyctl and pi below. Needs `brew trust felixkratz/formulae`
+      # once per machine -- see the ONE-TIME MANUAL STEP note above.
+      "felixkratz/formulae"  # sketchybar
     ];
     # Fly.io CLI. Homebrew ships the formula with daily updates, well ahead of
     # nixpkgs. The formula drops both `flyctl` and `fly` into /opt/homebrew/bin;
@@ -260,6 +394,15 @@
       #
       # Apple Silicon only -- the formula calls `odie` on x86_64 macOS.
       "superradcompany/tap/microsandbox"
+      # SketchyBar status bar. Config is generated by programs/sketchybar.nix
+      # into ~/.config/sketchybar/sketchybarrc; the launchd agent that keeps it
+      # running is declared below in launchd.user.agents.sketchybar.
+      #
+      # From the upstream tap rather than nixpkgs for release cadence. The
+      # formula also ships a `brew services` definition, which we do NOT use --
+      # the launchd agent here owns the process, and running both would start
+      # two bars.
+      "felixkratz/formulae/sketchybar"
     ];
     casks = [
       "1password-cli"
@@ -270,6 +413,31 @@
       "cmux"          # Ghostty-based macOS terminal for running AI agents in
                       # parallel; reads ~/.config/ghostty/config for appearance.
                       # cmux-specific config in programs/cmux.nix. Auto-updates.
+      # SketchyBar's two glyph fonts, from Homebrew rather than
+      # fonts.packages -- see the long note near the top of this file. Casks
+      # install the .ttf files flat into ~/Library/Fonts, which macOS actually
+      # registers, and they carry upstream's family names
+      # ("JetBrainsMono Nerd Font Mono", not nixpkgs' "JetBrainsMono NFM").
+      #
+      # font-sketchybar-app-font is a LIGATURE font and a separate thing from
+      # the Nerd Font: plugins/icon_map.sh emits literal text like ":terminal:"
+      # which it substitutes with that app's glyph. The cask ships 2.0.86,
+      # closer to the 2.0.60 mappings icon_map.sh was generated from than the
+      # 2.0.62 in nixpkgs.
+      "font-jetbrains-mono-nerd-font"
+      # Departure Mono -- lo-fi pixel/bitmap-style monospace, the bar's font
+      # (WM_BAR_FONT in the sketchybar agent env). The NERD FONT variant, not
+      # plain "font-departure-mono": the patched build keeps the pixel look
+      # and adds the glyph ranges, so the bar keeps one font for text and
+      # icons. Family name is "DepartureMono Nerd Font".
+      #
+      # Note this is a PIXEL font: it is designed around a small em grid and
+      # looks crisp at sizes that land on whole pixels, blurry between them.
+      "font-departure-mono-nerd-font"
+      # Hack is SketchyBar's built-in default font, so keeping it installed
+      # means the bar still renders if a custom font name is ever wrong.
+      "font-hack-nerd-font"
+      "font-sketchybar-app-font"
       "flycut"
       "fossa"
       "gcloud-cli"
@@ -342,6 +510,64 @@
       KeepAlive = true;
       StandardOutPath = "${home}/Library/Logs/html-pages-server.log";
       StandardErrorPath = "${home}/Library/Logs/html-pages-server.log";
+    };
+  };
+
+  # SketchyBar status bar. Config lives in programs/sketchybar.nix, which writes
+  # ~/.config/sketchybar/sketchybarrc; this just keeps the daemon alive.
+  #
+  # Same rationale as html-pages-server above: declared in nix-darwin's
+  # launchd.user.agents rather than home-manager's launchd.agents, which is not
+  # activated when HM runs as a nix-darwin module.
+  #
+  # KeepAlive so it comes back if it crashes. Note SketchyBar needs no special
+  # TCC grant to draw its own bar, but items that read other apps' state (e.g.
+  # window titles) would -- the starting config here only uses SketchyBar's own
+  # front_app event and pmset, so it works unattended.
+  launchd.user.agents.sketchybar = {
+    serviceConfig = {
+      # Homebrew path, not a nix store path: sketchybar comes from
+      # felixkratz/formulae (see homebrew.brews above). Hardcoded rather than
+      # interpolated because nix has no reference to a brew-installed binary.
+      ProgramArguments = [ "/opt/homebrew/bin/sketchybar" ];
+      # sketchybarrc AND every plugin inherit this environment. Both halves
+      # matter:
+      #
+      #   PATH    launchd's default is /usr/bin:/bin:/usr/sbin:/sbin, which has
+      #           neither /opt/homebrew/bin (sketchybar, omniwmctl) nor jq. Item
+      #           scripts are spawned by the daemon, so they inherit that same
+      #           minimal PATH -- without this the bar draws but every label
+      #           renders empty, which is a confusing way to fail.
+      #   COLOR_* the Catppuccin Mocha palette. Plugins inherit sketchybar's
+      #           environment but NOT variables exported inside sketchybarrc, so
+      #           this is the only place both can read one definition from.
+      EnvironmentVariables = sketchybarEnv;
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "${home}/Library/Logs/sketchybar.log";
+      StandardErrorPath = "${home}/Library/Logs/sketchybar.log";
+    };
+  };
+
+  # OmniWM -> SketchyBar event bridge. Translates OmniWM's IPC event stream
+  # into the three wm_* events sketchybarrc subscribes to; see the provenance
+  # notes in programs/sketchybar.nix.
+  #
+  # Depends on OmniWM IPC being enabled, which needs a one-time "Enable IPC"
+  # click in OmniWM's menu bar icon (the settings.toml flag alone is not
+  # enough on 0.6.10). The bridge is written to no-op safely when omniwmctl or
+  # sketchybar is missing, so KeepAlive will not spin on a half-set-up machine.
+  launchd.user.agents.sketchybar-bridge = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${home}/.config/sketchybar/bridge.sh"
+        "omniwm"
+      ];
+      EnvironmentVariables = sketchybarEnv;
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "${home}/Library/Logs/sketchybar-bridge.log";
+      StandardErrorPath = "${home}/Library/Logs/sketchybar-bridge.log";
     };
   };
 

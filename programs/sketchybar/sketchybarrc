@@ -1,0 +1,348 @@
+#!/usr/bin/env bash
+# sketchybar config, generated/managed by
+# workstations/home/chunkanglu/programs/window-manager.
+#
+# Deployed to ~/.config/sketchybar/sketchybarrc as a read-only nix-store
+# symlink, so $CONFIG_DIR resolves to ~/.config/sketchybar and the plugins
+# below resolve through their own symlinks.
+#
+# The window-manager items subscribe to the three backend-agnostic triggers
+# emitted by ../sketchybar/bridge.sh, so this file does not care which of
+# paneru / OmniWM / rift / nehir is active:
+#   wm_workspace_changed  WM_BACKEND WM_WORKSPACE
+#   wm_windows_changed    WM_BACKEND WM_WORKSPACE WM_WINDOW_COUNT
+#   wm_focus_changed      WM_BACKEND WM_WORKSPACE WM_APP WM_TITLE
+
+PLUGINS="$CONFIG_DIR/plugins"
+
+# Font and palette come from the launchd agent's environment (set in
+# ../default.nix) so sketchybarrc and the plugins share one source of truth --
+# plugins inherit sketchybar's environment, but NOT shell variables exported
+# from this file. The defaults below keep it working if run by hand.
+#
+# Menlo ships with macOS, so this needs no font package and cannot fail to
+# resolve. For glyph icons instead of text labels, add a Nerd Font to
+# darwin.nix (`fonts.packages = [ pkgs.nerd-fonts.jetbrains-mono ];`) and set
+# WM_BAR_FONT to "JetBrainsMono Nerd Font".
+FONT="${WM_BAR_FONT:-Menlo}"
+
+# Weight used for "emphasised" text (workspace digits, focused window title).
+#
+# NOT always "Bold". CoreText does not synthesise a missing weight here: asking
+# for a family+style that does not exist falls all the way back to HELVETICA,
+# silently, which looks nothing like the rest of the bar. Departure Mono ships
+# Regular ONLY (verified: "DepartureMono Nerd Font"/Bold -> Helvetica, while
+# JetBrainsMono/Bold -> JetBrainsMono NF Bold), so the weight has to travel
+# with the font choice instead of being hardcoded at each use site.
+#
+# Set WM_BAR_FONT_BOLD alongside WM_BAR_FONT in the launchd agent env when
+# switching to a font that does have a bold face.
+FONT_BOLD="${WM_BAR_FONT_BOLD:-Regular}"
+
+# Catppuccin Mocha. Single source of truth is barEnv in ../default.nix; the
+# defaults below only apply when sketchybarrc is run by hand.
+COLOR_BG="${COLOR_BG:-0xee1e1e2e}"
+COLOR_FG="${COLOR_FG:-0xffcdd6f4}"
+COLOR_DIM="${COLOR_DIM:-0xff7f849c}"
+COLOR_ACCENT="${COLOR_ACCENT:-0xffcba6f7}"
+COLOR_ON_ACCENT="${COLOR_ON_ACCENT:-0xff1e1e2e}"
+COLOR_ITEM_BG="${COLOR_ITEM_BG:-0x40313244}"
+COLOR_POPUP_BG="${COLOR_POPUP_BG:-0xf0181825}"
+COLOR_POPUP_BORDER="${COLOR_POPUP_BORDER:-0xff45475a}"
+COLOR_BLUE="${COLOR_BLUE:-0xff89b4fa}"
+COLOR_FLAMINGO="${COLOR_FLAMINGO:-0xfff2cdcd}"
+COLOR_PEACH="${COLOR_PEACH:-0xfffab387}"
+COLOR_TEAL="${COLOR_TEAL:-0xff94e2d5}"
+COLOR_SAPPHIRE="${COLOR_SAPPHIRE:-0xff74c7ec}"
+COLOR_LAVENDER="${COLOR_LAVENDER:-0xffb4befe}"
+
+# ---------------------------------------------------------------------------
+# Bar
+# ---------------------------------------------------------------------------
+# Split floating bar: the bar itself is TRANSPARENT; two bracket items
+# (left_group / right_group, added after all items below) draw the rounded
+# backgrounds, leaving an empty middle. Windows clear it via OmniWM's
+# outer.top gap, which must track the bar height -- see settings.toml.
+#
+# height=32 EXACTLY fills the menu-bar strip on this machine. Measured, not
+# guessed: NSScreen.main.frame.height - visibleFrame maxY = 32.0 (and
+# safeAreaInsets.top = 32.0, the notch inset). The bar was 24 and the strip is
+# 32, which left an 8px band of desktop showing through beneath the islands.
+# NSStatusBar.thickness is 22 and is NOT the number to use here -- that is the
+# classic pre-notch menu bar height, 10px short of the notch-era strip.
+sketchybar --bar \
+  height=32 \
+  position=top \
+  sticky=on \
+  padding_left=4 \
+  padding_right=4 \
+  margin=0 \
+  y_offset=0 \
+  corner_radius=0 \
+  color=0x00000000 \
+  topmost=off \
+  notch_width=186
+
+# Notch strategy: notch_width=186 makes sketchybar treat the centre 200pt as
+# unusable for CENTRE-anchored items. Measured on this panel: the notch's left
+# edge sits 663pt from the left on a 1512pt display, so 663..849 -> 186 wide.
+#
+# Important: this does NOT move left- or right-anchored items. Those flow
+# outward-to-inward and will happily run underneath the notch, which is why
+# WM_WIN_MAX is capped in darwin.nix instead. Upstream set
+# notch_width=0 and relied on its item groups being narrow enough to leave the
+# middle empty on their own -- that holds on a wider display, but on this
+# 1512pt built-in panel the left group (workspaces + window pills) runs into
+# the notch and items disappear behind it.
+
+sketchybar --default \
+  updates=when_shown \
+  icon.font="$FONT:$FONT_BOLD:13.0" \
+  icon.color="$COLOR_FG" \
+  label.font="$FONT:$FONT_BOLD:13.0" \
+  label.color="$COLOR_FG" \
+  padding_left=3 \
+  padding_right=3 \
+  icon.padding_left=6 \
+  icon.padding_right=3 \
+  label.padding_left=3 \
+  label.padding_right=6
+
+# ---------------------------------------------------------------------------
+# Events fed by the WM bridge
+# ---------------------------------------------------------------------------
+sketchybar \
+  --add event wm_workspace_changed \
+  --add event wm_windows_changed \
+  --add event wm_focus_changed \
+  --add event meeting_refreshed
+
+# ---------------------------------------------------------------------------
+# Left: workspaces as glyph-only pills (no text label).
+#
+# Keyed by WM number (the bridge emits WM_WORKSPACE as the active workspace's
+# raw name/number); workspace.sh highlights the active one. Monitor pinning
+# lives in OmniWM's config, not here: ws1-3 -> primary display, ws4-6 ->
+# secondary if attached (see workspaces[].monitorAssignment in settings.toml).
+# Plain digits by CHOICE, not by limitation. PUA glyphs do render correctly
+# here now (confirmed on screen after the move to DepartureMono Nerd Font);
+# the long-standing "\uf0b1 renders as literal text" problem is resolved, and
+# the earlier diagnosis was partly bad tooling -- `sketchybar --query` returns
+# real UTF-8 either way, so an escaped-looking value there was just python
+# repr() of a private-use char, not evidence of a bug.
+#
+# Digits stay because "1 2 3 4" maps directly onto the super+1..4 switch
+# hotkeys, which per-workspace pictograms did not. Swap WS_ICONS for glyphs
+# if that tradeoff ever changes.
+# ---------------------------------------------------------------------------
+WS_NUMS=(1 2 3 4)
+WS_ICONS=(1 2 3 4)
+
+for idx in "${!WS_NUMS[@]}"; do
+  n="${WS_NUMS[$idx]}"
+  sketchybar --add item "space.$n" left \
+    --set "space.$n" \
+    icon="${WS_ICONS[$idx]}" \
+    icon.font="$FONT:$FONT_BOLD:13.0" \
+    icon.color="$COLOR_FLAMINGO" \
+    icon.padding_left=5 \
+    icon.padding_right=5 \
+    label.drawing=off \
+    label.padding_left=0 \
+    label.padding_right=0 \
+    background.padding_left=3 \
+    background.padding_right=3 \
+    background.height=26 \
+    background.corner_radius=5 \
+    background.color="$COLOR_ACCENT" \
+    background.drawing=off \
+    script="$PLUGINS/workspace.sh" \
+    click_script="/opt/homebrew/bin/omniwmctl command switch-workspace $n" \
+    --subscribe "space.$n" wm_workspace_changed
+done
+
+# Extra breathing room inside the left island: before the first workspace square
+# and after the last. Set as standalone --set on the end items (item padding_left
+# / padding_right does not take effect inside the --add --set above).
+sketchybar --set "space.${WS_NUMS[0]}" padding_left=10
+sketchybar --set "space.${WS_NUMS[${#WS_NUMS[@]}-1]}" padding_right=10
+
+# ---------------------------------------------------------------------------
+# Left "windows" island (separate from workspaces): up to 3 pills for the windows
+# in the current OmniWM workspace, focused one highlighted; click a pill to focus
+# it. Overflow shows a clickable "…" on that side (click = focus that direction).
+#
+# The items below are PRE-CREATED in a fixed order and never added/removed at
+# runtime -- wm_window_list.sh only --sets their content + drawing on WM events.
+# (Dynamic add/remove used to scramble their order and drop the island bg under
+# rapid spawns.) A hidden driver item (updates=on) runs the plugin on WM events.
+# ---------------------------------------------------------------------------
+# Transparent spacer separating the two islands (member of neither bracket).
+sketchybar --add item win.gap left \
+  --set win.gap width=16 icon.drawing=off label.drawing=off background.drawing=off
+
+sketchybar --add item win.lell left \
+  --set win.lell drawing=off icon.drawing=off label="…" label.color="$COLOR_DIM" \
+  label.padding_left=6 label.padding_right=6 background.drawing=off \
+  click_script="omniwmctl command focus left"
+
+for i in 0 1 2; do
+  sketchybar --add item "win.$i" left \
+    --set "win.$i" drawing=off \
+    icon.font="sketchybar-app-font:Regular:12.0" icon.padding_left=8 icon.padding_right=4 \
+    label.max_chars=28 label.padding_left=6 label.padding_right=6 \
+    background.height=26 background.corner_radius=5 \
+    background.padding_left=3 background.padding_right=3
+done
+
+sketchybar --add item win.rell left \
+  --set win.rell drawing=off icon.drawing=off label="…" label.color="$COLOR_DIM" \
+  label.padding_left=6 label.padding_right=6 background.drawing=off \
+  click_script="omniwmctl command focus right"
+
+sketchybar --add bracket window_group win.lell win.0 win.1 win.2 win.rell \
+  --set window_group background.drawing=off background.color="$COLOR_BG" \
+  background.corner_radius=6 background.height=30
+
+sketchybar --add item win.driver left \
+  --set win.driver drawing=off updates=on \
+  script="$PLUGINS/wm_window_list.sh" \
+  --subscribe win.driver wm_windows_changed wm_focus_changed wm_workspace_changed
+
+# ---------------------------------------------------------------------------
+# Right side. sketchybar lays right-anchored items out right-to-left in the
+# order added, so add edge-inward: apps (far-right corner), battery, time,
+# then meeting (leftmost). On screen:  meeting time battery apps|edge.
+#
+# The DATE item was removed: on a 1512pt panel the right island competes with
+# the notch for width, and the day/date is the one field here that is both
+# wide and almost never the thing you are looking at. Time is trimmed to
+# "8:20" (no AM/PM) and battery to a bare percentage for the same reason.
+# clock.sh still honours NAME=date if it is ever added back.
+# ---------------------------------------------------------------------------
+
+# Corner "apple" button: click toggles a vertical popup mirroring the real
+# macOS menu-bar status extras (see the add_extra block below).
+# Marks this corner item as a menu that opens a popup.
+#
+# Written as RAW UTF-8 BYTES, not $'\uf078'. Apple ships bash 3.2.57, which
+# predates the \u escape (bash 4.2) and passes it through as literal text --
+# THAT was the real cause of the long-running "\uf078 shows as text" bug, not
+# anything about fonts, locale or sketchybar's config-load path.
+#
+# Verification trap: `sketchybar --query` re-escapes a PUA value as "\uf078"
+# in its JSON, and json.loads decodes it back to one codepoint, so a broken
+# value inspects as correct. Check raw bytes, or look at the bar.
+APPS_ICON=$'\xef\x81\xb8'   # nf-fa-chevron_down U+F078
+sketchybar --add item apps right \
+  --set apps \
+  icon="$APPS_ICON" \
+  icon.font="$FONT:Regular:13.0" \
+  icon.color="$COLOR_FG" \
+  icon.padding_left=8 \
+  icon.padding_right=8 \
+  label.drawing=off \
+  popup.background.color="$COLOR_POPUP_BG" \
+  popup.background.corner_radius=8 \
+  popup.background.border_width=1 \
+  popup.background.border_color="$COLOR_POPUP_BORDER" \
+  popup.horizontal=off \
+  popup.align=right \
+  popup.y_offset=4 \
+  click_script="sketchybar --set apps popup.drawing=toggle"
+
+# Mirror the real macOS menu-bar status extras into the popup via item.alias
+# (requires Screen Recording permission for sketchybar). The accessibility
+# owner is "Control Center" for ALL extras (including third-party apps managed
+# by Control Center on Sequoia); the item part is the app's bundle id or a
+# custom id. Discover exact names with `sketchybar --query default_menu_items`.
+#
+# Each entry is the live mirrored icon + a text label. NOTE: sketchybar cannot
+# reliably open a third-party app's hidden status menu -- AXPress does not open
+# custom/Electron status items (verified: opens 0 windows) and a background
+# LaunchAgent has no Accessibility permission to drive them anyway. So app
+# entries just bring the app to the front via `open -a` (OmniWM opens its
+# command palette); Control Center toggles open the matching Settings pane.
+add_extra() {  # <alias-name> <label> <click-command>
+  sketchybar --add alias "$1" popup.apps \
+    --set "$1" \
+      label="$2" \
+      label.drawing=on \
+      label.color="$COLOR_FG" \
+      label.padding_left=10 \
+      label.padding_right=16 \
+      icon.padding_left=11 \
+      icon.padding_right=2 \
+      background.drawing=off \
+      click_script="$3; sketchybar --set apps popup.drawing=off"
+}
+add_extra "Control Center,TupleStatusBarItem"      "Tuple"     "open -a Tuple"
+add_extra "Control Center,tandem.app"              "Tandem"    "open -a Tandem"
+add_extra "Control Center,omniwm_main"             "OmniWM"    "omniwmctl command open-command-palette"
+add_extra "Control Center,io.tailscale.ipn.macsys" "Tailscale" "open -a Tailscale"
+add_extra "Control Center,WiFi"      "Wi-Fi"     "open 'x-apple.systempreferences:com.apple.wifi-settings-extension'"
+add_extra "Control Center,Bluetooth" "Bluetooth" "open 'x-apple.systempreferences:com.apple.BluetoothSettings'"
+add_extra "Control Center,Battery"   "Battery"   "open 'x-apple.systempreferences:com.apple.Battery-Settings.extension'"
+
+# Right-side items carry colored TEXT (no background). battery.sh and
+# meeting.sh set their own text color; clock.sh only sets text so date/time
+# colors are static here.
+sketchybar --add item battery right \
+  --set battery \
+  update_freq=60 \
+  script="$PLUGINS/battery.sh" \
+  --subscribe battery power_source_change
+
+# Time (12-hour + AM/PM) and Date ([Day of week] YYYY-MM-DD) are separate items
+# with distinct accents. clock.sh branches on $NAME.
+sketchybar --add item time right \
+  --set time \
+  update_freq=10 \
+  label.color="$COLOR_SAPPHIRE" \
+  script="$PLUGINS/clock.sh"
+
+# Next meeting. meeting.sh reads a background-refreshed cache (Calendar.app
+# scripting is slow, so it is never run inline); click opens Calendar to today.
+sketchybar --add item meeting right \
+  --set meeting \
+  update_freq=60 \
+  label.max_chars=18 \
+  scroll_texts=on \
+  script="$PLUGINS/meeting.sh" \
+  click_script="$PLUGINS/meeting.sh click" \
+  --subscribe meeting meeting_refreshed system_woke
+
+# ---------------------------------------------------------------------------
+# Split the bar into two rounded islands. Brackets draw a background spanning
+# their member items; the bar itself is transparent, so this yields a left
+# section (workspaces) and a right section (status cluster) with an empty middle.
+# ---------------------------------------------------------------------------
+sketchybar --add bracket left_group space.1 space.2 space.3 space.4 \
+  --set left_group \
+  background.drawing=on \
+  background.color="$COLOR_BG" \
+  background.corner_radius=9 \
+  background.height=30
+
+sketchybar --add bracket right_group apps battery time meeting \
+  --set right_group \
+  background.drawing=on \
+  background.color="$COLOR_BG" \
+  background.corner_radius=9 \
+  background.height=30
+
+sketchybar --update
+
+# Prime the WM items: sketchybar has just started, so it has not seen any WM
+# event yet and the workspace pills would be unhighlighted until the first
+# switch. The bridge sends initial snapshots for OmniWM and nehir; paneru and
+# rift only emit on change, so ask the backend directly.
+"$PLUGINS/wm_prime.sh" &
+
+# Clear any stale windows-island lock left by a previous (SIGKILL'd on restart)
+# sketchybar instance, then populate the island once at startup (belt and
+# braces; the driver also rebuilds on the first WM event).
+rm -rf "$HOME/.cache/sketchybar/win.lock" "$HOME/.cache/sketchybar/win.pending"
+"$PLUGINS/wm_window_list.sh" &
+
+echo "sketchybar config loaded (CONFIG_DIR=$CONFIG_DIR)"
