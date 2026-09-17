@@ -66,7 +66,9 @@ let
   barEnv = {
     PATH = barPath;
     WM_BACKEND = "omniwm";
-    WM_BAR_FONT = "JetBrainsMono Nerd Font";
+    WM_BAR_FONT = "DepartureMono Nerd Font";
+    # Regular-only family; see the note in darwin.nix's sketchybarEnv.
+    WM_BAR_FONT_BOLD = "Regular";
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
     COLOR_DIM = "0xff7f849c";
@@ -110,5 +112,6 @@ in
   # picks the same font as the agent.
   home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
     WM_BAR_FONT = barEnv.WM_BAR_FONT;
+    WM_BAR_FONT_BOLD = barEnv.WM_BAR_FONT_BOLD;
   };
 }

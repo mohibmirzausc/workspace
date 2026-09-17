@@ -24,7 +24,14 @@ let
     LANG = "en_US.UTF-8";
     LC_ALL = "en_US.UTF-8";
     WM_BACKEND = "omniwm";
-    WM_BAR_FONT = "JetBrainsMono Nerd Font";
+    # Departure Mono: lo-fi pixel/bitmap monospace. The Nerd Font patched
+    # build, so one family covers both the text and the glyph ranges.
+    WM_BAR_FONT = "DepartureMono Nerd Font";
+    # This family ships REGULAR ONLY. CoreText does not synthesise the missing
+    # weight -- it falls back to Helvetica, silently, which does not look like
+    # a pixel font at all. So the bar's "bold" weight is Regular here.
+    # Switching back to JetBrainsMono? Set this to "Bold".
+    WM_BAR_FONT_BOLD = "Regular";
     # ONE window pill (the focused window) to start; widen to 2 later if the
     # room is there. Upstream defaults to 3.
     #
@@ -403,6 +410,15 @@ in
       # closer to the 2.0.60 mappings icon_map.sh was generated from than the
       # 2.0.62 in nixpkgs.
       "font-jetbrains-mono-nerd-font"
+      # Departure Mono -- lo-fi pixel/bitmap-style monospace, the bar's font
+      # (WM_BAR_FONT in the sketchybar agent env). The NERD FONT variant, not
+      # plain "font-departure-mono": the patched build keeps the pixel look
+      # and adds the glyph ranges, so the bar keeps one font for text and
+      # icons. Family name is "DepartureMono Nerd Font".
+      #
+      # Note this is a PIXEL font: it is designed around a small em grid and
+      # looks crisp at sizes that land on whole pixels, blurry between them.
+      "font-departure-mono-nerd-font"
       # Hack is SketchyBar's built-in default font, so keeping it installed
       # means the bar still renders if a custom font name is ever wrong.
       "font-hack-nerd-font"

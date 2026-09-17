@@ -26,6 +26,19 @@ PLUGINS="$CONFIG_DIR/plugins"
 # WM_BAR_FONT to "JetBrainsMono Nerd Font".
 FONT="${WM_BAR_FONT:-Menlo}"
 
+# Weight used for "emphasised" text (workspace digits, focused window title).
+#
+# NOT always "Bold". CoreText does not synthesise a missing weight here: asking
+# for a family+style that does not exist falls all the way back to HELVETICA,
+# silently, which looks nothing like the rest of the bar. Departure Mono ships
+# Regular ONLY (verified: "DepartureMono Nerd Font"/Bold -> Helvetica, while
+# JetBrainsMono/Bold -> JetBrainsMono NF Bold), so the weight has to travel
+# with the font choice instead of being hardcoded at each use site.
+#
+# Set WM_BAR_FONT_BOLD alongside WM_BAR_FONT in the launchd agent env when
+# switching to a font that does have a bold face.
+FONT_BOLD="${WM_BAR_FONT_BOLD:-Regular}"
+
 # Catppuccin Mocha. Single source of truth is barEnv in ../default.nix; the
 # defaults below only apply when sketchybarrc is run by hand.
 COLOR_BG="${COLOR_BG:-0xee1e1e2e}"
@@ -77,7 +90,7 @@ sketchybar --bar \
 
 sketchybar --default \
   updates=when_shown \
-  icon.font="$FONT:Bold:12.0" \
+  icon.font="$FONT:$FONT_BOLD:12.0" \
   icon.color="$COLOR_FG" \
   label.font="$FONT:Regular:12.0" \
   label.color="$COLOR_FG" \
@@ -120,7 +133,7 @@ for idx in "${!WS_NUMS[@]}"; do
   sketchybar --add item "space.$n" left \
     --set "space.$n" \
     icon="${WS_ICONS[$idx]}" \
-    icon.font="$FONT:Bold:13.0" \
+    icon.font="$FONT:$FONT_BOLD:13.0" \
     icon.color="$COLOR_FLAMINGO" \
     icon.padding_left=5 \
     icon.padding_right=5 \
@@ -195,9 +208,14 @@ sketchybar --add item win.driver left \
 
 # Corner "apple" button: click toggles a vertical popup mirroring the real
 # macOS menu-bar status extras (see the add_extra block below).
+# Chevron marks this as a menu that opens a popup. Set as a \u escape via
+# $'...' rather than a literal byte sequence in this file -- see the WS_ICONS
+# note above for why load-time glyphs were avoided; this one is re-tested per
+# font, since a Nerd Font's coverage is what decides it.
+APPS_ICON=$'\uf078'   # nf-fa-chevron_down
 sketchybar --add item apps right \
   --set apps \
-  icon="" \
+  icon="$APPS_ICON" \
   icon.font="$FONT:Regular:13.0" \
   icon.color="$COLOR_FG" \
   icon.padding_left=8 \

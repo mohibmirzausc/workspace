@@ -96,7 +96,7 @@ for w in cw:
       case "${apps[$j]}" in cmux) icon_result=":terminal:" ;; Zen) icon_result=":firefox:" ;; esac
       if [ "${focs[$j]}" = "1" ]; then
         sketchybar --set "win.$k" drawing=on icon="$icon_result" icon.font="$APPFONT" icon.color="$ONACC" \
-          label="${titles[$j]:-${apps[$j]}}" label.color="$ONACC" label.font="$FONT:Bold:13.0" \
+          label="${titles[$j]:-${apps[$j]}}" label.color="$ONACC" label.font="$FONT:${WM_BAR_FONT_BOLD:-Regular}:13.0" \
           background.drawing=on background.color="$ACC" \
           click_script="omniwmctl window focus ${ids[$j]}" >/dev/null 2>&1
       else
