@@ -45,23 +45,65 @@ render() {
   if [ "$backend" != "omniwm" ] || ! command -v omniwmctl >/dev/null 2>&1; then hide_all; return; fi
 
   local rows
-  rows=$(omniwmctl query windows --format json 2>/dev/null | python3 -c "
-import sys, json
-try: d=json.load(sys.stdin)
-except Exception: sys.exit(0)
-d=d.get('result',{}).get('payload',d) if isinstance(d,dict) else d
-ws=d if isinstance(d,list) else d.get('windows',[])
+  # The python is written to a temp file and run as `python3 FILE`, rather
+  # than `python3 -c "..."` or a heredoc. Both alternatives are broken here:
+  #   -c "..."   bash expands $, backticks and backslashes inside a
+  #              double-quoted string, mangling regex escapes (\w, \u2014)
+  #              before python sees them.
+  #   <<'PY'     a heredoc BECOMES stdin, so the piped omniwmctl JSON never
+  #              arrives and json.load reads the script text instead.
+  # A quoted heredoc into a temp file keeps the text verbatim AND leaves
+  # stdin free for the pipe.
+  local pyf; pyf="$CACHE/win_parse.py"
+  cat > "$pyf" <<'PY'
+import sys, json, re
+
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+d = d.get('result', {}).get('payload', d) if isinstance(d, dict) else d
+ws = d if isinstance(d, list) else d.get('windows', [])
+
 def wsname(w):
-    x=w.get('workspace'); return x.get('rawName') if isinstance(x,dict) else x
-cur=next((wsname(w) for w in ws if w.get('isFocused')),None)
-if cur is None: sys.exit(0)
-cw=[w for w in ws if wsname(w)==cur]
-cw.sort(key=lambda w:(w.get('frame') or {}).get('x',0))
+    x = w.get('workspace')
+    return x.get('rawName') if isinstance(x, dict) else x
+
+cur = next((wsname(w) for w in ws if w.get('isFocused')), None)
+if cur is None:
+    sys.exit(0)
+cw = [w for w in ws if wsname(w) == cur]
+cw.sort(key=lambda w: (w.get('frame') or {}).get('x', 0))
+
+# Raw window titles are often not worth their width: Slack/Calendar just
+# repeat the app name, cmux reports the literal "Terminal", agent panes leak
+# markdown and emoji, and many apps append their own name as a suffix.
+APP_SUFFIX_SEPS = (' - ', '\u2014', '\u2013', ' | ')
+PLACEHOLDERS = ('terminal', 'window', 'untitled')
+
+def clean(title, app):
+    t = (title or '').replace('\t', ' ').replace('\n', ' ').strip()
+    for sep in APP_SUFFIX_SEPS:
+        if sep in t:
+            head, _, tail = t.rpartition(sep)
+            if head and tail.strip().lower().startswith(app.strip().lower()[:6]):
+                t = head.strip()
+    t = re.sub(r'\*\*|`|^#+\s*', '', t)
+    # Leading emoji/symbol runs render as tofu and eat the first characters.
+    t = re.sub(r'^[^\w(\[]+', '', t).strip()
+    low = t.strip().lower()
+    if not t or low == app.strip().lower() or low in PLACEHOLDERS:
+        return ''
+    return t
+
 for w in cw:
-    a=w.get('app') or {}; an=(a.get('name') if isinstance(a,dict) else a) or '?'
-    t=(w.get('title') or '').replace('\t',' ').replace('\n',' ').strip()
-    print('\t'.join([str(w.get('id','')),an,('1' if w.get('isFocused') else '0'),t]))
-")
+    a = w.get('app') or {}
+    an = (a.get('name') if isinstance(a, dict) else a) or '?'
+    t = clean(w.get('title'), an)
+    print('\t'.join([str(w.get('id', '')), an,
+                     ('1' if w.get('isFocused') else '0'), t]))
+PY
+  rows=$(omniwmctl query windows --format json 2>/dev/null | python3 "$pyf")
 
   local ids=() apps=() focs=() titles=() fidx=0 i=0
   while IFS=$'\t' read -r id app foc title; do
@@ -94,14 +136,22 @@ for w in cw:
     if [ "$k" -lt "$slice" ] && [ "$j" -lt "$n" ]; then
       icon_result=":default:"; __icon_map "${apps[$j]}"
       case "${apps[$j]}" in cmux) icon_result=":terminal:" ;; Zen) icon_result=":firefox:" ;; esac
+      # "App - Title", or just "App" when the title added nothing (clean()
+      # returns empty for titles that echo the app name or are placeholders
+      # like "Terminal"). The app name goes in the LABEL rather than relying
+      # on the icon: the sketchybar-app-font ligature is a PUA glyph and
+      # those render as literal text in this setup, so an icon-only pill
+      # would be unidentifiable.
+      pill="${apps[$j]}"
+      [ -n "${titles[$j]}" ] && pill="${apps[$j]} - ${titles[$j]}"
       if [ "${focs[$j]}" = "1" ]; then
-        sketchybar --set "win.$k" drawing=on icon="$icon_result" icon.font="$APPFONT" icon.color="$ONACC" \
-          label="${titles[$j]:-${apps[$j]}}" label.color="$ONACC" label.font="$FONT:${WM_BAR_FONT_BOLD:-Regular}:13.0" \
+        sketchybar --set "win.$k" drawing=on icon.drawing=off \
+          label="$pill" label.color="$ONACC" label.font="$FONT:${WM_BAR_FONT_BOLD:-Regular}:13.0" \
           background.drawing=on background.color="$ACC" \
           click_script="omniwmctl window focus ${ids[$j]}" >/dev/null 2>&1
       else
-        sketchybar --set "win.$k" drawing=on icon="$icon_result" icon.font="$APPFONT" icon.color="$FG" \
-          label="${titles[$j]:-${apps[$j]}}" label.color="$DIM" label.font="$FONT:Regular:13.0" \
+        sketchybar --set "win.$k" drawing=on icon.drawing=off \
+          label="$pill" label.color="$DIM" label.font="$FONT:Regular:13.0" \
           background.drawing=off \
           click_script="omniwmctl window focus ${ids[$j]}" >/dev/null 2>&1
       fi

@@ -25,10 +25,20 @@ fi
 # mkdir lock is released by the refresher subshell; guard against a stale lock
 # older than 5 min (a crashed refresh).
 now=$(date +%s)
-mtime=0; [ -f "$CACHE" ] && mtime=$(stat -f %m "$CACHE" 2>/dev/null || echo 0)
+# Force a numeric mtime. `stat` on a missing file can still emit a non-numeric
+# word, and under `set -u` arithmetic on that fails with a confusing
+# "File: unbound variable" (it parses the word as a variable name) -- which was
+# flooding ~/Library/Logs/sketchybar.log on every tick.
+mtime=0
+if [ -f "$CACHE" ]; then
+  mtime=$(stat -f %m "$CACHE" 2>/dev/null)
+  case "$mtime" in (*[!0-9]*|'') mtime=0 ;; esac
+fi
 if [ ! -f "$CACHE" ] || [ $((now - mtime)) -ge "$STALE_SECS" ]; then
   if [ -d "$LOCK" ]; then
-    lage=$(( now - $(stat -f %m "$LOCK" 2>/dev/null || echo "$now") ))
+    lmt=$(stat -f %m "$LOCK" 2>/dev/null)
+    case "$lmt" in (*[!0-9]*|'') lmt="$now" ;; esac
+    lage=$(( now - lmt ))
     [ "$lage" -ge "$STALE_SECS" ] && rmdir "$LOCK" 2>/dev/null
   fi
   if mkdir "$LOCK" 2>/dev/null; then

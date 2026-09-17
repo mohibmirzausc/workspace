@@ -61,10 +61,17 @@ COLOR_LAVENDER="${COLOR_LAVENDER:-0xffb4befe}"
 # ---------------------------------------------------------------------------
 # Split floating bar: the bar itself is TRANSPARENT; two bracket items
 # (left_group / right_group, added after all items below) draw the rounded
-# backgrounds, leaving an empty middle. 5px margin on every side; windows clear
-# it via OmniWM's outer.top gap (5 + bar height + 5) -- see settings.toml.
+# backgrounds, leaving an empty middle. Windows clear it via OmniWM's
+# outer.top gap, which must track the bar height -- see settings.toml.
+#
+# height=32 EXACTLY fills the menu-bar strip on this machine. Measured, not
+# guessed: NSScreen.main.frame.height - visibleFrame maxY = 32.0 (and
+# safeAreaInsets.top = 32.0, the notch inset). The bar was 24 and the strip is
+# 32, which left an 8px band of desktop showing through beneath the islands.
+# NSStatusBar.thickness is 22 and is NOT the number to use here -- that is the
+# classic pre-notch menu bar height, 10px short of the notch-era strip.
 sketchybar --bar \
-  height=24 \
+  height=32 \
   position=top \
   sticky=on \
   padding_left=4 \
@@ -90,9 +97,9 @@ sketchybar --bar \
 
 sketchybar --default \
   updates=when_shown \
-  icon.font="$FONT:$FONT_BOLD:12.0" \
+  icon.font="$FONT:$FONT_BOLD:13.0" \
   icon.color="$COLOR_FG" \
-  label.font="$FONT:Regular:12.0" \
+  label.font="$FONT:$FONT_BOLD:13.0" \
   label.color="$COLOR_FG" \
   padding_left=3 \
   padding_right=3 \
@@ -142,7 +149,7 @@ for idx in "${!WS_NUMS[@]}"; do
     label.padding_right=0 \
     background.padding_left=3 \
     background.padding_right=3 \
-    background.height=18 \
+    background.height=22 \
     background.corner_radius=5 \
     background.color="$COLOR_ACCENT" \
     background.drawing=off \
@@ -180,8 +187,8 @@ for i in 0 1 2; do
   sketchybar --add item "win.$i" left \
     --set "win.$i" drawing=off \
     icon.font="sketchybar-app-font:Regular:12.0" icon.padding_left=8 icon.padding_right=4 \
-    label.max_chars=10 label.padding_left=2 label.padding_right=4 \
-    background.height=18 background.corner_radius=5 \
+    label.max_chars=28 label.padding_left=6 label.padding_right=6 \
+    background.height=22 background.corner_radius=5 \
     background.padding_left=3 background.padding_right=3
 done
 
@@ -192,7 +199,7 @@ sketchybar --add item win.rell left \
 
 sketchybar --add bracket window_group win.lell win.0 win.1 win.2 win.rell \
   --set window_group background.drawing=off background.color="$COLOR_BG" \
-  background.corner_radius=6 background.height=22
+  background.corner_radius=6 background.height=26
 
 sketchybar --add item win.driver left \
   --set win.driver drawing=off updates=on \
@@ -202,17 +209,25 @@ sketchybar --add item win.driver left \
 # ---------------------------------------------------------------------------
 # Right side. sketchybar lays right-anchored items out right-to-left in the
 # order added, so add edge-inward: apps (far-right corner), battery, time,
-# date, then meeting (leftmost). On screen:  meeting date time battery apps|edge.
-# Each right-side text gets its own Mocha accent (peach/teal/sapphire/lavender).
+# then meeting (leftmost). On screen:  meeting time battery apps|edge.
+#
+# The DATE item was removed: on a 1512pt panel the right island competes with
+# the notch for width, and the day/date is the one field here that is both
+# wide and almost never the thing you are looking at. Time is trimmed to
+# "8:20" (no AM/PM) and battery to a bare percentage for the same reason.
+# clock.sh still honours NAME=date if it is ever added back.
 # ---------------------------------------------------------------------------
 
 # Corner "apple" button: click toggles a vertical popup mirroring the real
 # macOS menu-bar status extras (see the add_extra block below).
-# Chevron marks this as a menu that opens a popup. Set as a \u escape via
-# $'...' rather than a literal byte sequence in this file -- see the WS_ICONS
-# note above for why load-time glyphs were avoided; this one is re-tested per
-# font, since a Nerd Font's coverage is what decides it.
-APPS_ICON=$'\uf078'   # nf-fa-chevron_down
+# Marks this corner item as a menu that opens a popup.
+#
+# ASCII, not the nf-fa-chevron_down glyph. Switching the bar to a Nerd Font
+# did NOT fix the load-time PUA problem -- U+F078 still renders as the
+# literal 6-character text "\uf078" (confirmed on screen). Note that
+# `sketchybar --query` reports it back as an escaped string either way, so
+# the query is not evidence of rendering; only the rendered bar is.
+APPS_ICON="v"
 sketchybar --add item apps right \
   --set apps \
   icon="$APPS_ICON" \
@@ -280,12 +295,6 @@ sketchybar --add item time right \
   label.color="$COLOR_SAPPHIRE" \
   script="$PLUGINS/clock.sh"
 
-sketchybar --add item date right \
-  --set date \
-  update_freq=30 \
-  label.color="$COLOR_TEAL" \
-  script="$PLUGINS/clock.sh"
-
 # Next meeting. meeting.sh reads a background-refreshed cache (Calendar.app
 # scripting is slow, so it is never run inline); click opens Calendar to today.
 sketchybar --add item meeting right \
@@ -307,14 +316,14 @@ sketchybar --add bracket left_group space.1 space.2 space.3 space.4 \
   background.drawing=on \
   background.color="$COLOR_BG" \
   background.corner_radius=9 \
-  background.height=22
+  background.height=26
 
-sketchybar --add bracket right_group apps battery time date meeting \
+sketchybar --add bracket right_group apps battery time meeting \
   --set right_group \
   background.drawing=on \
   background.color="$COLOR_BG" \
   background.corner_radius=9 \
-  background.height=22
+  background.height=26
 
 sketchybar --update
 
