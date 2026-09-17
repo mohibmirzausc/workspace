@@ -124,13 +124,16 @@ sketchybar \
 # raw name/number); workspace.sh highlights the active one. Monitor pinning
 # lives in OmniWM's config, not here: ws1-3 -> primary display, ws4-6 ->
 # secondary if attached (see workspaces[].monitorAssignment in settings.toml).
-# Plain digits, not Nerd Font glyphs. PUA codepoints set from sketchybarrc
-# render as literal "\uf0b1" text in this setup -- see
-# HANDOFF-sketchybar-glyphs.md. The same codepoints DO render when set from
-# the command line at runtime, so the capability is there; the load-time path
-# is what fails. Digits are legible and unambiguous in the meantime.
-# Using $FONT (the normal bar font) rather than the Nerd Font Mono variant,
-# since these are now digits rather than glyphs.
+# Plain digits by CHOICE, not by limitation. PUA glyphs do render correctly
+# here now (confirmed on screen after the move to DepartureMono Nerd Font);
+# the long-standing "\uf0b1 renders as literal text" problem is resolved, and
+# the earlier diagnosis was partly bad tooling -- `sketchybar --query` returns
+# real UTF-8 either way, so an escaped-looking value there was just python
+# repr() of a private-use char, not evidence of a bug.
+#
+# Digits stay because "1 2 3 4" maps directly onto the super+1..4 switch
+# hotkeys, which per-workspace pictograms did not. Swap WS_ICONS for glyphs
+# if that tradeoff ever changes.
 # ---------------------------------------------------------------------------
 WS_NUMS=(1 2 3 4)
 WS_ICONS=(1 2 3 4)
@@ -149,7 +152,7 @@ for idx in "${!WS_NUMS[@]}"; do
     label.padding_right=0 \
     background.padding_left=3 \
     background.padding_right=3 \
-    background.height=22 \
+    background.height=26 \
     background.corner_radius=5 \
     background.color="$COLOR_ACCENT" \
     background.drawing=off \
@@ -188,7 +191,7 @@ for i in 0 1 2; do
     --set "win.$i" drawing=off \
     icon.font="sketchybar-app-font:Regular:12.0" icon.padding_left=8 icon.padding_right=4 \
     label.max_chars=28 label.padding_left=6 label.padding_right=6 \
-    background.height=22 background.corner_radius=5 \
+    background.height=26 background.corner_radius=5 \
     background.padding_left=3 background.padding_right=3
 done
 
@@ -199,7 +202,7 @@ sketchybar --add item win.rell left \
 
 sketchybar --add bracket window_group win.lell win.0 win.1 win.2 win.rell \
   --set window_group background.drawing=off background.color="$COLOR_BG" \
-  background.corner_radius=6 background.height=26
+  background.corner_radius=6 background.height=30
 
 sketchybar --add item win.driver left \
   --set win.driver drawing=off updates=on \
@@ -316,14 +319,14 @@ sketchybar --add bracket left_group space.1 space.2 space.3 space.4 \
   background.drawing=on \
   background.color="$COLOR_BG" \
   background.corner_radius=9 \
-  background.height=26
+  background.height=30
 
 sketchybar --add bracket right_group apps battery time meeting \
   --set right_group \
   background.drawing=on \
   background.color="$COLOR_BG" \
   background.corner_radius=9 \
-  background.height=26
+  background.height=30
 
 sketchybar --update
 

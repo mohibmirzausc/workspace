@@ -15,19 +15,32 @@ pct=$(echo "$info" | grep -Eo '[0-9]+%' | head -1 | tr -d '%')
 charging=""
 echo "$info" | grep -q "AC Power" && charging="yes"
 
-# Colour IS the status indicator now that the glyph is gone:
-#   green  charging
-#   red    <=20% on battery
-#   normal otherwise
+# Level glyph by charge, or a bolt while charging.
+#
+# These are the nf-fa (Font Awesome) battery glyphs, which live in the BMP
+# private-use area, NOT the nf-md ones at U+F0079.. -- that matters:
+# bash 3.2 (what macOS ships, and what runs these plugins) supports the
+# 4-hex-digit $'\uXXXX' escape but NOT the 8-digit $'\UXXXXXXXX' form. It
+# passes \U through as literal text, so an nf-md glyph came out as the
+# 10-character string "\U000f0080" and even corrupted `sketchybar --query`
+# output into invalid JSON. Anything above U+FFFF is unreachable from here.
+if [ -n "$charging" ]; then icon=$'\uf0e7'          # bolt
+elif [ "$pct" -ge 88 ]; then icon=$'\uf240'         # battery-full
+elif [ "$pct" -ge 63 ]; then icon=$'\uf241'         # three-quarters
+elif [ "$pct" -ge 38 ]; then icon=$'\uf242'         # half
+elif [ "$pct" -ge 13 ]; then icon=$'\uf243'         # quarter
+else icon=$'\uf244'; fi                             # empty
+
+# Colour carries urgency; the glyph carries level.
 color="${COLOR_LAVENDER:-0xffb4befe}"
-label="${pct}%"
 if [ -n "$charging" ]; then
   color="${COLOR_TEAL:-0xff94e2d5}"
-  label="+${pct}%"
 elif [ "$pct" -le 20 ]; then
   color="${COLOR_RED:-0xfff38ba8}"
 fi
 
 sketchybar --set "$NAME" drawing=on \
-  icon.drawing=off \
-  label="$label" label.color="$color"
+  icon="$icon" icon.color="$color" \
+  icon.font="${WM_BAR_FONT:-Menlo}:Regular:15.0" \
+  icon.padding_left=6 icon.padding_right=2 \
+  label="${pct}%" label.color="$color"
