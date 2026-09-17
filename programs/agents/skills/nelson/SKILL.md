@@ -1,3 +1,8 @@
+---
+name: nelson
+description: Use when orchestrating a complex, parallelizable task that needs explicit outcomes, metrics and scope boundaries - a naval command framework (Sailing Orders, squadrons, signals) for decomposing work across parallel agents and reconciling their results.
+---
+
 # Nelson
 
 A structured workflow for orchestrating complex, parallelizable tasks through a naval command framework.

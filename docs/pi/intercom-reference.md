@@ -1,170 +1,117 @@
-# Intercom — a Pi package for agent-to-agent messaging
+# Intercom — agent-to-agent messaging for Pi
 
-Status: **reference / not yet implemented.** This document defines what
-Intercom is and how it hangs off Pi's extension API, so the implementation PR
-has something to build against. Every API call cited here was checked against
-pi **0.85.1** (`@earendil-works/pi-coding-agent` typings) — see
-[Verified API surface](#verified-api-surface).
+**Use the upstream package. Do not build our own.**
 
-## Problem
+`pi-intercom` already exists, is on npm at **0.13.0**, and covers everything
+we wanted plus several things we had not designed. This document is a usage
+reference, not a spec.
 
-Claude Code has `SendMessage` / `ListAgents`: sessions address each other by
-name and a message lands in a running session's context. Pi has no equivalent.
-Pi ships no sub-agents by design — the README is explicit that sub-agents and
-plan mode are left to extensions.
+- Package: `npm:pi-intercom` — <https://pi.dev/packages/pi-intercom>
+- Source: <https://github.com/earendil-works/pi/tree/main/packages/coding-agent>
+- Author: nicopreme · MIT
 
-Intercom supplies the missing piece: **let one agent session send a message to
-another and have it arrive in that session's context.**
+## Why we need it
 
-Scope for v1 is deliberately small — "we only want it to work regularly at the
-moment". Delivery between sessions, nothing more. Spawning, supervision trees
-and delegation are explicitly out of scope; see [Non-goals](#non-goals).
+Claude Code has `SendMessage`/`ListAgents`: sessions address each other by
+name and a message lands in a running session's context. Pi ships no
+equivalent and no sub-agents — the README is explicit that both are left to
+extensions. `pi-intercom` is that extension.
 
-## Terminology
+## Install
 
-Pi calls these **packages**, not plugins — a `package.json` carrying a `pi`
-key that bundles `extensions/`, `skills/`, `prompts/` and `themes/`. Installed
-with `pi install git:github.com/<org>/<repo>@<tag>`. It is the structural
-analogue of a Claude plugin.
-
-`mechanical-orchard/pi-guardrails` is an existing MO package in exactly this
-shape and is the template to copy.
-
-## Design
-
-A **file-backed message bus.** No daemon, no port, no broker.
-
-```
-~/.intercom/
-  agents/<name>.json      # registration: name, pid, cwd, session id, last seen
-  inbox/<name>.jsonl      # append-only; one JSON message per line
+```bash
+pi install npm:pi-intercom
 ```
 
-Two halves inside one extension:
+Restart Pi afterwards. The extension auto-connects to a local broker on
+startup and registers its bundled skill.
 
-1. **Outbound** — a `send_message` tool the model calls. Appends a line to the
-   recipient's inbox. A `list_agents` tool reads `agents/` so the model can
-   discover who is reachable.
-2. **Inbound** — a watcher on the local inbox. On a new line, inject it into
-   this session's context.
+Note this is an `npm:` package, not `git:` like
+`mechanical-orchard/pi-guardrails`. Both land in `~/.pi/agent/` and both are
+recorded in `~/.pi/agent/settings.json` under `packages`. That file is
+written by pi at runtime, so installation is a CLI step and **not** declared
+in Nix — same reasoning as the rest of Pi's mutable state, see
+`programs/agents/README.md`.
 
-Delivery uses `pi.sendUserMessage(...)`, which always triggers a turn, or
-`pi.sendMessage(...)` for a custom message type that can be rendered
-distinctly in the transcript. Both accept `deliverAs` to control what happens
-when the agent is mid-stream:
+## Addressing
 
-| `deliverAs`  | Behaviour                                    |
-|--------------|----------------------------------------------|
-| `"steer"`    | interrupt the current turn with the message   |
-| `"followUp"` | queue until the current turn finishes         |
-| `"nextTurn"` | hold until the next turn begins (`sendMessage` only) |
+This was our open question; upstream answers it three ways:
 
-**Default to `followUp`.** Steering mid-turn derails work in progress; a
-message from a peer is rarely urgent enough to justify that. Reserve `steer`
-for an explicit `urgent: true` flag on the send.
+| Method | How |
+|---|---|
+| Explicit alias | `/alias <name>` |
+| Session ID | collision-resistant stable identifier |
+| Working directory | targets the sole peer in that cwd |
 
-### Why a file bus
+## The `intercom()` tool
 
-- Works with **zero** coordination between processes that never knew about
-  each other.
-- Survives session restarts — an inbox is just a file.
-- Inspectable and debuggable with `cat`.
-- Crucially, **it is not Pi-specific.** Claude Code sessions can read and
-  write the same files via Bash, so the same bus can bridge both harnesses
-  later without redesign. (Bridging is not in v1, but the format shouldn't
-  foreclose it.)
+| Action | Meaning |
+|---|---|
+| `list` / `list-cwd` | show active sessions |
+| `send` | fire-and-forget |
+| `ask` | send **and block for a reply** (10 min default timeout) |
+| `reply` | answer an inbound `ask` |
+| `pending` | show unresolved asks |
+| `cancel` | retract a sent message |
+| `status` | connection state and session count |
 
-Registration must be refreshed and stale entries reaped, or `list_agents`
-accumulates dead sessions. Register on `session_start`, refresh on
-`agent_settled`, and treat an entry whose pid is gone as dead.
-
-### Message format
-
-One JSON object per line. Keep it small and boring:
-
-```json
-{
-  "id": "01a0acb0-...",
-  "from": "reviewer",
-  "to": "builder",
-  "ts": "2026-09-16T00:00:00.000Z",
-  "urgent": false,
-  "body": "The auth test is failing on main, not your branch."
-}
+```javascript
+intercom({ action: "send", to: "worker",  message: "..." })
+intercom({ action: "ask",  to: "planner", message: "..." })
+intercom({ action: "send", cwd: "/path",  message: "..." })
 ```
 
-## Sketch
+`ask`/`reply` is the notable addition over what we specified — blocking
+request/response, not just one-way delivery.
 
-```typescript
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+Alt+M or `/intercom` opens a session-selection overlay.
 
-export default function intercom(pi: ExtensionAPI) {
-  pi.registerTool({
-    name: "send_message",
-    label: "Send message to agent",
-    description: "Send a message to another running agent session by name.",
-    promptSnippet: "Message another agent session by name.",
-    parameters: /* { to, body, urgent? } */ undefined as never,
-    async execute(_id, params) {
-      // append one JSON line to ~/.intercom/inbox/<to>.jsonl
-    },
-  });
+With `pi-subagents` installed there is also `contact_supervisor()`, with
+reasons `need_decision`, `interview_request`, `progress_update`.
 
-  pi.registerTool({ name: "list_agents", /* reads ~/.intercom/agents/ */ });
+## Configuration
 
-  pi.on("session_start", async () => {
-    // register this session, then watch ~/.intercom/inbox/<me>.jsonl
-    // on new line:
-    //   pi.sendUserMessage(`[intercom] from ${m.from}: ${m.body}`, {
-    //     deliverAs: m.urgent ? "steer" : "followUp",
-    //   });
-  });
+`~/.pi/agent/intercom/config.json`:
 
-  pi.on("agent_settled", async () => {
-    // refresh registration heartbeat; drain anything buffered while busy
-  });
-}
-```
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | master switch |
+| `inboundTrigger` | — | auto-trigger policy: `always`, `replies`, `never` |
+| `confirmSend` | `false` | confirmation dialog before sending |
+| `replyHint` | `true` | append reply instructions to messages |
+| `brokerCommand` | `npx` | custom broker executable |
+| `status` | — | custom status suffix |
 
-## Verified API surface
+`inboundTrigger` is the setting to think about first. It decides whether an
+inbound message interrupts the receiving agent. Start at `replies` — an
+unsolicited peer message is rarely worth derailing a turn in progress, but an
+answer you are blocked on is.
 
-Checked against pi 0.85.1 typings
-(`dist/core/extensions/types.d.ts`) — these exist and have these shapes:
+## Limitations
 
-- `pi.registerTool({ name, label, description, promptSnippet, parameters, execute })`
-- `pi.registerCommand(name, options)` — for `/intercom` status
-- `pi.sendUserMessage(content, { deliverAs: "steer" | "followUp", expandPromptTemplates? })`
-  — "Send a user message to the agent. Always triggers a turn."
-- `pi.sendMessage(message, { triggerTurn?, deliverAs: "steer" | "followUp" | "nextTurn" })`
-- `pi.appendEntry(customType, data)` — persist state in the session
-- `pi.registerMessageRenderer(customType, renderer)` — render inbound
-  messages distinctly in the transcript
-- `pi.on("session_start" | "agent_settled" | "agent_end", handler)`
-  — `agent_settled` fires "after an agent run has fully settled and no
-  automatic retry, compaction, or queued continuation will run", which is the
-  right moment to deliver without racing the agent loop
+- **Same machine only** — local IPC (Unix sockets / Windows pipes).
+- `list` shows only sessions that loaded `pi-intercom` and registered with
+  the broker; a plain Pi session is invisible.
+- No intercom transcript separate from session history.
+- No attachment support in the compose overlay.
+- Broker auto-spawns and exits after 5s idle; sessions auto-reconnect.
+- Pi packages run with full system access — extensions execute arbitrary
+  code. Review before installing, per Pi's own guidance.
 
-## Open questions
+## Not a Claude Code bridge
 
-1. **Naming.** Who assigns a session's name? `pi --name/-n` sets a session
-   display name and `pi.getSessionName()` reads it — probably the answer, with
-   a fallback derived from cwd for unnamed sessions. Collisions need a rule.
-2. **Watch mechanism.** `fs.watch` is cheap but flaky across platforms;
-   polling on `agent_settled` plus a timer is dumber and more reliable. Start
-   with polling.
-3. **Delivery while idle.** A session sitting at an empty prompt is not
-   running a turn. `sendUserMessage` triggers one — confirm that is acceptable
-   UX and not a surprise wake-up.
-4. **Trust.** Any local process can write to an inbox. Acceptable for
-   same-user sessions on one machine; revisit before anything crosses a
-   machine boundary. Note that Pi packages run with full system access.
-5. **Where it lives.** In-repo under `programs/pi/intercom/` versus its own
-   `mechanical-orchard/pi-intercom` repo installed with `pi install git:...`.
-   Deferred — prototype first, extract if it proves useful.
+Intercom is Pi↔Pi only. Claude Code sessions cannot join a broker that speaks
+Pi's IPC protocol.
 
-## Non-goals
+If Claude↔Pi messaging is wanted later, that is a separate piece of work: a
+file-backed bus both harnesses can read and write, since Claude sessions can
+reach a file via Bash but not a Unix socket handshake. Worth doing only if the
+need is real — do not build it preemptively.
 
-- Spawning or supervising child agents.
-- Cross-machine messaging.
-- Replacing Claude Code's `Agent`/`Task` tooling.
-- A general pub/sub bus. Point-to-point by name is enough for v1.
+## History
+
+This file previously specified an Intercom we intended to build ourselves.
+The design independently matched upstream on the essentials — point-to-point
+by name, same-machine, and a policy for whether inbound messages interrupt —
+so adopting `pi-intercom` costs nothing and gains `ask`/`reply`, `pending`,
+`cancel`, the overlay, and the supervisor hook.
