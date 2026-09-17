@@ -57,7 +57,7 @@ let
   # Without this the bar draws correctly but every label renders empty -- a
   # deceptive failure mode that already cost one debugging round here. Set on
   # the launchd agent so sketchybarrc and all plugins inherit it.
-  barPath = "/opt/homebrew/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+  barPath = "/opt/homebrew/bin:${pkgs.jq}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   # Catppuccin Mocha, matching the ghostty theme in programs/ghostty.nix.
   # Plugins inherit sketchybar's environment but NOT shell variables exported
@@ -131,11 +131,27 @@ in
       HELPER_DIR="$HOME/.config/sketchybar/helpers"
       SRC="$HELPER_DIR/window-titles.swift"
       BIN="$HELPER_DIR/window-titles"
+      STAMP="$HELPER_DIR/.window-titles.sha"
       if [ -f "$SRC" ] && [ -x /usr/bin/swiftc ]; then
-        if [ ! -x "$BIN" ] || [ "$SRC" -nt "$BIN" ]; then
-          $DRY_RUN_CMD /usr/bin/swiftc -O -o "$BIN.tmp" "$SRC" 2>/dev/null \
-            && $DRY_RUN_CMD mv "$BIN.tmp" "$BIN" \
-            || echo "warning: could not build window-titles helper; bar will use OmniWM titles"
+        # Rebuild on CONTENT change, not mtime.
+        #
+        # `[ "$SRC" -nt "$BIN" ]` looks right but never fires: $SRC is a
+        # nix-store symlink, `-nt` dereferences it, and nix pins every store
+        # file's mtime to epoch 1. So the source is permanently "older" than
+        # any binary and an edited .swift would silently never recompile --
+        # activation prints nothing and exits 0, so the diff looks deployed
+        # while the old binary keeps running.
+        NEW_SHA="$(/usr/bin/shasum -a 256 "$SRC" | cut -d' ' -f1)"
+        OLD_SHA=""
+        [ -f "$STAMP" ] && OLD_SHA="$(cat "$STAMP")"
+        if [ ! -x "$BIN" ] || [ "$NEW_SHA" != "$OLD_SHA" ]; then
+          if $DRY_RUN_CMD /usr/bin/swiftc -O -o "$BIN.tmp" "$SRC" 2>/dev/null \
+             && $DRY_RUN_CMD mv "$BIN.tmp" "$BIN"; then
+            [ -z "$DRY_RUN_CMD" ] && printf '%s\n' "$NEW_SHA" > "$STAMP"
+          else
+            $DRY_RUN_CMD rm -f "$BIN.tmp"
+            echo "warning: could not build window-titles helper; bar will use OmniWM titles"
+          fi
         fi
       fi
     '');

@@ -12,7 +12,18 @@ let
   # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
   # palette, read by both sketchybarrc and the plugins.
   sketchybarEnv = {
-    PATH = "/opt/homebrew/bin:${pkgs.jq}/bin:${pkgs.coreutils}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    # DELIBERATELY NO ${pkgs.coreutils}/bin HERE. It used to sit ahead of
+    # /usr/bin, which shadowed BSD stat with GNU stat -- and `stat -f` means
+    # "print filesystem info" to GNU, not BSD's "use this format string". So
+    # every `stat -f %m` in the plugins failed, printing a filesystem dump
+    # whose first word is "File:"; `$(( ))` then read that as a variable name
+    # and `set -u` killed the script. 314 such crashes were in
+    # ~/Library/Logs/sketchybar.log, and it wedged both the window island and
+    # the meeting item (their locks were never reaped, so they never ran again).
+    #
+    # The plugins need stat and date, both of which are in /usr/bin, so
+    # coreutils buys nothing here. jq stays because macOS ships no jq.
+    PATH = "/opt/homebrew/bin:${pkgs.jq}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
     # UTF-8 locale. WITHOUT THIS, EVERY MULTI-BYTE ICON RENDERS AS LITERAL
     # "\uf0b1" TEXT. launchd hands agents no locale at all, and sketchybar
     # needs one to decode the UTF-8 bytes of a private-use-area codepoint --

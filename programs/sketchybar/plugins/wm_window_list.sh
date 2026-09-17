@@ -27,12 +27,29 @@ APPFONT="sketchybar-app-font:Regular:12.0"
 CGTITLES="${CGTITLES_BIN:-$HOME/.config/sketchybar/helpers/window-titles}"
 
 # ---- single-flight with coalescing ----
-if [ -d "$LOCK" ]; then
-  age=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || echo 0) ))
-  [ "$age" -ge 8 ] && rmdir "$LOCK" 2>/dev/null
+# Clear anything at $LOCK that is not a live lock. Tested against -e AND -L so
+# a dangling symlink is handled too: with only `[ -d ]`, a symlink there made
+# the staleness check skip, mkdir fail, and the script exit 0 forever.
+if [ -e "$LOCK" ] || [ -L "$LOCK" ]; then
+  if [ ! -d "$LOCK" ]; then
+    rm -f "$LOCK" 2>/dev/null
+  else
+    # Validate numeric before arithmetic. `stat` failing (or being GNU stat,
+    # which prints a filesystem dump for -f) otherwise feeds a word into
+    # $(( )), which `set -u` turns into "File: unbound variable" and aborts
+    # the script BEFORE the trap below is installed -- leaking the very lock
+    # this block exists to reap. That deadlocked the island in production.
+    lmt=$(/usr/bin/stat -f %m "$LOCK" 2>/dev/null)
+    case "$lmt" in (*[!0-9]*|'') lmt=0 ;; esac
+    age=$(( $(date +%s) - lmt ))
+    [ "$age" -ge 8 ] && rmdir "$LOCK" 2>/dev/null
+  fi
 fi
 if ! mkdir "$LOCK" 2>/dev/null; then : > "$PENDING"; exit 0; fi
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+# Cover the signals that actually happen: launchd sends SIGTERM on every
+# rebuild/restart, which EXIT alone does not catch, leaking the lock.
+# (SIGKILL cannot be trapped -- the staleness check above is the net for that.)
+trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM HUP
 
 hide_all() {
   local i
@@ -91,11 +108,21 @@ def wsname(w):
     return x.get('rawName') if isinstance(x, dict) else x
 
 # Only the CURRENT workspace's windows, left-to-right by frame position.
+#
+# Tiebreak on (x, y, id), not x alone. Stacked windows legitimately share an
+# x -- three of five on workspace 1 here all report x=1511 -- and Python's
+# sort is stable, so ties fell back to OmniWM's array order, which is not
+# positional and can vary between queries. That made the pill order (and
+# which side shows the overflow "...") flip between renders with nothing
+# having moved. id is the final key purely to make the order total.
 cur = next((wsname(w) for w in ws if w.get('isFocused')), None)
 if cur is None:
     sys.exit(0)
 cw = [w for w in ws if wsname(w) == cur]
-cw.sort(key=lambda w: (w.get('frame') or {}).get('x', 0))
+def pos(w):
+    f = w.get('frame') or {}
+    return (f.get('x', 0), f.get('y', 0), str(w.get('id', '')))
+cw.sort(key=pos)
 
 # ---- live window titles ---------------------------------------------------
 # windowId -> current title, from CoreGraphics (see the helper note above).

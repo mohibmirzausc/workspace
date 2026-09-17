@@ -32,6 +32,17 @@ unset RIFT_CLI_PRETTY
 # ---------------------------------------------------------------------------
 # Wire format between jq and the dispatch loop.
 #
+# Every field is also stripped of CR/LF before joining. Fields are separated
+# by 0x1F, but RECORDS are newline-delimited by the `read` loop below, so a
+# window title containing a newline splits into two records -- and the second
+# record's first field lands in $event. Verified with a title of
+# "line1\nline2 injected":
+#     event=[wm_focus_changed] title=[line1]
+#     event=[line2 injected]   title=[]
+# `sketchybar --trigger <unknown event>` exits 0 silently, so it fails
+# invisibly. helpers/window-titles.swift strips newlines on its own path;
+# this is the bridge's equivalent.
+#
 # Fields are joined with ASCII Unit Separator (0x1F), NOT tab. Tab is IFS
 # whitespace, so bash `read` collapses runs of tabs and an event with an empty
 # middle field would silently shift every later field left. 0x1F is
@@ -47,7 +58,7 @@ jq_prelude='
       (if $n  == null then "" else ($n  | tostring) end),
       (if $app == null then "" else ($app | tostring) end),
       (if $title == null then "" else ($title | tostring) end)
-    ] | join("\u001f");
+    ] | map(gsub("[\r\n]"; " ")) | join("\u001f");
 
   # Name-priority field extraction for OmniWM and nehir, whose subscription
   # payloads sit at .result.payload but whose exact key spelling is not pinned

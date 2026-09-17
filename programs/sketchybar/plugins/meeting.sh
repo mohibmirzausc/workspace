@@ -31,12 +31,12 @@ now=$(date +%s)
 # flooding ~/Library/Logs/sketchybar.log on every tick.
 mtime=0
 if [ -f "$CACHE" ]; then
-  mtime=$(stat -f %m "$CACHE" 2>/dev/null)
+  mtime=$(/usr/bin/stat -f %m "$CACHE" 2>/dev/null)
   case "$mtime" in (*[!0-9]*|'') mtime=0 ;; esac
 fi
 if [ ! -f "$CACHE" ] || [ $((now - mtime)) -ge "$STALE_SECS" ]; then
   if [ -d "$LOCK" ]; then
-    lmt=$(stat -f %m "$LOCK" 2>/dev/null)
+    lmt=$(/usr/bin/stat -f %m "$LOCK" 2>/dev/null)
     case "$lmt" in (*[!0-9]*|'') lmt="$now" ;; esac
     lage=$(( now - lmt ))
     [ "$lage" -ge "$STALE_SECS" ] && rmdir "$LOCK" 2>/dev/null
