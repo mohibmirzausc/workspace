@@ -30,9 +30,13 @@ translate — verified against pi 0.85.1 before adopting this layout:
 ```bash
 pi --skill           programs/agents/skills   # skill discovered and listed
 pi --prompt-template programs/agents/prompts  # templates loaded
+pi --prompt-template programs/agents/prompts "/grill-me"   # expands and runs
 ```
 
-Claude skills loaded into Pi unmodified, with no format changes.
+Claude skills and commands load into Pi unmodified, with no format changes.
+The third check is the end-to-end one: invoking the real ported `/grill-me`
+as a slash command expanded its body and the model acted on it, so these are
+working commands under Pi and not merely files Pi tolerates.
 
 ## Adding a skill or prompt
 
