@@ -14,6 +14,7 @@ in
     ./programs/cmux.nix
     ./programs/omniwm.nix
     ./programs/sketchybar.nix
+    ./programs/wallspace.nix
     ./programs/just.nix
     ./programs/zellij.nix
     ./programs/tmux.nix
