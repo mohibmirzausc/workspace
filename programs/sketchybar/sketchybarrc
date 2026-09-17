@@ -225,12 +225,15 @@ sketchybar --add item win.driver left \
 # macOS menu-bar status extras (see the add_extra block below).
 # Marks this corner item as a menu that opens a popup.
 #
-# ASCII, not the nf-fa-chevron_down glyph. Switching the bar to a Nerd Font
-# did NOT fix the load-time PUA problem -- U+F078 still renders as the
-# literal 6-character text "\uf078" (confirmed on screen). Note that
-# `sketchybar --query` reports it back as an escaped string either way, so
-# the query is not evidence of rendering; only the rendered bar is.
-APPS_ICON="v"
+# Written as RAW UTF-8 BYTES, not $'\uf078'. Apple ships bash 3.2.57, which
+# predates the \u escape (bash 4.2) and passes it through as literal text --
+# THAT was the real cause of the long-running "\uf078 shows as text" bug, not
+# anything about fonts, locale or sketchybar's config-load path.
+#
+# Verification trap: `sketchybar --query` re-escapes a PUA value as "\uf078"
+# in its JSON, and json.loads decodes it back to one codepoint, so a broken
+# value inspects as correct. Check raw bytes, or look at the bar.
+APPS_ICON=$'\xef\x81\xb8'   # nf-fa-chevron_down U+F078
 sketchybar --add item apps right \
   --set apps \
   icon="$APPS_ICON" \

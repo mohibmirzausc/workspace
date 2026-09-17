@@ -24,12 +24,12 @@ echo "$info" | grep -q "AC Power" && charging="yes"
 # passes \U through as literal text, so an nf-md glyph came out as the
 # 10-character string "\U000f0080" and even corrupted `sketchybar --query`
 # output into invalid JSON. Anything above U+FFFF is unreachable from here.
-if [ -n "$charging" ]; then icon=$'\uf0e7'          # bolt
-elif [ "$pct" -ge 88 ]; then icon=$'\uf240'         # battery-full
-elif [ "$pct" -ge 63 ]; then icon=$'\uf241'         # three-quarters
-elif [ "$pct" -ge 38 ]; then icon=$'\uf242'         # half
-elif [ "$pct" -ge 13 ]; then icon=$'\uf243'         # quarter
-else icon=$'\uf244'; fi                             # empty
+if [ -n "$charging" ]; then icon=$'\xef\x83\xa7'          # bolt
+elif [ "$pct" -ge 88 ]; then icon=$'\xef\x89\x80'         # battery-full
+elif [ "$pct" -ge 63 ]; then icon=$'\xef\x89\x81'         # three-quarters
+elif [ "$pct" -ge 38 ]; then icon=$'\xef\x89\x82'         # half
+elif [ "$pct" -ge 13 ]; then icon=$'\xef\x89\x83'         # quarter
+else icon=$'\xef\x89\x84'; fi                             # empty
 
 # Colour carries urgency; the glyph carries level.
 color="${COLOR_LAVENDER:-0xffb4befe}"
