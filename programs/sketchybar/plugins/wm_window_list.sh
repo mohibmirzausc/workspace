@@ -29,6 +29,14 @@ MAXW="${WM_WIN_MAX:-3}"
 case "$MAXW" in (*[!0-9]*|'') MAXW=3 ;; esac
 [ "$MAXW" -lt 1 ] && MAXW=1
 [ "$MAXW" -gt 4 ] && MAXW=4
+
+# How many win.N items the RUNNING bar actually has. Asked rather than
+# assumed, because it can legitimately differ from MAXW -- sketchybarrc built
+# them from whatever WM_WIN_MAX was set when the bar last loaded. Used only to
+# bound the hide loops; `--set` on a missing item logs an error every render.
+SLOTS=$(sketchybar --query bar 2>/dev/null \
+  | grep -c '"win\.[0-9]*"' 2>/dev/null || echo "$MAXW")
+case "$SLOTS" in (*[!0-9]*|''|0) SLOTS="$MAXW" ;; esac
 # No FG here: pills are either focused (ONACC on an ACC background) or
 # unfocused (DIM), so the normal foreground colour is never used. Nor
 # APPFONT -- the app-icon glyph was dropped when the pill started showing
@@ -69,9 +77,9 @@ hide_all() {
   local i
   sketchybar --set win.lell drawing=off >/dev/null 2>&1
   local i=0
-  while [ "$i" -lt 4 ]; do   # 4 = the clamp ceiling; clearing a
-    sketchybar --set "win.$i" drawing=off >/dev/null 2>&1  # nonexistent item
-    i=$((i+1))                                             # is a harmless no-op
+  while [ "$i" -lt "$SLOTS" ]; do
+    sketchybar --set "win.$i" drawing=off >/dev/null 2>&1
+    i=$((i+1))
   done
   sketchybar --set win.rell drawing=off >/dev/null 2>&1
   sketchybar --set window_group background.drawing=off >/dev/null 2>&1
@@ -263,9 +271,13 @@ PY
   # from the same variable, so normally there are none -- but a plugin run
   # with a smaller WM_WIN_MAX than the bar was loaded with (a hand-run, or an
   # agent env edited without restarting sketchybar) would otherwise leave the
-  # extra pills drawn with stale contents. Setting a nonexistent item is a
-  # harmless no-op, so the ceiling can be fixed at the clamp maximum.
-  while [ "$k" -lt 4 ]; do
+  # extra pills drawn with stale contents.
+  #
+  # Bounded by the items that ACTUALLY EXIST, not by the clamp ceiling:
+  # `--set` on a missing item is NOT a silent no-op, it logs
+  # "Set: Item not found 'win.N'" on every render. $SLOTS is discovered once
+  # from the bar itself rather than assumed.
+  while [ "$k" -lt "$SLOTS" ]; do
     sketchybar --set "win.$k" drawing=off >/dev/null 2>&1
     k=$((k+1))
   done
