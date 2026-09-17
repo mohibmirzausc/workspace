@@ -144,7 +144,35 @@ def wsname(w):
 cur = next((wsname(w) for w in ws if w.get('isFocused')), None)
 if cur is None:
     sys.exit(0)
-cw = [w for w in ws if wsname(w) == cur]
+
+# Workspace membership is NOT enough: a window sent to a scratchpad keeps the
+# workspace it came from, so it kept appearing as a pill for a window that is
+# not on screen. OmniWM reports these as
+#   isScratchpad=true, isVisible=false, hiddenReason="scratchpad"
+#
+# Filter on isVisible rather than isScratchpad -- it is the more general
+# property and covers every not-on-screen case with one test. Observed
+# hiddenReason values across all windows here: "scratchpad" (2),
+# "workspace-inactive" (4), None (3), and isVisible=false lines up exactly
+# with the first two.
+#
+# `is not False` rather than a truthiness check on purpose: if a future
+# OmniWM omits the field, absent should mean "show it" rather than silently
+# emptying the island.
+cw = [w for w in ws
+      if wsname(w) == cur and w.get('isVisible') is not False]
+
+# Never let the filter empty the island out from under the focused window.
+# If focus is on something the visibility test rejected -- e.g. a scratchpad
+# toggled open, if OmniWM ever reports one as isVisible=false while focused --
+# fall back to showing it, since a pill for the window you are typing in is
+# strictly more useful than an empty island. Could not reproduce that state
+# via `omniwmctl command toggle-scratchpad` here, so this is a guard rather
+# than a fix for an observed bug.
+if not any(w.get('isFocused') for w in cw):
+    focused = [w for w in ws if w.get('isFocused')]
+    if focused:
+        cw = focused
 def pos(w):
     f = w.get('frame') or {}
     return (f.get('x', 0), f.get('y', 0), str(w.get('id', '')))
