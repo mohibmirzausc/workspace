@@ -43,15 +43,27 @@ let
     # a pixel font at all. So the bar's "bold" weight is Regular here.
     # Switching back to JetBrainsMono? Set this to "Bold".
     WM_BAR_FONT_BOLD = "Regular";
-    # ONE window pill (the focused window) to start; widen to 2 later if the
-    # room is there. Upstream defaults to 3.
+    # How many window pills the island shows, and how wide each may get.
+    # sketchybarrc creates exactly this many win.N items and
+    # wm_window_list.sh clamps itself to the same value, so this is the only
+    # place to change it.
     #
-    # The constraint is the notch, measured at 663pt from the left edge on this
-    # 1512pt panel. notch_width does NOT solve this: it reserves the centre for
-    # CENTER-anchored items, while left-anchored items flow rightward straight
-    # past the reservation. So the left side has to be narrow by construction.
-    # With 3 pills the island spanned 282-701, i.e. 38pt under the notch.
-    WM_WIN_MAX = "1";
+    # THE CONSTRAINT IS THE NOTCH, and it is arithmetic rather than taste.
+    # notch_width does not help: it reserves the centre for CENTRE-anchored
+    # items, while left-anchored items flow rightward straight past the
+    # reservation. Measured on this 1512pt panel -- notch left edge at 663pt,
+    # workspace island ~99pt, inter-island gap 16pt -- about 544pt is free.
+    # A pill costs (max_chars * 8.27) + 18pt, where 8.27pt is the measured
+    # advance of one DepartureMono glyph at 13pt:
+    #
+    #   16 chars x 3 pills -> ~463pt   fits comfortably
+    #   18 chars x 3 pills -> ~513pt   fits, tight
+    #   20 chars x 3 pills -> ~562pt   runs under the notch
+    #
+    # This was "1" while pills read "App - Title" at max_chars=28, where even
+    # two would not fit. They now show just the session name, so three fit.
+    WM_WIN_MAX = "3";
+    WM_WIN_CHARS = "16";
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
     COLOR_DIM = "0xff7f849c";

@@ -186,13 +186,38 @@ sketchybar --add item win.lell left \
   label.padding_left=6 label.padding_right=6 background.drawing=off \
   click_script="omniwmctl command focus left"
 
-for i in 0 1 2; do
+# SLOT COUNT LIVES HERE, once. wm_window_list.sh reads the same WM_WIN_MAX and
+# clamps itself to it, so this is the only number to change -- previously the
+# count was hardcoded as `0 1 2` in three places (here, the bracket below, and
+# two loops in the plugin), and raising WM_WIN_MAX past 3 silently dropped
+# windows AND hid the overflow indicator.
+#
+# WIDTH BUDGET (the real constraint is the notch, not taste). Measured on this
+# 1512pt panel: notch left edge at 663pt, workspace island ~99pt, gap 16pt,
+# leaving ~544pt. One pill costs (max_chars * 8.27) + 18pt of chrome, where
+# 8.27pt is the measured advance of a DepartureMono glyph at 13pt. So:
+#
+#   max_chars=16, 3 pills -> ~463pt   fits, with room to spare
+#   max_chars=18, 3 pills -> ~513pt   fits, tight
+#   max_chars=20, 3 pills -> ~562pt   RUNS UNDER THE NOTCH
+#
+# An earlier note here said 3 pills could not fit. That was true when pills
+# read "App - Title" at max_chars=28; they now show just the session name.
+WIN_SLOTS="${WM_WIN_MAX:-3}"
+case "$WIN_SLOTS" in (*[!0-9]*|'') WIN_SLOTS=3 ;; esac
+[ "$WIN_SLOTS" -lt 1 ] && WIN_SLOTS=1
+[ "$WIN_SLOTS" -gt 4 ] && WIN_SLOTS=4
+
+WIN_ITEMS=""
+i=0
+while [ "$i" -lt "$WIN_SLOTS" ]; do
   sketchybar --add item "win.$i" left \
     --set "win.$i" drawing=off \
-    icon.font="sketchybar-app-font:Regular:12.0" icon.padding_left=8 icon.padding_right=4 \
-    label.max_chars=28 label.padding_left=6 label.padding_right=6 \
+    label.max_chars="${WM_WIN_CHARS:-16}" label.padding_left=6 label.padding_right=6 \
     background.height=26 background.corner_radius=5 \
     background.padding_left=3 background.padding_right=3
+  WIN_ITEMS="$WIN_ITEMS win.$i"
+  i=$((i+1))
 done
 
 sketchybar --add item win.rell left \
@@ -200,7 +225,8 @@ sketchybar --add item win.rell left \
   label.padding_left=6 label.padding_right=6 background.drawing=off \
   click_script="omniwmctl command focus right"
 
-sketchybar --add bracket window_group win.lell win.0 win.1 win.2 win.rell \
+# shellcheck disable=SC2086  # $WIN_ITEMS is an intentional word list
+sketchybar --add bracket window_group win.lell $WIN_ITEMS win.rell \
   --set window_group background.drawing=off background.color="$COLOR_BG" \
   background.corner_radius=6 background.height=30
 

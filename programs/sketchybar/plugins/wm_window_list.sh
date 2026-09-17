@@ -18,15 +18,17 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 CACHE="$HOME/.cache/sketchybar"; LOCK="$CACHE/win.lock"; PENDING="$CACHE/win.pending"
 mkdir -p "$CACHE"
-# Clamp to the number of pre-created win.N items (win.0..2 in sketchybarrc).
-# Without this, WM_WIN_MAX=4 is silently WORSE than 3, not just capped: the
-# sliding window computes a 4-wide range, only 3 slots get written, and
-# `right_more` is derived from `end < n` -- which with end=4,n=4 is false, so
-# the overflow "..." is hidden too. A window disappears with no indicator.
+# Slot count. sketchybarrc creates win.0..N-1 from this SAME variable with the
+# same clamp, so the two cannot drift -- which they did when both hardcoded
+# `0 1 2`: raising WM_WIN_MAX past the created slots silently dropped windows
+# AND hid the overflow "..." (right_more is `end < n`, which came out false).
+#
+# The ceiling is a width limit, not an arbitrary one: past ~4 pills the island
+# reaches the notch at 663pt on this panel. See the budget in sketchybarrc.
 MAXW="${WM_WIN_MAX:-3}"
 case "$MAXW" in (*[!0-9]*|'') MAXW=3 ;; esac
 [ "$MAXW" -lt 1 ] && MAXW=1
-[ "$MAXW" -gt 3 ] && MAXW=3
+[ "$MAXW" -gt 4 ] && MAXW=4
 # No FG here: pills are either focused (ONACC on an ACC background) or
 # unfocused (DIM), so the normal foreground colour is never used. Nor
 # APPFONT -- the app-icon glyph was dropped when the pill started showing
@@ -66,7 +68,11 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM HUP
 hide_all() {
   local i
   sketchybar --set win.lell drawing=off >/dev/null 2>&1
-  for i in 0 1 2; do sketchybar --set "win.$i" drawing=off >/dev/null 2>&1; done
+  local i=0
+  while [ "$i" -lt 4 ]; do   # 4 = the clamp ceiling; clearing a
+    sketchybar --set "win.$i" drawing=off >/dev/null 2>&1  # nonexistent item
+    i=$((i+1))                                             # is a harmless no-op
+  done
   sketchybar --set win.rell drawing=off >/dev/null 2>&1
   sketchybar --set window_group background.drawing=off >/dev/null 2>&1
 }
@@ -218,12 +224,15 @@ PY
   sketchybar --set window_group background.drawing=on background.color="$BG" >/dev/null 2>&1
   [ "$left_more" = "1" ] && sketchybar --set win.lell drawing=on >/dev/null 2>&1 || sketchybar --set win.lell drawing=off >/dev/null 2>&1
 
-  local k j slice=$(( end - start ))
-  for k in 0 1 2; do
+  local j slice=$(( end - start ))
+  local k=0
+  while [ "$k" -lt "$MAXW" ]; do
     j=$(( start + k ))
     if [ "$k" -lt "$slice" ] && [ "$j" -lt "$n" ]; then
-      icon_result=":default:"; __icon_map "${apps[$j]}"
-      case "${apps[$j]}" in cmux) icon_result=":terminal:" ;; Zen) icon_result=":firefox:" ;; esac
+      # No icon lookup: pills set icon.drawing=off below and show the
+      # session name instead, so the sketchybar-app-font ligature map is
+      # not consulted. (icon_map.sh is still sourced at the top for any
+      # future use, but nothing here calls __icon_map.)
       # The SESSION/window title alone -- no "App - " prefix. The title is
       # what distinguishes one window from another; the app name is the same
       # across every cmux pill and just eats characters.
@@ -247,6 +256,18 @@ PY
     else
       sketchybar --set "win.$k" drawing=off >/dev/null 2>&1
     fi
+    k=$((k+1))
+  done
+
+  # Hide any slot ABOVE the current MAXW. sketchybarrc creates win.0..MAXW-1
+  # from the same variable, so normally there are none -- but a plugin run
+  # with a smaller WM_WIN_MAX than the bar was loaded with (a hand-run, or an
+  # agent env edited without restarting sketchybar) would otherwise leave the
+  # extra pills drawn with stale contents. Setting a nonexistent item is a
+  # harmless no-op, so the ceiling can be fixed at the clamp maximum.
+  while [ "$k" -lt 4 ]; do
+    sketchybar --set "win.$k" drawing=off >/dev/null 2>&1
+    k=$((k+1))
   done
 
   [ "$right_more" = "1" ] && sketchybar --set win.rell drawing=on >/dev/null 2>&1 || sketchybar --set win.rell drawing=off >/dev/null 2>&1
