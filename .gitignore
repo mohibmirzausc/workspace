@@ -1,3 +1,11 @@
 result
 .worktrees/
 .DS_Store
+
+# Playwright MCP writes per-session page snapshots and console logs here.
+# They are debugging artifacts of an agent session, not config -- three of
+# them were committed by accident in the sketchybar branch via `git add -A`.
+.playwright-mcp/
+
+# Scratch output from the intake-form skill.
+intake-form.png

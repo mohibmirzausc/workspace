@@ -225,6 +225,15 @@ case "$backend" in
           ( [ $ws.windows[]? | .windowCount // 1 ] | add // 0 ) as $count |
           ( [ $ws.windows[]? | select(.isFocused) ][0] ) as $focused |
           emit("wm_workspace_changed"; $name; $count; null; null),
+          # Also emit wm_windows_changed. sketchybarrc subscribes win.driver
+          # to it, but this branch previously only sent workspace/focus, so
+          # that subscription was inert for the one backend actually in use.
+          # It was masked because opening or closing a window usually moves
+          # focus too -- the gap showed up for changes that do NOT alter
+          # focus, e.g. closing a background window or a resize that
+          # reorders the pills. workspace-bar fires on any of these, so the
+          # count is already correct here.
+          emit("wm_windows_changed"; $name; $count; null; null),
           ( if $focused == null then empty else
               emit("wm_focus_changed"; $name; null;
                    $focused.appName // $focused.bundleId;

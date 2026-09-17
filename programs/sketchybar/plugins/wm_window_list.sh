@@ -18,11 +18,33 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 CACHE="$HOME/.cache/sketchybar"; LOCK="$CACHE/win.lock"; PENDING="$CACHE/win.pending"
 mkdir -p "$CACHE"
+# Slot count. sketchybarrc creates win.0..N-1 from this SAME variable with the
+# same clamp, so the two cannot drift -- which they did when both hardcoded
+# `0 1 2`: raising WM_WIN_MAX past the created slots silently dropped windows
+# AND hid the overflow "..." (right_more is `end < n`, which came out false).
+#
+# The ceiling is a width limit, not an arbitrary one: past ~4 pills the island
+# reaches the notch at 663pt on this panel. See the budget in sketchybarrc.
 MAXW="${WM_WIN_MAX:-3}"
-FG="${COLOR_FG:-0xffcdd6f4}"; DIM="${COLOR_DIM:-0xff7f849c}"
+case "$MAXW" in (*[!0-9]*|'') MAXW=3 ;; esac
+[ "$MAXW" -lt 1 ] && MAXW=1
+[ "$MAXW" -gt 4 ] && MAXW=4
+
+# How many win.N items the RUNNING bar actually has. Asked rather than
+# assumed, because it can legitimately differ from MAXW -- sketchybarrc built
+# them from whatever WM_WIN_MAX was set when the bar last loaded. Used only to
+# bound the hide loops; `--set` on a missing item logs an error every render.
+SLOTS=$(sketchybar --query bar 2>/dev/null \
+  | grep -c '"win\.[0-9]*"' 2>/dev/null || echo "$MAXW")
+case "$SLOTS" in (*[!0-9]*|''|0) SLOTS="$MAXW" ;; esac
+# No FG here: pills are either focused (ONACC on an ACC background) or
+# unfocused (DIM), so the normal foreground colour is never used. Nor
+# APPFONT -- the app-icon glyph was dropped when the pill started showing
+# the session name, so the pills set icon.drawing=off and the label font
+# comes from sketchybarrc's --default.
+DIM="${COLOR_DIM:-0xff7f849c}"
 ACC="${COLOR_ACCENT:-0xffcba6f7}"; ONACC="${COLOR_ON_ACCENT:-0xff1e1e2e}"
 BG="${COLOR_BG:-0xee1e1e2e}"; FONT="${WM_BAR_FONT:-Menlo}"
-APPFONT="sketchybar-app-font:Regular:12.0"
 # Built from helpers/window-titles.swift by a home-manager activation script.
 CGTITLES="${CGTITLES_BIN:-$HOME/.config/sketchybar/helpers/window-titles}"
 
@@ -54,7 +76,11 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM HUP
 hide_all() {
   local i
   sketchybar --set win.lell drawing=off >/dev/null 2>&1
-  for i in 0 1 2; do sketchybar --set "win.$i" drawing=off >/dev/null 2>&1; done
+  local i=0
+  while [ "$i" -lt "$SLOTS" ]; do
+    sketchybar --set "win.$i" drawing=off >/dev/null 2>&1
+    i=$((i+1))
+  done
   sketchybar --set win.rell drawing=off >/dev/null 2>&1
   sketchybar --set window_group background.drawing=off >/dev/null 2>&1
 }
@@ -118,7 +144,35 @@ def wsname(w):
 cur = next((wsname(w) for w in ws if w.get('isFocused')), None)
 if cur is None:
     sys.exit(0)
-cw = [w for w in ws if wsname(w) == cur]
+
+# Workspace membership is NOT enough: a window sent to a scratchpad keeps the
+# workspace it came from, so it kept appearing as a pill for a window that is
+# not on screen. OmniWM reports these as
+#   isScratchpad=true, isVisible=false, hiddenReason="scratchpad"
+#
+# Filter on isVisible rather than isScratchpad -- it is the more general
+# property and covers every not-on-screen case with one test. Observed
+# hiddenReason values across all windows here: "scratchpad" (2),
+# "workspace-inactive" (4), None (3), and isVisible=false lines up exactly
+# with the first two.
+#
+# `is not False` rather than a truthiness check on purpose: if a future
+# OmniWM omits the field, absent should mean "show it" rather than silently
+# emptying the island.
+cw = [w for w in ws
+      if wsname(w) == cur and w.get('isVisible') is not False]
+
+# Never let the filter empty the island out from under the focused window.
+# If focus is on something the visibility test rejected -- e.g. a scratchpad
+# toggled open, if OmniWM ever reports one as isVisible=false while focused --
+# fall back to showing it, since a pill for the window you are typing in is
+# strictly more useful than an empty island. Could not reproduce that state
+# via `omniwmctl command toggle-scratchpad` here, so this is a guard rather
+# than a fix for an observed bug.
+if not any(w.get('isFocused') for w in cw):
+    focused = [w for w in ws if w.get('isFocused')]
+    if focused:
+        cw = focused
 def pos(w):
     f = w.get('frame') or {}
     return (f.get('x', 0), f.get('y', 0), str(w.get('id', '')))
@@ -206,12 +260,15 @@ PY
   sketchybar --set window_group background.drawing=on background.color="$BG" >/dev/null 2>&1
   [ "$left_more" = "1" ] && sketchybar --set win.lell drawing=on >/dev/null 2>&1 || sketchybar --set win.lell drawing=off >/dev/null 2>&1
 
-  local k j slice=$(( end - start ))
-  for k in 0 1 2; do
+  local j slice=$(( end - start ))
+  local k=0
+  while [ "$k" -lt "$MAXW" ]; do
     j=$(( start + k ))
     if [ "$k" -lt "$slice" ] && [ "$j" -lt "$n" ]; then
-      icon_result=":default:"; __icon_map "${apps[$j]}"
-      case "${apps[$j]}" in cmux) icon_result=":terminal:" ;; Zen) icon_result=":firefox:" ;; esac
+      # No icon lookup: pills set icon.drawing=off below and show the
+      # session name instead, so the sketchybar-app-font ligature map is
+      # not consulted. (icon_map.sh is still sourced at the top for any
+      # future use, but nothing here calls __icon_map.)
       # The SESSION/window title alone -- no "App - " prefix. The title is
       # what distinguishes one window from another; the app name is the same
       # across every cmux pill and just eats characters.
@@ -235,6 +292,22 @@ PY
     else
       sketchybar --set "win.$k" drawing=off >/dev/null 2>&1
     fi
+    k=$((k+1))
+  done
+
+  # Hide any slot ABOVE the current MAXW. sketchybarrc creates win.0..MAXW-1
+  # from the same variable, so normally there are none -- but a plugin run
+  # with a smaller WM_WIN_MAX than the bar was loaded with (a hand-run, or an
+  # agent env edited without restarting sketchybar) would otherwise leave the
+  # extra pills drawn with stale contents.
+  #
+  # Bounded by the items that ACTUALLY EXIST, not by the clamp ceiling:
+  # `--set` on a missing item is NOT a silent no-op, it logs
+  # "Set: Item not found 'win.N'" on every render. $SLOTS is discovered once
+  # from the bar itself rather than assumed.
+  while [ "$k" -lt "$SLOTS" ]; do
+    sketchybar --set "win.$k" drawing=off >/dev/null 2>&1
+    k=$((k+1))
   done
 
   [ "$right_more" = "1" ] && sketchybar --set win.rell drawing=on >/dev/null 2>&1 || sketchybar --set win.rell drawing=off >/dev/null 2>&1
