@@ -515,6 +515,38 @@ in
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
       "ticktick"
       "finetune"
+      # Animated desktop wallpaper from a local video file.
+      #
+      # Chosen over the open-source alternatives because it is the only one
+      # that pauses itself. Verified in the shipped binary:
+      #   windowDidChangeOcclusionState        stop rendering when covered
+      #   autoPauseOnBatteryBelow20Percent
+      #   autoPauseOnLowPowerMode
+      # That matters on a laptop -- a 60fps H.264 loop is cheap on the M4's
+      # media engine (measured ~3.6% CPU via a tuned mpv, hardware-decoded)
+      # but not free.
+      #
+      # NOTE the wallpaper IS visible through the terminals even with windows
+      # tiled edge-to-edge, because ghostty's background-opacity = 0.9 gives
+      # its framebuffer per-pixel alpha and the window server composites the
+      # desktop beneath it. Do not be misled by kCGWindowAlpha reading 1.0 --
+      # that is the whole-window opacity multiplier, a different thing, and
+      # reasoning from it led to the wrong conclusion here. Verified by
+      # setting a magenta wallpaper and watching it bleed through a terminal.
+      #
+      # So the occlusion pause does NOT make this invisible-and-free; expect
+      # to actually pay some CPU while a translucent window is on screen.
+      #
+      # Own-video import is FREE (CustomWallpapersService, no paywall on that
+      # path). Pro ($12.99) gates their wallpaper GALLERY, 4K gallery
+      # downloads and lock-screen wallpapers -- none of which this needs.
+      #
+      # Signed and notarized, unlike the DIY options: Developer ID
+      # "Harsh Jadon (2RW5RZ6S29)", hardened runtime on, spctl accepts it,
+      # and the download's sha256 matches the cask pin.
+      #
+      # auto_updates upstream, so brew bundle defers to the app's own updater.
+      "wallspace"
     ];
   };
 
