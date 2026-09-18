@@ -53,7 +53,9 @@ Pi enforces this and silently **skips** a skill without it — no warning, the
 skill is simply absent. Claude Code is more lenient and will list a skill
 that has none, so a skill can work in Claude and be invisible in Pi.
 
-`nelson` hit exactly this and was fixed when the port exposed it. To audit:
+The `nelson` skill hit exactly this — it worked in Claude and was silently
+missing in Pi, which is how the rule was discovered. (That skill has since
+been removed as unused.) To audit the rest:
 
 ```bash
 for d in programs/agents/skills/*/; do

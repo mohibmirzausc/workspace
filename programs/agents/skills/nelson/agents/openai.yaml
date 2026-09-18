@@ -1,4 +1,0 @@
-interface:
-  display_name: "Nelson"
-  short_description: "England expects every agent to do its duty"
-  default_prompt: "Use $nelson to run a Royal Navy agent mission with sailing orders, action stations, and a captain's log."
