@@ -16,6 +16,7 @@ in
     ./programs/borders.nix
     ./programs/sketchybar.nix
     ./programs/wallspace.nix
+    ./programs/voiceink.nix
     ./programs/just.nix
     ./programs/zellij.nix
     ./programs/tmux.nix
