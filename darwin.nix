@@ -11,9 +11,10 @@ let
   # (sketchybar, omniwmctl) and jq, and plugin scripts are spawned by the
   # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
   # palette, read by both sketchybarrc and the plugins.
-  # JankyBorders geometry and colours. Shared by sketchybarEnv (so the
-  # scratchpad recolour hook uses the same values) and by
-  # launchd.user.agents.borders (which starts the process with them).
+  # JankyBorders geometry and colours, exported through sketchybarEnv below.
+  # Both consumers read them from there: sketchybarrc (which spawns the
+  # process) and the scratchpad recolour hook (which pushes a new colour), so
+  # the two can never disagree about what mauve-vs-yellow means.
   #
   # The visible stroke is roughly HALF of width, centred on the window edge:
   # at 8.0 it measured 755.0 -> 759.0pt for a window edge at x=756, so ~1pt
@@ -87,12 +88,15 @@ let
     # correctly no matter what order the accounts were signed in.
     WM_MEETING_CAL = "mechanical-orchard.com";
     WM_CAL_URL = "https://calendar.google.com/calendar/u/0/r/day?authuser=mohib.mirza@mechanical-orchard.com";
-    # Absolute path: `borders` is a Nix package, and sketchybarEnv's PATH
-    # deliberately does not include the profile bin dir, so the recolour hook
-    # could not find it by name.
+    # JankyBorders. Absolute path because `borders` is a Nix package and this
+    # PATH deliberately omits the profile bin dir.
+    #
+    # There is no launchd agent for it: sketchybarrc spawns it at the end of
+    # its own startup, so it lives and dies with the bar rather than adding a
+    # second org.nixos.* plist. Everything it needs is therefore exported
+    # here, since sketchybarrc and the recolour hook both read this env.
     WM_BORDERS_BIN = "${pkgs.jankyborders}/bin/borders";
-    # Same bindings the agent below is built from, so the hook can never push
-    # a colour the agent did not start with.
+    WM_BORDER_WIDTH = bordersWidth;
     WM_BORDER_COLOR = bordersActive;
     WM_BORDER_COLOR_SCRATCH = bordersScratch;
 
@@ -655,30 +659,6 @@ in
   # Defined here rather than in that module because home-manager's
   # launchd.agents produced no plist in this setup, while nix-darwin's
   # launchd.user.agents is what installs every other agent on this machine.
-  launchd.user.agents.borders = {
-    serviceConfig = {
-      ProgramArguments = [
-        "${pkgs.jankyborders}/bin/borders"
-        "width=${bordersWidth}"
-        "style=round"
-        "active_color=${bordersActive}"
-        # Transparent, i.e. no border on unfocused windows. JankyBorders draws
-        # those by default, but a border on every window competes with the
-        # bar's focus pill for the same job.
-        "inactive_color=0x00000000"
-        # Above the window, so the stroke shows over app content instead of
-        # being clipped at the window edge.
-        "order=above"
-        # Retina-correct stroke; without this the line is visibly soft at 2x.
-        "hidpi=on"
-      ];
-      RunAtLoad = true;
-      KeepAlive = true;
-      StandardOutPath = "${home}/Library/Logs/borders.log";
-      StandardErrorPath = "${home}/Library/Logs/borders.log";
-    };
-  };
-
   # Used for backwards compatibility, please read the changelog before changing
   # $ darwin-rebuild changelog
   system.stateVersion = 5;

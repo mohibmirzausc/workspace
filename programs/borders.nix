@@ -60,18 +60,16 @@
 
   home.packages = lib.mkIf pkgs.stdenv.isDarwin [ pkgs.jankyborders ];
 
-  # WHERE THE REST OF THIS LIVES: darwin.nix, not here. The launchd agent is
-  # launchd.user.agents.borders, and the width/colour values are in
-  # sketchybarEnv next to it. Two reasons they are not in this file:
+  # NO LAUNCHD AGENT FOR THIS, on purpose. `borders` is a daemon and would
+  # normally get its own agent, but that means a second org.nixos.* plist on
+  # an MDM-managed machine. Instead the end of sketchybarrc spawns it, so it
+  # lives and dies with the bar and adds nothing new to audit.
   #
-  #   1. home-manager's launchd.agents option produced no plist in this setup
-  #      -- every agent on this machine is an org.nixos.* one from nix-darwin
-  #      -- so the agent is defined alongside sketchybar's.
-  #   2. The recolour hook runs as a sketchybar child and inherits only that
-  #      agent's environment, so the colours have to be in sketchybarEnv
-  #      anyway. Defining them here too would be two sources of truth for one
-  #      colour.
+  # The tradeoff, stated plainly: no KeepAlive. If `borders` crashes it stays
+  # dead until the bar restarts, whereas launchd would have revived it. That
+  # was the accepted cost of not adding a plist.
   #
-  # This module therefore owns the package and the hook; darwin.nix owns the
-  # agent and the values.
+  # Its width and colours live in sketchybarEnv (darwin.nix) rather than here,
+  # because both consumers -- the spawn in sketchybarrc and the recolour hook
+  # below -- run under the sketchybar agent and read only that environment.
 }

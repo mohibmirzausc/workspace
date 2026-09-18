@@ -384,4 +384,30 @@ sketchybar --update
 rm -rf "$HOME/.cache/sketchybar/win.lock" "$HOME/.cache/sketchybar/win.pending"
 "$PLUGINS/wm_window_list.sh" &
 
+# JankyBorders -- the coloured border on the focused window.
+#
+# Spawned here rather than from its own launchd agent, deliberately: it then
+# lives and dies with the bar and adds no second org.nixos.* plist. The
+# tradeoff is that there is no KeepAlive, so a crash stays dead until the
+# next bar restart, and reloading the bar restarts the border too.
+#
+# Killed first because this file re-runs on every bar reload, and a second
+# `borders` would not start cleanly alongside the first. pkill is matched on
+# the absolute path so it cannot hit an unrelated process named "borders".
+#
+# Backgrounded and disowned: borders never exits, so running it in the
+# foreground would hang the rest of this config.
+if [ -n "${WM_BORDERS_BIN:-}" ] && [ -x "$WM_BORDERS_BIN" ]; then
+  pkill -f "^$WM_BORDERS_BIN" 2>/dev/null
+  "$WM_BORDERS_BIN" \
+    width="${WM_BORDER_WIDTH:-8.0}" \
+    style=round \
+    active_color="${WM_BORDER_COLOR:-0xffcba6f7}" \
+    inactive_color=0x00000000 \
+    order=above \
+    hidpi=on \
+    >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+fi
+
 echo "sketchybar config loaded (CONFIG_DIR=$CONFIG_DIR)"
