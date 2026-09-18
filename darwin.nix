@@ -11,15 +11,9 @@ let
   # (sketchybar, omniwmctl) and jq, and plugin scripts are spawned by the
   # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
   # palette, read by both sketchybarrc and the plugins.
-  # JankyBorders geometry and colours, exported through sketchybarEnv below.
-  # Both consumers read them from there: sketchybarrc (which spawns the
-  # process) and the scratchpad recolour hook (which pushes a new colour), so
-  # the two can never disagree about what mauve-vs-yellow means.
-  #
-  # The visible stroke is roughly HALF of width, centred on the window edge:
-  # at 8.0 it measured 755.0 -> 759.0pt for a window edge at x=756, so ~1pt
-  # outside and ~3pt over app content. Much thicker starts covering real
-  # content (terminal text, tab bars) rather than reading as a border.
+  # JankyBorders, exported via sketchybarEnv so the spawn in sketchybarrc and
+  # the recolour hook cannot disagree. The visible stroke is ~half of width,
+  # centred on the window edge; much thicker covers real content.
   bordersWidth = "8.0";
   bordersActive = "0xffcba6f7";   # mauve, = COLOR_ACCENT below
   bordersScratch = "0xfff9e2af";  # yellow, = COLOR_YELLOW below
@@ -88,13 +82,8 @@ let
     # correctly no matter what order the accounts were signed in.
     WM_MEETING_CAL = "mechanical-orchard.com";
     WM_CAL_URL = "https://calendar.google.com/calendar/u/0/r/day?authuser=mohib.mirza@mechanical-orchard.com";
-    # JankyBorders. Absolute path because `borders` is a Nix package and this
-    # PATH deliberately omits the profile bin dir.
-    #
-    # There is no launchd agent for it: sketchybarrc spawns it at the end of
-    # its own startup, so it lives and dies with the bar rather than adding a
-    # second org.nixos.* plist. Everything it needs is therefore exported
-    # here, since sketchybarrc and the recolour hook both read this env.
+    # Absolute path because `borders` is a Nix package and this PATH omits the
+    # profile bin dir. No launchd agent -- sketchybarrc spawns it.
     WM_BORDERS_BIN = "${pkgs.jankyborders}/bin/borders";
     WM_BORDER_WIDTH = bordersWidth;
     WM_BORDER_COLOR = bordersActive;
