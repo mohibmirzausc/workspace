@@ -235,6 +235,18 @@ sketchybar --add item win.driver left \
   script="$PLUGINS/wm_window_list.sh" \
   --subscribe win.driver wm_windows_changed wm_focus_changed wm_workspace_changed
 
+# Recolour the JankyBorders focus border when the focused window is a
+# scratchpad. Invisible driver item, same pattern as win.driver above: this
+# renders nothing, it just needs somewhere to hang a focus-change hook.
+# Skipped entirely if the borders config is not installed, so the bar still
+# starts on a machine without programs/borders.nix applied.
+if [ -x "$HOME/.config/borders/scratchpad-color.sh" ]; then
+  sketchybar --add item borders.driver left \
+    --set borders.driver drawing=off updates=on \
+    script="$HOME/.config/borders/scratchpad-color.sh" \
+    --subscribe borders.driver wm_focus_changed wm_workspace_changed
+fi
+
 # ---------------------------------------------------------------------------
 # Right side. sketchybar lays right-anchored items out right-to-left in the
 # order added, so add edge-inward: apps (far-right corner), battery, time,

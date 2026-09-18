@@ -13,6 +13,7 @@ in
     ./programs/ghostty.nix
     ./programs/cmux.nix
     ./programs/omniwm.nix
+    ./programs/borders.nix
     ./programs/sketchybar.nix
     ./programs/wallspace.nix
     ./programs/just.nix

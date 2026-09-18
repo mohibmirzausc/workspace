@@ -11,6 +11,18 @@ let
   # (sketchybar, omniwmctl) and jq, and plugin scripts are spawned by the
   # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
   # palette, read by both sketchybarrc and the plugins.
+  # JankyBorders geometry and colours. Shared by sketchybarEnv (so the
+  # scratchpad recolour hook uses the same values) and by
+  # launchd.user.agents.borders (which starts the process with them).
+  #
+  # The visible stroke is roughly HALF of width, centred on the window edge:
+  # at 8.0 it measured 755.0 -> 759.0pt for a window edge at x=756, so ~1pt
+  # outside and ~3pt over app content. Much thicker starts covering real
+  # content (terminal text, tab bars) rather than reading as a border.
+  bordersWidth = "8.0";
+  bordersActive = "0xffcba6f7";   # mauve, = COLOR_ACCENT below
+  bordersScratch = "0xfff9e2af";  # yellow, = COLOR_YELLOW below
+
   sketchybarEnv = {
     # DELIBERATELY NO ${pkgs.coreutils}/bin HERE. It used to sit ahead of
     # /usr/bin, which shadowed BSD stat with GNU stat -- and `stat -f` means
@@ -75,6 +87,15 @@ let
     # correctly no matter what order the accounts were signed in.
     WM_MEETING_CAL = "mechanical-orchard.com";
     WM_CAL_URL = "https://calendar.google.com/calendar/u/0/r/day?authuser=mohib.mirza@mechanical-orchard.com";
+    # Absolute path: `borders` is a Nix package, and sketchybarEnv's PATH
+    # deliberately does not include the profile bin dir, so the recolour hook
+    # could not find it by name.
+    WM_BORDERS_BIN = "${pkgs.jankyborders}/bin/borders";
+    # Same bindings the agent below is built from, so the hook can never push
+    # a colour the agent did not start with.
+    WM_BORDER_COLOR = bordersActive;
+    WM_BORDER_COLOR_SCRATCH = bordersScratch;
+
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
     COLOR_DIM = "0xff7f849c";
@@ -623,6 +644,38 @@ in
       KeepAlive = true;
       StandardOutPath = "${home}/Library/Logs/sketchybar-bridge.log";
       StandardErrorPath = "${home}/Library/Logs/sketchybar-bridge.log";
+    };
+  };
+
+  # JankyBorders -- coloured border on the focused window. See
+  # programs/borders.nix for why this rather than OmniWM's own [borders]
+  # (short version: OmniWM draws entirely outside the window frame; this
+  # straddles the edge, measured at the pixel level).
+  #
+  # Defined here rather than in that module because home-manager's
+  # launchd.agents produced no plist in this setup, while nix-darwin's
+  # launchd.user.agents is what installs every other agent on this machine.
+  launchd.user.agents.borders = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.jankyborders}/bin/borders"
+        "width=${bordersWidth}"
+        "style=round"
+        "active_color=${bordersActive}"
+        # Transparent, i.e. no border on unfocused windows. JankyBorders draws
+        # those by default, but a border on every window competes with the
+        # bar's focus pill for the same job.
+        "inactive_color=0x00000000"
+        # Above the window, so the stroke shows over app content instead of
+        # being clipped at the window edge.
+        "order=above"
+        # Retina-correct stroke; without this the line is visibly soft at 2x.
+        "hidpi=on"
+      ];
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "${home}/Library/Logs/borders.log";
+      StandardErrorPath = "${home}/Library/Logs/borders.log";
     };
   };
 
