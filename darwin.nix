@@ -11,6 +11,13 @@ let
   # (sketchybar, omniwmctl) and jq, and plugin scripts are spawned by the
   # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
   # palette, read by both sketchybarrc and the plugins.
+  # JankyBorders, exported via sketchybarEnv so the spawn in sketchybarrc and
+  # the recolour hook cannot disagree. The visible stroke is ~half of width,
+  # centred on the window edge; much thicker covers real content.
+  bordersWidth = "8.0";
+  bordersActive = "0xffcba6f7";   # mauve, = COLOR_ACCENT below
+  bordersScratch = "0xfff9e2af";  # yellow, = COLOR_YELLOW below
+
   sketchybarEnv = {
     # DELIBERATELY NO ${pkgs.coreutils}/bin HERE. It used to sit ahead of
     # /usr/bin, which shadowed BSD stat with GNU stat -- and `stat -f` means
@@ -75,6 +82,13 @@ let
     # correctly no matter what order the accounts were signed in.
     WM_MEETING_CAL = "mechanical-orchard.com";
     WM_CAL_URL = "https://calendar.google.com/calendar/u/0/r/day?authuser=mohib.mirza@mechanical-orchard.com";
+    # Absolute path because `borders` is a Nix package and this PATH omits the
+    # profile bin dir. No launchd agent -- sketchybarrc spawns it.
+    WM_BORDERS_BIN = "${pkgs.jankyborders}/bin/borders";
+    WM_BORDER_WIDTH = bordersWidth;
+    WM_BORDER_COLOR = bordersActive;
+    WM_BORDER_COLOR_SCRATCH = bordersScratch;
+
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
     COLOR_DIM = "0xff7f849c";
@@ -626,6 +640,14 @@ in
     };
   };
 
+  # JankyBorders -- coloured border on the focused window. See
+  # programs/borders.nix for why this rather than OmniWM's own [borders]
+  # (short version: OmniWM draws entirely outside the window frame; this
+  # straddles the edge, measured at the pixel level).
+  #
+  # Defined here rather than in that module because home-manager's
+  # launchd.agents produced no plist in this setup, while nix-darwin's
+  # launchd.user.agents is what installs every other agent on this machine.
   # Used for backwards compatibility, please read the changelog before changing
   # $ darwin-rebuild changelog
   system.stateVersion = 5;
