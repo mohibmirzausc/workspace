@@ -11,23 +11,48 @@
 set -euo pipefail
 
 API="https://api.app.shortcut.com/api/v3"
-SECRETS="$HOME/src/workspace/programs/sops/secrets.yaml"
 
 die() { echo "sc: $*" >&2; exit 1; }
 
+# Locate the sops store. SC_SECRETS wins; otherwise try the usual checkouts.
+# Not hardcoded to one path because this config supports any user/hostname,
+# and the repo is often worked on from a git worktree.
+secrets_file() {
+  local c
+  for c in "${SC_SECRETS:-}" \
+           "$HOME/src/workspace/programs/sops/secrets.yaml" \
+           "$HOME/workspace/programs/sops/secrets.yaml"; do
+    [ -n "$c" ] && [ -f "$c" ] && { printf '%s' "$c"; return; }
+  done
+  return 1
+}
+
+# Resolved once per process: decrypting costs ~0.3s and some subcommands
+# make more than one API call.
+TOKEN=""
 token() {
-  [ -n "${SHORTCUT_API_TOKEN:-}" ] && { printf '%s' "$SHORTCUT_API_TOKEN"; return; }
-  [ -f "$SECRETS" ] || die "no secrets file at $SECRETS and SHORTCUT_API_TOKEN unset"
-  SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" \
-    sops --decrypt --output-type json "$SECRETS" 2>/dev/null \
-    | jq -er '.shortcut_api_token' 2>/dev/null \
-    || die "could not read shortcut_api_token from sops"
+  [ -n "$TOKEN" ] && { printf '%s' "$TOKEN"; return; }
+  if [ -n "${SHORTCUT_API_TOKEN:-}" ]; then
+    TOKEN="$SHORTCUT_API_TOKEN"; printf '%s' "$TOKEN"; return
+  fi
+  local f
+  f=$(secrets_file) || die "no sops secrets file found and SHORTCUT_API_TOKEN unset (set SC_SECRETS to point at one)"
+  TOKEN=$(SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" \
+    sops --decrypt --output-type json "$f" 2>/dev/null \
+    | jq -er '.shortcut_api_token' 2>/dev/null) \
+    || die "could not read shortcut_api_token from $f"
+  printf '%s' "$TOKEN"
 }
 
 api() {
-  local method="$1" path="$2"; shift 2
+  local method="$1" path="$2" tok; shift 2
+  # Resolve the token in this shell, not inside the curl argument: a $(...)
+  # substitution runs in a subshell, so a `die` there would not stop the
+  # request and curl would be sent an empty token.
+  tok=$(token) || exit 1
+  [ -n "$tok" ] || die "empty shortcut token"
   curl -sS -X "$method" \
-    -H "Shortcut-Token: $(token)" \
+    -H "Shortcut-Token: $tok" \
     -H "Content-Type: application/json" \
     "$@" "$API$path"
 }
