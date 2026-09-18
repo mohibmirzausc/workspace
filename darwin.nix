@@ -12,9 +12,20 @@ let
   # daemon so they inherit it. COLOR_*/WM_BAR_FONT are the Catppuccin Mocha
   # palette, read by both sketchybarrc and the plugins.
   # JankyBorders, exported via sketchybarEnv so the spawn in sketchybarrc and
-  # the recolour hook cannot disagree. The visible stroke is ~half of width,
-  # centred on the window edge; much thicker covers real content.
-  bordersWidth = "8.0";
+  # the recolour hook cannot disagree.
+  #
+  # The visible stroke is ~half of width, centred on the window edge, and
+  # measured (bar = y 0..32, window edge at 36):
+  #
+  #   width  stroke y      thickness
+  #   8.0    32.0 -> 36.5  5.0pt   touches the bar edge exactly
+  #   4.0    34.0 -> 36.5  3.0pt   <- current: visible but not heavy
+  #   2.0    35.0 -> 36.5  2.0pt   hairline
+  #
+  # All of these clear the bar now that gaps.outer.top is 36; at 32 every
+  # width overlapped it by width/2. So this is a free aesthetic choice --
+  # but it stops being one if that gap ever goes back to 32.
+  bordersWidth = "4.0";
   bordersActive = "0xffcba6f7";   # mauve, = COLOR_ACCENT below
   bordersScratch = "0xfff9e2af";  # yellow, = COLOR_YELLOW below
 

@@ -5,8 +5,9 @@
 # NOT OmniWM's own [borders]: those draw entirely OUTSIDE the window frame
 # (measured at width=8: window x=16 y=48 w=736 h=918, border x=8 y=40 w=752
 # h=934), and the schema is only enabled/width/colour -- no inset option.
-# JankyBorders straddles the edge instead: for a window edge at x=756 the
-# stroke covered 755.0 -> 759.0pt, so ~1pt outside and ~3pt over app content.
+# JankyBorders straddles the edge instead: at width=8, for a window edge at
+# x=756, the stroke covered 755.0 -> 759.0pt -- ~1pt outside and ~3pt over app
+# content. It scales with width (see bordersWidth in darwin.nix).
 #
 # Do not infer placement from the border window's frame -- that container is
 # 16pt outset for width=8 and looks like a pure outset border. Only the
