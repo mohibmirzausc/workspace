@@ -2,7 +2,7 @@
 # "Next meeting" item. Reads a background-refreshed cache (see
 # meeting_refresh.sh); never runs the slow Calendar.app query inline.
 #
-# - click:            open Calendar to today
+# - click:            open Google Calendar to today
 # - otherwise (tick / meeting_refreshed): render cache, and if the cache is
 #   stale, spawn a single background refresh (non-blocking).
 set -u
@@ -17,7 +17,15 @@ cal_icon=''
 peach="${COLOR_PEACH:-0xfffab387}"   # colored text
 
 if [ "${1:-}" = "click" ]; then
-  open -a Calendar
+  # Google Calendar, not Calendar.app. Calendar.app is only the local mirror
+  # that meeting_refresh.sh scrapes (it is the one thing AppleScript can read);
+  # the events themselves live in Google, and that is where you want to be to
+  # actually act on one -- join, RSVP, reschedule.
+  #
+  # `open` with a URL hands off to the default browser, which keeps whatever
+  # Google session is already signed in. No -a, so this does not force a
+  # particular browser.
+  open "${WM_CAL_URL:-https://calendar.google.com/calendar/r/day}"
   exit 0
 fi
 

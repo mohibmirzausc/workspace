@@ -64,6 +64,17 @@ let
     # two would not fit. They now show just the session name, so three fit.
     WM_WIN_MAX = "3";
     WM_WIN_CHARS = "16";
+
+    # Which calendar meeting_refresh.sh reads, and where clicking the meeting
+    # item goes. These are two views of the SAME account and must agree --
+    # clicking a work event should not land in a personal calendar.
+    #
+    # The /u/0/ prefix and authuser both matter. Bare calendar.google.com opens
+    # whichever Google account the browser happens to have as default, which is
+    # not necessarily this one; authuser pins it by address so it resolves
+    # correctly no matter what order the accounts were signed in.
+    WM_MEETING_CAL = "mechanical-orchard.com";
+    WM_CAL_URL = "https://calendar.google.com/calendar/u/0/r/day?authuser=mohib.mirza@mechanical-orchard.com";
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
     COLOR_DIM = "0xff7f849c";
