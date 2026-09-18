@@ -74,14 +74,27 @@ use it.
 
 ## Caveat: content written for one harness
 
-The formats are portable; the *contents* are not always. A skill that
-references Claude-only machinery — the `Task`/`Agent` tool, `TeammateTool`,
-plan mode — will load cleanly in Pi but instruct the model to use tools that
-do not exist there. `prompts/agentswarm.md` is the clearest example.
+The formats are portable; the *contents* are not always. A skill or prompt
+that references Claude-only machinery — the `Task`/`Agent` tool,
+`TeammateTool`, plan mode — loads cleanly in Pi but then instructs the model
+to use tools that do not exist there.
 
 Pi deliberately ships no sub-agents or plan mode; those are left to
-extensions. Audit for harness-specific tool references when a skill misbehaves
-under Pi.
+extensions.
+
+`prompts/agentswarm.md` was removed for exactly this: it was wholly about
+orchestrating Claude's `TeammateTool`/`Task` system, so under Pi it was not
+merely useless but actively misleading.
+
+`prompts/review-pr` still has one such line — it asks for a `pr-deep-review`
+sub-agent via the Task tool. The rest of it is harness-neutral, so it is kept
+as-is; under Pi the model should review serially instead of fanning out.
+
+To find others:
+
+```bash
+grep -rln 'TeammateTool\|Task tool\|subagent_type\|EnterPlanMode' programs/agents/
+```
 
 ## Pi-specific notes
 
