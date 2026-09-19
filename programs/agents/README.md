@@ -90,10 +90,24 @@ merely useless but actively misleading.
 sub-agent via the Task tool. The rest of it is harness-neutral, so it is kept
 as-is; under Pi the model should review serially instead of fanning out.
 
-To find others:
+**The second class is easier to miss: MCP tools.** Pi has no MCP at all, so
+any `mcp__*` reference is dead there:
+
+| File | Needs | Under Pi |
+|---|---|---|
+| `skills/interrupt/SKILL.md` | `mcp__shortcut__*`, `mcp__plugin_slack_slack__*` | **broken** — those calls are the whole skill |
+| `prompts/review-pr` | `mcp__shortcut__stories-get-by-id` | degrades — skips story context |
+
+`interrupt` is the sharp case: filing the Shortcut story and posting to Slack
+*is* the skill, so under Pi it cannot run at all. Both are shipped as-is here
+— giving Pi a non-MCP path to these services is separate work and does not
+belong in a move commit.
+
+Audit for both classes:
 
 ```bash
 grep -rln 'TeammateTool\|Task tool\|subagent_type\|EnterPlanMode' programs/agents/
+grep -rln 'mcp__' programs/agents/
 ```
 
 ## Pi-specific notes
