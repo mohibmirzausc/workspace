@@ -38,11 +38,19 @@
 #   1. Install Xcode (App Store, ~10GB).
 #   2. sudo xcode-select -s /Applications/Xcode.app
 #
-# The first build then downloads the Metal toolchain (~700MB, once) because
-# whisper.cpp's Metal kernels need it and Xcode 26 ships it separately.
-# Deliberately NOT added to homebrew.casks in darwin.nix: the cask needs an
-# Apple ID sign-in anyway, so it cannot be made automatic, and it would add
-# ~10GB to bootstrapping a machine that may never want dictation.
+# whisper.cpp's Metal kernels need the Metal toolchain, which Xcode 26 split
+# out into a separate ~700MB download; voiceink-update fetches it only when
+# `xcrun --find metal` fails. On the Xcode 27.0 installed here it already ships
+# in XcodeDefault.xctoolchain, so that step no-ops -- keep the check anyway,
+# since it costs one xcrun call and Apple has moved this once already.
+#
+# Xcode CANNOT be installed by a switch, so this stays a manual prerequisite.
+# There is no `xcode` Homebrew cask (Apple's licence forbids redistribution),
+# and `mas install 497799835` fails with "No downloads initiated" because Apple
+# removed the private API mas drove for apps not already tied to the signed-in
+# Apple ID. Every route ends at an interactive Apple ID sign-in, so automating
+# it is not possible -- and it would add ~10GB to bootstrapping a machine that
+# may never want dictation.
 #
 # AFTER AN XCODE UPGRADE, stale content under /Library/Developer makes the
 # build die with "No CMAKE_CXX_COMPILER could be found", which sounds like a
@@ -73,7 +81,24 @@
 #   security add-trusted-cert -r trustRoot -p codeSign \
 #     -k ~/Library/Keychains/login.keychain-db cert.pem
 #
-# Trusting it matters: an untrusted certificate forms an identity but not a
+# THE KEY'S ACL MATTERS AS MUCH AS THE TRUST, and this one is not in Luke's
+# notes -- his certificate was made in Keychain Access, which grants the key a
+# permissive ACL, while a key imported with `security import` demands
+# interactive authorization. Symptom: every CodeSign step in the build fails
+# with `errSecInternalComponent` while `security find-identity -v` still lists
+# the identity as valid, so the certificate looks entirely healthy. The tell is
+# that a plain `codesign --sign <hash> <file>` reproduces it outside the build,
+# and a SecurityAgent process is alive holding a GUI prompt no headless build
+# can answer. `security set-key-partition-list` alone did NOT fix it; the
+# pending prompt had to be approved (Always Allow, not Allow -- one build signs
+# dozens of targets). Verify with a real signature rather than the lock state:
+#
+#   codesign --force --sign "VoiceInk Local" /tmp/t && codesign -dvvv /tmp/t
+#
+# `Authority=VoiceInk Local` means it works; `errSecInternalComponent`, or an
+# unchanged Apple authority, means the key is still gated.
+#
+# Trusting it matters too: an untrusted certificate forms an identity but not a
 # *valid* one, `security find-identity -v` omits it, and the build silently
 # falls back to ad-hoc. Note the script also disables the hardened runtime when
 # signing with this cert -- a self-signed cert has no Team ID (confirmed here:
