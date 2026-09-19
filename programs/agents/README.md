@@ -99,9 +99,13 @@ any `mcp__*` reference is dead there:
 | `prompts/review-pr` | `mcp__shortcut__stories-get-by-id` | degrades — skips story context |
 
 `interrupt` is the sharp case: filing the Shortcut story and posting to Slack
-*is* the skill, so under Pi it cannot run at all. Both are shipped as-is here
-— giving Pi a non-MCP path to these services is separate work and does not
-belong in a move commit.
+*is* the skill, so under Pi it cannot run at all.
+
+Their Shortcut half is now expressible with the `sc` CLI (`skills/shortcut/`),
+which needs no MCP; only `interrupt`'s Slack half still does. Rewriting both
+against `sc` is worthwhile and not yet done — note that until it is, dropping
+the Shortcut MCP server from Claude would break them there too, not just
+under Pi.
 
 Audit for both classes:
 
