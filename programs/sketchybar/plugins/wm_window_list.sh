@@ -12,9 +12,12 @@
 # Single-flight + coalescing so event bursts (workspace switch, spawning many
 # windows) never overlap. OmniWM-specific; hides the island on other backends.
 set -u
-SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=/dev/null
-[ -f "$SELF_DIR/icon_map.sh" ] && . "$SELF_DIR/icon_map.sh" || __icon_map() { icon_result=":default:"; }
+# icon_map.sh is deliberately NOT sourced. Pills show the session name with
+# icon.drawing=off, so __icon_map was never called -- the only two references
+# to it were its own fallback definition and a comment saying it is unused.
+# Sourcing it also cost a `cd ... && pwd` subshell whose `pwd` wrote "write
+# error: Broken pipe" into the log whenever the script's stdout was already
+# closed.
 
 CACHE="$HOME/.cache/sketchybar"; LOCK="$CACHE/win.lock"; PENDING="$CACHE/win.pending"
 mkdir -p "$CACHE"
@@ -34,8 +37,14 @@ case "$MAXW" in (*[!0-9]*|'') MAXW=3 ;; esac
 # assumed, because it can legitimately differ from MAXW -- sketchybarrc built
 # them from whatever WM_WIN_MAX was set when the bar last loaded. Used only to
 # bound the hide loops; `--set` on a missing item logs an error every render.
-SLOTS=$(sketchybar --query bar 2>/dev/null \
-  | grep -c '"win\.[0-9]*"' 2>/dev/null || echo "$MAXW")
+# Counted from a variable, not a pipe. `... | grep -c` makes grep stop
+# reading once it has counted, so sketchybar gets SIGPIPE on the rest of its
+# output and logs "write error: Broken pipe" -- 19 such lines in one session.
+# Only fires when the write blocks (output > pipe buffer), which is why it
+# looked intermittent.
+_bar_q=$(sketchybar --query bar 2>/dev/null || true)
+SLOTS=$(printf '%s' "$_bar_q" | grep -c '"win\.[0-9]*"' 2>/dev/null || echo "$MAXW")
+unset _bar_q
 case "$SLOTS" in (*[!0-9]*|''|0) SLOTS="$MAXW" ;; esac
 # No FG here: pills are either focused (ONACC on an ACC background) or
 # unfocused (DIM), so the normal foreground colour is never used. Nor
@@ -71,18 +80,19 @@ if ! mkdir "$LOCK" 2>/dev/null; then : > "$PENDING"; exit 0; fi
 # Cover the signals that actually happen: launchd sends SIGTERM on every
 # rebuild/restart, which EXIT alone does not catch, leaking the lock.
 # (SIGKILL cannot be trapped -- the staleness check above is the net for that.)
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM HUP
+trap 'rmdir "$LOCK" 2>/dev/null; rm -f "$CACHE/win_parse.py.$$" 2>/dev/null' EXIT INT TERM HUP
 
+# Batched for the same reason as render(): one process instead of SLOTS+3.
 hide_all() {
-  local i
-  sketchybar --set win.lell drawing=off >/dev/null 2>&1
+  local -a args=(--set win.lell drawing=off)
   local i=0
   while [ "$i" -lt "$SLOTS" ]; do
-    sketchybar --set "win.$i" drawing=off >/dev/null 2>&1
+    args+=(--set "win.$i" drawing=off)
     i=$((i+1))
   done
-  sketchybar --set win.rell drawing=off >/dev/null 2>&1
-  sketchybar --set window_group background.drawing=off >/dev/null 2>&1
+  args+=(--set win.rell drawing=off)
+  args+=(--set window_group background.drawing=off)
+  sketchybar "${args[@]}" >/dev/null 2>&1
 }
 
 render() {
@@ -118,8 +128,15 @@ render() {
   #              arrives and json.load reads the script text instead.
   # A quoted heredoc into a temp file keeps the text verbatim AND leaves
   # stdin free for the pipe.
-  local pyf; pyf="$CACHE/win_parse.py"
-  cat > "$pyf" <<'PY'
+  # Written to a temp file and mv'd into place, never `cat >` directly:
+  # `cat >` truncates in place, so a concurrent run reading the file mid-write
+  # gets a partial script and dies with SyntaxError (observed in the log).
+  # The lock normally prevents overlap, but the 8s stale-lock breaker above
+  # can admit a second instance while the first is still writing. mv within
+  # the same filesystem is atomic, so a reader sees either the old complete
+  # file or the new one.
+  local pyf tmpf; pyf="$CACHE/win_parse.py"; tmpf="$pyf.$$"
+  cat > "$tmpf" <<'PY'
 import sys, json, re, os
 
 try:
@@ -220,6 +237,8 @@ for w in cw:
     print('\t'.join([str(w.get('id', '')), an,
                      ('1' if w.get('isFocused') else '0'), t]))
 PY
+  mv -f "$tmpf" "$pyf" 2>/dev/null || { rm -f "$tmpf"; return; }
+
   rows=$(omniwmctl query windows --format json 2>/dev/null \
     | CG_TITLES="$titlemap" python3 "$pyf")
 
@@ -257,18 +276,26 @@ PY
   [ "$start" -gt 0 ] && left_more=1
   [ "$end" -lt "$n" ] && right_more=1
 
-  sketchybar --set window_group background.drawing=on background.color="$BG" >/dev/null 2>&1
-  [ "$left_more" = "1" ] && sketchybar --set win.lell drawing=on >/dev/null 2>&1 || sketchybar --set win.lell drawing=off >/dev/null 2>&1
+  # ONE sketchybar invocation for the whole render. Each `sketchybar --set`
+  # is a separate ~85ms process, and a render touches 6-8 items, so doing
+  # them one at a time cost ~300ms of pure process spawn. Batching the same
+  # six updates measured 305ms -> 75ms. args[] accumulates and is flushed
+  # once at the end of this function.
+  local -a args=()
+  args+=(--set window_group background.drawing=on background.color="$BG")
+  if [ "$left_more" = "1" ]; then
+    args+=(--set win.lell drawing=on)
+  else
+    args+=(--set win.lell drawing=off)
+  fi
 
   local j slice=$(( end - start ))
   local k=0
   while [ "$k" -lt "$MAXW" ]; do
     j=$(( start + k ))
     if [ "$k" -lt "$slice" ] && [ "$j" -lt "$n" ]; then
-      # No icon lookup: pills set icon.drawing=off below and show the
-      # session name instead, so the sketchybar-app-font ligature map is
-      # not consulted. (icon_map.sh is still sourced at the top for any
-      # future use, but nothing here calls __icon_map.)
+      # No icon lookup: pills set icon.drawing=off and show the session
+      # name, so the sketchybar-app-font ligature map is not consulted.
       # The SESSION/window title alone -- no "App - " prefix. The title is
       # what distinguishes one window from another; the app name is the same
       # across every cmux pill and just eats characters.
@@ -279,18 +306,18 @@ PY
       # than a redundant one.
       pill="${titles[$j]:-${apps[$j]}}"
       if [ "${focs[$j]}" = "1" ]; then
-        sketchybar --set "win.$k" drawing=on icon.drawing=off \
-          label="$pill" label.color="$ONACC" label.font="$FONT:${WM_BAR_FONT_BOLD:-Regular}:13.0" \
-          background.drawing=on background.color="$ACC" \
-          click_script="omniwmctl window focus ${ids[$j]}" >/dev/null 2>&1
+        args+=(--set "win.$k" drawing=on icon.drawing=off
+          label="$pill" label.color="$ONACC" label.font="$FONT:${WM_BAR_FONT_BOLD:-Regular}:13.0"
+          background.drawing=on background.color="$ACC"
+          click_script="omniwmctl window focus ${ids[$j]}")
       else
-        sketchybar --set "win.$k" drawing=on icon.drawing=off \
-          label="$pill" label.color="$DIM" label.font="$FONT:Regular:13.0" \
-          background.drawing=off \
-          click_script="omniwmctl window focus ${ids[$j]}" >/dev/null 2>&1
+        args+=(--set "win.$k" drawing=on icon.drawing=off
+          label="$pill" label.color="$DIM" label.font="$FONT:Regular:13.0"
+          background.drawing=off
+          click_script="omniwmctl window focus ${ids[$j]}")
       fi
     else
-      sketchybar --set "win.$k" drawing=off >/dev/null 2>&1
+      args+=(--set "win.$k" drawing=off)
     fi
     k=$((k+1))
   done
@@ -306,11 +333,17 @@ PY
   # "Set: Item not found 'win.N'" on every render. $SLOTS is discovered once
   # from the bar itself rather than assumed.
   while [ "$k" -lt "$SLOTS" ]; do
-    sketchybar --set "win.$k" drawing=off >/dev/null 2>&1
+    args+=(--set "win.$k" drawing=off)
     k=$((k+1))
   done
 
-  [ "$right_more" = "1" ] && sketchybar --set win.rell drawing=on >/dev/null 2>&1 || sketchybar --set win.rell drawing=off >/dev/null 2>&1
+  if [ "$right_more" = "1" ]; then
+    args+=(--set win.rell drawing=on)
+  else
+    args+=(--set win.rell drawing=off)
+  fi
+
+  sketchybar "${args[@]}" >/dev/null 2>&1
 }
 
 while : ; do
