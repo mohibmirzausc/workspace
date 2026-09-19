@@ -551,13 +551,17 @@ in
       # media engine (measured ~3.6% CPU via a tuned mpv, hardware-decoded)
       # but not free.
       #
-      # NOTE the wallpaper IS visible through the terminals even with windows
-      # tiled edge-to-edge, because ghostty's background-opacity = 0.9 gives
-      # its framebuffer per-pixel alpha and the window server composites the
-      # desktop beneath it. Do not be misled by kCGWindowAlpha reading 1.0 --
-      # that is the whole-window opacity multiplier, a different thing, and
-      # reasoning from it led to the wrong conclusion here. Verified by
-      # setting a magenta wallpaper and watching it bleed through a terminal.
+      # NOTE terminals are now OPAQUE (background-opacity = 1.0 in
+      # programs/ghostty.nix), so with windows tiled edge-to-edge the
+      # wallpaper is only visible in the gaps. It was 0.9, and it did bleed
+      # through -- that was changed because the compositing cost ~54% CPU
+      # across Wallspace + WindowServer; see the note in ghostty.nix.
+      #
+      # If it goes back to 0.9: do not be misled by kCGWindowAlpha reading
+      # 1.0 when checking whether the wallpaper shows through. That is the
+      # whole-window opacity multiplier, a different thing from the
+      # framebuffer's per-pixel alpha, and reasoning from it led to the wrong
+      # conclusion here twice. Sample actual pixels over time instead.
       #
       # So the occlusion pause does NOT make this invisible-and-free; expect
       # to actually pay some CPU while a translucent window is on screen.
