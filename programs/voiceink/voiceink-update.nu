@@ -81,10 +81,20 @@ def main [
 
   print $"VoiceInk ($version) installed."
 
+  # A CDHash change only orphans the TCC grants when the designated requirement
+  # is a bare cdhash, i.e. under ad-hoc signing. Signed with the stable
+  # certificate the requirement names the certificate instead, so the grants
+  # survive -- which is the entire reason the certificate exists. Resetting
+  # anyway would throw away working grants on every rebuild and print
+  # instructions that contradict the signature.
+  let stable_signed = (signing-identity) != ""
+
   if not $binary_changed {
     print "    binary is identical to the previous build; permissions left alone"
   } else if $keep_permissions {
     print "    binary changed, but permissions left alone as requested"
+  } else if $stable_signed {
+    print "    signed with the stable certificate; grants survive, permissions left alone"
   } else {
     reset-permissions
   }
@@ -95,7 +105,7 @@ def main [
     print $"Launch it with: open ($APP_PATH)"
   }
 
-  if $binary_changed and (not $keep_permissions) {
+  if $binary_changed and (not $keep_permissions) and (not $stable_signed) {
     print-permission-instructions
   }
 }
