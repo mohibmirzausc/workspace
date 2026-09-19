@@ -22,6 +22,7 @@ const SIGNING_IDENTITY = "VoiceInk Local"
 
 def main [
   --repo: string = "~/workspace/VoiceInk" # checkout location
+  --ref: string = "" # build this git ref instead of the latest release tag
   --clean # rebuild the whisper framework from scratch
   --keep-permissions # don't reset macOS permissions after installing
 ] {
@@ -36,16 +37,19 @@ def main [
     print $"==> Cloning VoiceInk into ($repo_dir)"
     git clone $REPO_URL $repo_dir
   } else {
-    print $"==> Updating ($repo_dir)"
+    print $"==> Fetching ($repo_dir)"
     cd $repo_dir
     if (git status --porcelain | is-empty) {
-      git pull
+      # Fetch rather than pull: the checkout sits on a detached tag, so there
+      # is no upstream branch to merge and `git pull` would just fail.
+      git fetch --tags --prune origin
     } else {
-      print "    local changes present, skipping pull"
+      print "    local changes present, skipping fetch"
     }
   }
 
   cd $repo_dir
+  checkout-target $ref
   let version = (version-of)
 
   # Build. The output runs to thousands of lines, so it goes to a log and only
@@ -312,6 +316,71 @@ def run-quietly [action: closure, label: string] {
     error make { msg: $"VoiceInk ($label) failed with exit code ($result.exit_code). Full log: ($log_path)" }
   }
   print $"    ok. log: ($log_path)"
+}
+
+# Check out what we are going to build: the newest release tag by default, or
+# an explicit ref when one is given.
+#
+# Tracking main was the earlier behaviour and it is a poor default -- upstream
+# had shipped v2.20 while this machine sat 95 commits PAST v2.13 on main, i.e.
+# on no release at all, with whatever refactor happened to be in flight. A tag
+# is a point the author chose to ship.
+#
+# `--ref main` restores the old behaviour; `--ref v2.13` pins an older release,
+# which is also the rollback path (this script deletes the installed app before
+# moving the new one in, so there is nothing to roll back to otherwise).
+def checkout-target [requested: string] {
+  let target = if $requested != "" { $requested } else { latest-release-tag }
+
+  print $"==> Checking out ($target)"
+  let result = (do { ^git checkout --quiet --detach $target } | complete)
+  if $result.exit_code != 0 {
+    error make { msg: $"Could not check out ($target): ($result.stderr | str trim)" }
+  }
+}
+
+# The newest STABLE release tag.
+#
+# Two traps here, both live in this repo's tag list. Sorting by creation date
+# is wrong because tags get pushed out of order, and a plain version sort is
+# wrong because the repo carries malformed legacy tags -- `sort -V` ranks
+# "v.131" and "v.0.95" above "v2.20". So filter to a strict vN.N(.N) shape
+# first, then version-sort. That also drops prereleases (v2.0-beta.1) and
+# one-off junk (test-build-212).
+def latest-release-tag [] {
+  let tags = (
+    do { ^git tag --list "v*" } | complete
+    | get stdout
+    | lines
+    | each { str trim }
+    | where ($it =~ '^v[0-9]+\.[0-9]+(\.[0-9]+)?$')
+  )
+
+  if ($tags | is-empty) {
+    error make { msg: "No release tags found. Use --ref main to build the branch tip." }
+  }
+
+  # Compare numerically on the parsed components; string sort would put v2.9
+  # after v2.20.
+  $tags
+  | sort-by --custom {|a, b|
+      let av = ($a | str substring 1.. | split row "." | each { into int })
+      let bv = ($b | str substring 1.. | split row "." | each { into int })
+      ($av | compare-version $bv) < 0
+    }
+  | last
+}
+
+# -1, 0 or 1 comparing two lists of version components, shorter list padded.
+def compare-version [other: list<int>] {
+  let a = $in
+  let len = ([($a | length) ($other | length)] | math max)
+  for i in 0..<$len {
+    let x = ($a | get -o $i | default 0)
+    let y = ($other | get -o $i | default 0)
+    if $x != $y { return (if $x < $y { -1 } else { 1 }) }
+  }
+  0
 }
 
 def version-of [] {

@@ -8,9 +8,26 @@
 # THE APP IS NOT INSTALLED BY A SWITCH. Nothing here downloads or builds
 # anything; `homeswitch` only puts the two commands on PATH. Build the app with:
 #
-#   voiceink-update             # clone or pull, build, install to /Applications
+#   voiceink-update             # build the latest RELEASE TAG, install to /Applications
+#   voiceink-update --ref main  # build the branch tip instead
+#   voiceink-update --ref v2.13 # pin an older release (also the rollback path)
 #   voiceink-update --clean     # also rebuild the cached whisper framework
 #   voiceink-update --repo PATH # checkout other than ~/workspace/VoiceInk
+#
+# NOTHING UPDATES ITSELF. There is no launchd agent and no activation hook, so
+# a new VoiceInk release is picked up only when you run voiceink-update again.
+#
+# It builds the newest release tag rather than main, because main is not a
+# thing upstream chose to ship. Left on main this checkout reached 95 commits
+# PAST v2.13 while v2.20 was already released -- i.e. on no release at all,
+# carrying whatever refactor was in flight. See checkout-target in
+# voiceink-update.nu for the two tag-selection traps this repo's tag list
+# contains (out-of-order tag dates, and malformed tags that `sort -V` ranks
+# above every real one).
+#
+# ROLLBACK IS `--ref <older tag>` AND A REBUILD. The script deletes the
+# installed app before moving the new one into place, so there is no previous
+# generation to return to the way there would be for a Nix-managed package.
 #
 # PREREQUISITE: THE FULL Xcode.app, not the Command Line Tools -- because the
 # build needs `xcodebuild`, which the CLT ship but refuse to run:
