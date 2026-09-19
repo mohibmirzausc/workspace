@@ -86,14 +86,31 @@ extensions.
 orchestrating Claude's `TeammateTool`/`Task` system, so under Pi it was not
 merely useless but actively misleading.
 
-`prompts/review-pr` still has one such line — it asks for a `pr-deep-review`
-sub-agent via the Task tool. The rest of it is harness-neutral, so it is kept
-as-is; under Pi the model should review serially instead of fanning out.
+There are two classes of this, and the second is easy to miss.
 
-To find others:
+**Claude-only agent machinery.** `prompts/review-pr` asks for a
+`pr-deep-review` sub-agent via the Task tool. One line in an otherwise
+portable prompt, so it is kept; under Pi the model should review serially.
+
+**MCP tools.** Pi has no MCP at all, so any `mcp__*` tool reference is dead
+there:
+
+| File | Needs | Under Pi |
+|---|---|---|
+| `skills/interrupt/SKILL.md` | `mcp__shortcut__*`, `mcp__plugin_slack_slack__*` | **broken** — the whole skill is these calls |
+| `prompts/review-pr` | `mcp__shortcut__stories-get-by-id` | degrades — skips story context |
+
+`interrupt` is the sharp case: filing the story and posting to Slack *is* the
+skill, so under Pi it currently cannot run. Its Shortcut half is now
+expressible with the `sc` CLI (`skills/shortcut/`); only the Slack half still
+needs MCP. Rewriting it to use `sc` plus a Slack call is worthwhile but has
+not been done.
+
+Audit for both classes:
 
 ```bash
 grep -rln 'TeammateTool\|Task tool\|subagent_type\|EnterPlanMode' programs/agents/
+grep -rln 'mcp__' programs/agents/
 ```
 
 ## Pi-specific notes

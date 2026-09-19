@@ -50,6 +50,13 @@ under `env -i` (proving `runtimeInputs`); and Pi, given only the skill,
 correctly answering "how many stories do I have open" by discovering and
 running `sc`.
 
+**Not finished, though:** two pieces of shared content still call the
+Shortcut MCP tools directly and so do not work under Pi —
+`skills/interrupt/SKILL.md` (which also needs Slack) and `prompts/review-pr`.
+Removing the Shortcut MCP server from Claude would break them there too.
+They should be rewritten against `sc`; see the caveat section in
+`programs/agents/README.md`.
+
 ### MCP_DOCKER → nothing needed ✅
 
 `MCP_DOCKER` is a *gateway* proxying other servers. Inspection shows it is
