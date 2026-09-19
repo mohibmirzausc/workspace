@@ -38,11 +38,15 @@
 #   1. Install Xcode (App Store, ~10GB).
 #   2. sudo xcode-select -s /Applications/Xcode.app
 #
-# whisper.cpp's Metal kernels need the Metal toolchain, which Xcode 26 split
-# out into a separate ~700MB download; voiceink-update fetches it only when
-# `xcrun --find metal` fails. On the Xcode 27.0 installed here it already ships
-# in XcodeDefault.xctoolchain, so that step no-ops -- keep the check anyway,
-# since it costs one xcrun call and Apple has moved this once already.
+# The Metal toolchain is a separate ~700MB component (mlx-swift's kernels need
+# it, and so do whisper.cpp's), and STILL SEPARATE ON XCODE 27 -- the `metal`
+# binary ships inside XcodeDefault.xctoolchain while the toolchain behind it
+# does not, so `xcrun --find metal` exits 0 on a machine that cannot compile a
+# single .metal file. voiceink-update's check was upstream's `--find` test,
+# which this machine proved is a false negative; it now runs `xcrun metal
+# --version`, since only a real toolchain answers that. Cost of the bug: the
+# build ran ~7400 log lines and failed in mlx-swift's CompileMetalFile steps,
+# which looks like an mlx problem rather than a missing Xcode component.
 #
 # Xcode CANNOT be installed by a switch, so this stays a manual prerequisite.
 # There is no `xcode` Homebrew cask (Apple's licence forbids redistribution),

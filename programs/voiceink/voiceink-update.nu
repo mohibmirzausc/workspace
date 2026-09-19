@@ -268,7 +268,17 @@ def trust-package-plugins [] {
 # "cannot execute tool 'metal'". The download is ~700MB, so only fetch it when
 # the compiler is actually missing.
 def ensure-metal-toolchain [] {
-  if (do { ^xcrun --find metal } | complete).exit_code == 0 {
+  # `xcrun --find metal` is NOT a valid test, though it looks like one. On
+  # Xcode 27 the binary is present at
+  #   Toolchains/XcodeDefault.xctoolchain/usr/bin/metal
+  # so --find exits 0, while the toolchain behind it is absent and any attempt
+  # to compile a .metal file dies with
+  #   cannot execute tool 'metal' due to missing Metal Toolchain
+  # That false negative let the build run ~7400 log lines before failing in
+  # mlx-swift's CompileMetalFile steps, which reads as an mlx problem rather
+  # than a missing component. Actually RUN the tool instead: only a real
+  # toolchain answers --version.
+  if (do { ^xcrun metal --version } | complete).exit_code == 0 {
     return
   }
 
