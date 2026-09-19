@@ -8,14 +8,31 @@ let
     bell-features = system,attention,title
     theme = dark:Catppuccin Mocha,light:Catppuccin Mocha
     mouse-scroll-multiplier = precision:1,discrete:1
-    # Slightly translucent background (default is 1 = opaque). Applies to cmux
-    # too: cmux reads ~/.config/ghostty/config directly rather than carrying its
-    # own appearance settings, so this is the single place to tune it.
+    # Opaque background. Applies to cmux too: cmux EMBEDS ghostty as its
+    # terminal engine and reads ~/.config/ghostty/config directly, so this is
+    # the single place to tune it. (There is no `ghostty` process to find --
+    # `pgrep ghostty` returns nothing while every cmux window still honours
+    # this file.)
     #
-    # Trying this out -- if text legibility over busy windows suffers, either
-    # raise this back toward 1 or add `background-blur = true` to frost what is
-    # behind the window instead of showing it sharply.
-    background-opacity = 0.9
+    # WAS 0.9, AND THAT WAS EXPENSIVE. With the animated wallpaper running and
+    # windows stacked ~6.7x screen area deep, every translucent layer makes the
+    # compositor blend the wallpaper through it again:
+    #
+    #   Wallspace 27.5%  +  WindowServer 27.0%  =  ~54% CPU
+    #
+    # against 4.7% for the same video benchmarked alone. WindowServer matching
+    # Wallspace is the tell: that is compositing, not decode.
+    #
+    # HONEST CAVEAT: not proven by A/B. cmux caches this at window creation and
+    # ignores SIGUSR2, so confirming it means restarting cmux and losing live
+    # sessions. The mechanism fits the numbers, but if CPU stays high after a
+    # cmux restart, translucency was not the cause -- revert this rather than
+    # keep a change that bought nothing.
+    #
+    # Want the wallpaper visible again? `background-blur = true` at 0.9 frosts
+    # what is behind instead of compositing it sharply, which may cost less --
+    # untested here.
+    background-opacity = 1.0
   '';
 
   tmuxKeybinds = ''
