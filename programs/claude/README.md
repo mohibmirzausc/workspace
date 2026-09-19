@@ -9,6 +9,10 @@ This directory contains my Claude Code configuration, managed via Nix home-manag
 - **hooks/** - Hook scripts that run during Claude Code execution
   - **tool-after.sh** - Plays system beep when tools complete
 
+Only Claude-specific config lives here. Skills and commands are shared with
+Pi and live in `programs/agents/` — see `programs/agents/README.md`. They are
+symlinked to `~/.claude/skills` and `~/.claude/commands` from there.
+
 ## Activation
 
 These files are symlinked to `~/.claude/` via home-manager configuration in `home.nix`.
