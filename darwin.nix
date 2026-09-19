@@ -1,4 +1,4 @@
-{ config, pkgs, lib, user, home, system, ... }:
+{ config, pkgs, lib, user, home, system, features, ... }:
 
 let
   # Environment shared by the sketchybar daemon and its event bridge, both
@@ -575,6 +575,11 @@ in
       # and the download's sha256 matches the cask pin.
       #
       # auto_updates upstream, so brew bundle defers to the app's own updater.
+      #
+      # GATED on features.wallspace in flake.nix, currently FALSE -- so this
+      # list does not include it and cleanup = "uninstall" removes the app.
+      # See programs/wallspace.nix for the module side.
+    ] ++ lib.optionals features.wallspace [
       "wallspace"
     ];
   };

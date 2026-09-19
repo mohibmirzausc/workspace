@@ -27,12 +27,28 @@
       mkDarwin = system: let
         currentUser = let v = builtins.getEnv "USER"; in if v == "" then "nobody" else v;
         currentHome = if currentUser == "nobody" then "/var/empty" else "/Users/${currentUser}";
+
+        # FEATURE FLAGS -- hardcoded on purpose. These are not options a user
+        # sets at runtime; flipping one is a config edit + rebuild, and the
+        # commit message is where the reasoning lives.
+        features = {
+          # Wallspace animated wallpaper. OFF while we find out what is
+          # actually costing CPU: with it running, Wallspace + WindowServer
+          # measured ~54% combined against 4.7% for the video benchmarked
+          # alone, and the excess was never pinned to a specific cause.
+          #
+          # Turning this on installs the cask, the wallpaper-seeding
+          # activation and the pinned pause settings; off removes all three,
+          # and homebrew.onActivation.cleanup = "uninstall" will remove the
+          # app on the next rebuild.
+          wallspace = false;
+        };
       in nix-darwin.lib.darwinSystem {
         inherit system;
         specialArgs = {
           user = currentUser;
           home = currentHome;
-          inherit system;
+          inherit system features;
         };
         modules = [
           ./darwin.nix
@@ -48,7 +64,7 @@
             home-manager.extraSpecialArgs = {
               user = currentUser;
               home = currentHome;
-              inherit system;
+              inherit system features;
             };
           }
         ];
@@ -94,6 +110,10 @@
         extraSpecialArgs = {
           user = currentUser;
           home = currentHome;
+          # home.nix imports the wallspace module, which takes `features`.
+          # Everything in it is already lib.mkIf pkgs.stdenv.isDarwin, so the
+          # value is irrelevant here -- it just has to exist for evaluation.
+          features = { wallspace = false; };
         };
       };
     };

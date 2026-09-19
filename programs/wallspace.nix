@@ -1,7 +1,12 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, features, ... }:
 
 # Wallspace -- animated desktop wallpaper from a local video. The app is a
 # Homebrew cask; see homebrew.casks in darwin.nix for why this one.
+#
+# GATED ON features.wallspace (set in flake.nix, currently FALSE). When off,
+# this module contributes nothing and the cask is not declared -- which means
+# homebrew.onActivation.cleanup = "uninstall" removes the app on rebuild.
+# Everything below is additionally guarded on isDarwin as before.
 #
 # THIS MODULE SELECTS THE WALLPAPER. Wallspace has no CLI and its wallspace://
 # deep link only accepts gallery IDs, so the only supported way to pick a
@@ -33,7 +38,7 @@ let
   videoPath = "${config.home.homeDirectory}/Pictures/Wallpapers/cozy-8bit.mp4";
 in
 {
-  home.file.".local/bin/wallspace-seed-wallpaper" = lib.mkIf pkgs.stdenv.isDarwin {
+  home.file.".local/bin/wallspace-seed-wallpaper" = lib.mkIf (features.wallspace && pkgs.stdenv.isDarwin) {
     source = ./wallspace/seed-wallpaper.py;
     executable = true;
   };
@@ -43,7 +48,7 @@ in
   #
   # Not `targets.darwin.defaults`: this domain also holds the wallpaper
   # selection, which the app rewrites on quit, so only these keys are pinned.
-  home.activation.wallspaceSettings = lib.mkIf pkgs.stdenv.isDarwin
+  home.activation.wallspaceSettings = lib.mkIf (features.wallspace && pkgs.stdenv.isDarwin)
     (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       # One long line on purpose: in a Nix indented string a backslash is
       # literal, so a line-continuation would reach bash and break the loop.
@@ -55,7 +60,7 @@ in
   # Runs after linkGeneration so the script above is in place. Skips when
   # Wallspace is running -- it rewrites these keys on quit and would clobber
   # anything set underneath it.
-  home.activation.seedWallspaceWallpaper = lib.mkIf pkgs.stdenv.isDarwin
+  home.activation.seedWallspaceWallpaper = lib.mkIf (features.wallspace && pkgs.stdenv.isDarwin)
     (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       SEED="$HOME/.local/bin/wallspace-seed-wallpaper"
       VIDEO="${videoPath}"
