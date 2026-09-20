@@ -30,29 +30,6 @@ let
     # re-tested, hold Chrome and window count fixed across both samples.
     background-opacity = 0.9
 
-    # Bayer-matrix dithering, quantising each channel to LEVELS steps for a
-    # retro/8-bit look. Source: github.com/0xhckr/ghostty-shaders (by moni-dz),
-    # CC BY-NC-SA 4.0 -- non-commercial, share-alike, attribution kept in the
-    # file header. Vendored rather than fetched so a rebuild is not a network
-    # dependency and the exact version is pinned in git.
-    #
-    # Cheap as shaders go: one texture sample per pixel, a 4x4 Bayer lookup
-    # done with bit-shifts on a packed constant (no second fetch, no
-    # branching), one floor and two multiplies. Compare a CRT or bloom shader,
-    # which sample 9-30x per pixel. It also runs on the GPU, so it does not
-    # touch the CPU figures this config has been tuned against.
-    #
-    # ANIMATION EXPLICITLY OFF. That is the part that actually costs: with
-    # animation on, ghostty repaints every frame instead of only when the text
-    # changes, which turns each terminal from a static surface into a
-    # continuously-redrawing one -- and at background-opacity 0.9 every repaint
-    # re-composites whatever is beneath it. That is precisely the mechanism
-    # that made the animated wallpaper cost ~27% of WindowServer.
-    #
-    # This shader has no iTime term, so every frame is identical and animation
-    # buys literally nothing. Turning it off is free visually.
-    custom-shader = ${configDir}/shaders/dither.glsl
-    custom-shader-animation = false
   '';
 
   tmuxKeybinds = ''
@@ -157,8 +134,6 @@ in
   };
 
   # Keybind files for the switcher approach
-  home.file.".config/ghostty/shaders/dither.glsl".source = ./ghostty/dither.glsl;
-
   home.file.".config/ghostty/keys-tmux.conf".text = tmuxKeybinds;
   home.file.".config/ghostty/keys-zellij.conf".text = zellijKeybinds;
 
