@@ -15,15 +15,54 @@ float getBayerFromPacked(int x, int y) {
     return float((int(bayerPattern[y & 3]) >> ((x & 3) << 2)) & 0xF) * (1.0 / 16.0);
 }
 
-#define LEVELS 2.0 // Available color steps per channel
+// LOCAL MODIFICATIONS to the upstream shader (see header for origin):
+//
+// THE PROBLEM THIS SOLVES. Upstream dithers every pixel. That works on a
+// near-black theme, where the background lands exactly on a quantisation
+// step and produces no pattern. Catppuccin Mocha's background is #1e1e2e --
+// RGB (0.118, 0.118, 0.18), a MID-dark colour that sits far from any step at
+// low LEVELS, so the shader dithered the entire background into a dense grid
+// that washed the whole terminal out.
+//
+// Measured distance-from-nearest-step for #1e1e2e:
+//   LEVELS 2  -> 0.24/0.24/0.36   heavy dither
+//   LEVELS 4  -> 0.47/0.47/0.28   heavy dither
+//   LEVELS 8  -> 0.06/0.06/0.44   heavy dither (blue channel)
+//   LEVELS 16 -> 0.12/0.12/0.11   light
+//
+// So instead of fighting it with LEVELS, background-coloured pixels are
+// skipped outright: dithering applies to text and bright content, the
+// background stays flat. That is what the reference screenshots actually
+// look like -- texture on the glyphs, clean background.
+//
+// BG_COLOR must match `theme` in ghostty.nix. If the theme changes, change
+// this too, or the background starts dithering again.
+#define BG_COLOR vec3(0.118, 0.118, 0.180)
+#define BG_TOLERANCE 0.06
+
+// PIXEL_SIZE -- physical pixels per Bayer cell. Upstream is effectively 1,
+// which on a 2x Retina panel is ~2pt across: too fine to read as dithering.
+// LEVELS -- colour steps per channel; lower = stronger effect.
+#define PIXEL_SIZE 2.0
+#define LEVELS 3.0
 #define INV_LEVELS (1.0 / LEVELS)
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord * (1.0 / iResolution.xy);
     vec3 color = texture(iChannel0, uv).rgb;
- 
-    float threshold = getBayerFromPacked(int(fragCoord.x), int(fragCoord.y));
+
+    // Leave the background alone. Without this the flat background is the
+    // single largest dithered area on screen and drowns out the text.
+    if (all(lessThan(abs(color - BG_COLOR), vec3(BG_TOLERANCE)))) {
+        fragColor = vec4(color, 1.0);
+        return;
+    }
+
+    // Quantise the coordinate before the lookup so one Bayer cell spans
+    // PIXEL_SIZE physical pixels instead of one.
+    vec2 cell = floor(fragCoord / PIXEL_SIZE);
+    float threshold = getBayerFromPacked(int(cell.x), int(cell.y));
     vec3 dithered = floor(color * LEVELS + threshold) * INV_LEVELS;
 
     fragColor = vec4(dithered, 1.0);
