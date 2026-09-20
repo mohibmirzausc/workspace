@@ -8,31 +8,27 @@ let
     bell-features = system,attention,title
     theme = dark:Catppuccin Mocha,light:Catppuccin Mocha
     mouse-scroll-multiplier = precision:1,discrete:1
-    # Opaque background. Applies to cmux too: cmux EMBEDS ghostty as its
-    # terminal engine and reads ~/.config/ghostty/config directly, so this is
-    # the single place to tune it. (There is no `ghostty` process to find --
-    # `pgrep ghostty` returns nothing while every cmux window still honours
-    # this file.)
+    # Slightly translucent background (default is 1 = opaque). Applies to
+    # cmux too: cmux EMBEDS ghostty as its terminal engine and reads
+    # ~/.config/ghostty/config directly, so this is the single place to tune
+    # it. (There is no `ghostty` process to find -- `pgrep ghostty` returns
+    # nothing while every cmux window still honours this file. Nor does
+    # kCGWindowAlpha reveal it: that reads 1.0 regardless, being the
+    # whole-window multiplier rather than the framebuffer's per-pixel alpha.
+    # To check whether the desktop shows through, sample pixels over time.)
     #
-    # WAS 0.9, AND THAT WAS EXPENSIVE. With the animated wallpaper running and
-    # windows stacked ~6.7x screen area deep, every translucent layer makes the
-    # compositor blend the wallpaper through it again:
+    # THIS WAS BRIEFLY 1.0 on the theory that translucency was driving
+    # compositing cost. The real cost was the animated wallpaper being
+    # re-blended through every layer at 30fps -- removing it took
+    # WindowServer from ~27% to ~8-10% and system load from ~6.5 to ~1.8.
     #
-    #   Wallspace 27.5%  +  WindowServer 27.0%  =  ~54% CPU
-    #
-    # against 4.7% for the same video benchmarked alone. WindowServer matching
-    # Wallspace is the tell: that is compositing, not decode.
-    #
-    # HONEST CAVEAT: not proven by A/B. cmux caches this at window creation and
-    # ignores SIGUSR2, so confirming it means restarting cmux and losing live
-    # sessions. The mechanism fits the numbers, but if CPU stays high after a
-    # cmux restart, translucency was not the cause -- revert this rather than
-    # keep a change that bought nothing.
-    #
-    # Want the wallpaper visible again? `background-blur = true` at 0.9 frosts
-    # what is behind instead of compositing it sharply, which may cost less --
-    # untested here.
-    background-opacity = 1.0
+    # An attempt to A/B opacity afterwards was INCONCLUSIVE: between samples
+    # Chrome went from idle to ~39% CPU and the window count nearly doubled
+    # (6.7x -> 12.1x screen area), both of which move WindowServer far more
+    # than this setting does. So translucency has no measured cost worth
+    # paying for here, and the look is worth keeping. If it is ever
+    # re-tested, hold Chrome and window count fixed across both samples.
+    background-opacity = 0.9
   '';
 
   tmuxKeybinds = ''
