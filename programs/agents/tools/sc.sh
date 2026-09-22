@@ -55,11 +55,23 @@ api() {
   # line: anything in argv is world-readable through `ps` for the lifetime
   # of the request, so -H "Shortcut-Token: $tok" would leak it to every
   # other process on the machine.
-  printf 'header = "Shortcut-Token: %s"\n' "$tok" \
+  local body status
+  # -w appends the status so a non-2xx can be turned into a non-zero exit.
+  # Without this curl returns 0 on 404/401/500 and the caller sees an error
+  # JSON body as if it were data -- which an agent will happily treat as a
+  # real answer.
+  body=$(printf 'header = "Shortcut-Token: %s"\n' "$tok" \
     | curl -sS --config - \
         -X "$method" \
         -H "Content-Type: application/json" \
-        "$@" "$API$path"
+        -w '\n%{http_code}' \
+        "$@" "$API$path") || die "request failed: $method $path"
+  status=${body##*$'\n'}
+  body=${body%$'\n'*}
+  case "$status" in
+    2*) printf '%s\n' "$body" ;;
+    *)  printf '%s\n' "$body" >&2; die "HTTP $status on $method $path" ;;
+  esac
 }
 
 usage() {
