@@ -111,6 +111,35 @@ Use [`pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) (npm
 Reimplementing either service's OAuth as a CLI would be a large amount of
 work to satisfy a philosophy. Not worth it.
 
+## Blocked: the `interrupt` rewrite
+
+Porting `skills/interrupt/SKILL.md` off MCP is the change that would let the
+Shortcut MCP server be dropped. It is **blocked on a prior problem**: the
+skill's hardcoded IDs do not exist in the workspace its own token reaches.
+
+Checked 2026-09-22 against the `mo-tools` workspace, via both `sc` and the
+Shortcut MCP server (they share one token, so both see the same data):
+
+| Skill says | Reality |
+|---|---|
+| team `6940a30c-…` "Release Engineering" | no such team; the 3 that exist are all `archived: true` |
+| workflow `500000566` | only `500000500` (Standard) exists |
+| "Started" state `500000569` | `500000503` In Development / `500000504` Code Review |
+| label `interrupts` | does not exist |
+
+So **`interrupt` is already broken in Claude**, not merely unportable to Pi.
+Its "verified against the Shortcut API on 2026-07-30" note has gone stale —
+either the workspace was rebuilt or the skill was written against a different
+one.
+
+Rewriting it against `sc` is straightforward once the intended destination is
+known, but that is a question for the skill's owner, not something to guess:
+filing interrupts into the wrong team or state is worse than the current
+failure, which is at least loud.
+
+Until it is fixed, leave the Shortcut MCP server in place. Removing it would
+change one broken path into a differently broken path.
+
 ## Secrets
 
 Three separate layers; only the third is enforcement:
