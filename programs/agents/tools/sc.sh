@@ -51,10 +51,15 @@ api() {
   # request and curl would be sent an empty token.
   tok=$(token) || exit 1
   [ -n "$tok" ] || die "empty shortcut token"
-  curl -sS -X "$method" \
-    -H "Shortcut-Token: $tok" \
-    -H "Content-Type: application/json" \
-    "$@" "$API$path"
+  # The token goes to curl over stdin via --config, never on the command
+  # line: anything in argv is world-readable through `ps` for the lifetime
+  # of the request, so -H "Shortcut-Token: $tok" would leak it to every
+  # other process on the machine.
+  printf 'header = "Shortcut-Token: %s"\n' "$tok" \
+    | curl -sS --config - \
+        -X "$method" \
+        -H "Content-Type: application/json" \
+        "$@" "$API$path"
 }
 
 usage() {
