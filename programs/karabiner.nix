@@ -155,6 +155,28 @@
               mouse_flip_horizontal_wheel = true;
               mouse_flip_vertical_wheel = true;
             }
+            # Logitech MX Anywhere 2S (Bluetooth LE): deliberately NOT grabbed.
+            # Its scroll flip, tilt wheel and side button all live in
+            # programs/linearmouse.json instead, because the tilt cannot be
+            # done here: over BLE it emits horizontal scroll (HID AC Pan), not
+            # a button, repeating every ~100ms from the first event -- even a
+            # quick tap sends two. Karabiner cannot take a wheel event as a
+            # `from`, and a scroll->key mapping would fire a hotkey per event.
+            # LinearMouse instead diverts the tilt over HID++ (controls 0x5B /
+            # 0x5D), turning it into one press/release (the action fires on
+            # release). Side effect: the tilt no longer scrolls horizontally.
+            # That needs LinearMouse to reach the physical device and see its
+            # raw events; grabbing it here (ignore = false) is untested but
+            # likely breaks the mapping, so it is pinned to today's behaviour.
+            {
+              identifiers = {
+                is_keyboard = true;
+                is_pointing_device = true;
+                product_id = 45082;
+                vendor_id = 1133;
+              };
+              ignore = true;
+            }
           ];
 
           virtual_hid_keyboard = {
