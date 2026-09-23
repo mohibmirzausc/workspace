@@ -504,7 +504,7 @@ in
         name = "karabiner-elements";
         greedy = true;
       }
-      "linearmouse"   # Fast-scroll when holding modifier key (configured in home.nix)
+      "linearmouse"   # Shift fast-scroll, plus the MX Anywhere 2S scroll/tilt/side button (programs/linearmouse.json; why not Karabiner: programs/karabiner.nix)
       # Tiling window manager (arm64 + macOS 26 only). Ships an `omniwmctl`
       # CLI symlinked out of the app bundle for scripting layouts.
       #

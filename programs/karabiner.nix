@@ -163,9 +163,11 @@
             # quick tap sends two. Karabiner cannot take a wheel event as a
             # `from`, and a scroll->key mapping would fire a hotkey per event.
             # LinearMouse instead diverts the tilt over HID++ (controls 0x5B /
-            # 0x5D), turning it into one press/release. That needs LinearMouse
-            # to reach the physical device, so grabbing it here (ignore =
-            # false) would silently break the tilt mapping.
+            # 0x5D), turning it into one press/release (the action fires on
+            # release). Side effect: the tilt no longer scrolls horizontally.
+            # That needs LinearMouse to reach the physical device and see its
+            # raw events; grabbing it here (ignore = false) is untested but
+            # likely breaks the mapping, so it is pinned to today's behaviour.
             {
               identifiers = {
                 is_keyboard = true;
