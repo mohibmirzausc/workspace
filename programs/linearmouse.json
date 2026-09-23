@@ -24,6 +24,58 @@
           }
         }
       }
+    },
+    {
+      "if" : {
+        "device" : {
+          "category" : "mouse",
+          "productID" : "0xb01a",
+          "productName" : "MX Anywhere 2S",
+          "vendorID" : "0x046d"
+        }
+      },
+      "scrolling" : {
+        "acceleration" : {
+          "vertical" : 1.15
+        },
+        "modifiers" : {
+          "vertical" : {
+            "shift" : {
+              "scale" : 3,
+              "type" : "changeSpeed"
+            }
+          }
+        },
+        "reverse" : {
+          "vertical" : true
+        }
+      },
+      "buttons" : {
+        "mappings" : [
+          {
+            "button" : {
+              "kind" : "logitechControl",
+              "controlID" : 91
+            },
+            "action" : {
+              "keyPress" : [ "controlRight", "optionRight", "commandRight", "arrowLeft" ]
+            }
+          },
+          {
+            "button" : {
+              "kind" : "logitechControl",
+              "controlID" : 93
+            },
+            "action" : {
+              "keyPress" : [ "controlRight", "optionRight", "commandRight", "arrowRight" ]
+            }
+          },
+          {
+            "button" : 3,
+            "action" : "missionControl"
+          }
+        ]
+      }
     }
   ]
 }
