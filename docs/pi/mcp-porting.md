@@ -111,36 +111,39 @@ Use [`pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) (npm
 Reimplementing either service's OAuth as a CLI would be a large amount of
 work to satisfy a philosophy. Not worth it.
 
-## Blocked: the `interrupt` rewrite
+## Resolved: the last MCP callers are gone
 
-Porting `skills/interrupt/SKILL.md` off MCP is the change that would let the
-Shortcut MCP server be dropped. It is **blocked on a prior problem**: the
-skill's hardcoded IDs do not exist in the workspace its own token reaches.
+Dropping the Shortcut MCP server was blocked on two files that called it
+directly. Both are now clear (2026-09-23):
 
-Checked 2026-09-22 against the `mo-tools` workspace, via both `sc` and the
-Shortcut MCP server (they share one token, so both see the same data):
+| File | Was | Now |
+|---|---|---|
+| `skills/interrupt/SKILL.md` | `mcp__shortcut__*` + `mcp__plugin_slack_slack__*` | **deleted** — obsolete |
+| `prompts/review-pr` | `mcp__shortcut__stories-get-by-id` | `sc story <id>` |
 
-| Skill says | Reality |
+`interrupt` turned out to be broken before any of this work: its hardcoded
+IDs did not exist in the workspace its own token reaches. Checked against
+`mo-tools` through both `sc` and the Shortcut MCP server (they share a token,
+so both see the same data):
+
+| Skill said | Reality |
 |---|---|
-| team `6940a30c-…` "Release Engineering" | no such team; the 3 that exist are all `archived: true` |
-| workflow `500000566` | only `500000500` (Standard) exists |
-| "Started" state `500000569` | `500000503` In Development / `500000504` Code Review |
+| team `6940a30c-…` "Release Engineering" | no such team; the 3 that exist are archived |
+| workflow `500000566` | only `500000500` (Standard) |
+| "Started" state `500000569` | `500000503` / `500000504` |
 | label `interrupts` | does not exist |
 
-So **`interrupt` is already broken in Claude**, not merely unportable to Pi.
-Its "verified against the Shortcut API on 2026-07-30" note has gone stale —
-either the workspace was rebuilt or the skill was written against a different
-one.
+Rather than guess at replacements it was removed as obsolete.
 
-Rewriting it against `sc` is straightforward once the intended destination is
-known, but that is a question for the skill's owner, not something to guess:
-filing interrupts into the wrong team or state is worse than the current
-failure, which is at least loud.
+`review-pr` only ever needed "fetch a story by id", which `sc story` does.
+Verified the response carries everything it reads — name, description,
+`app_url`, comments, tasks, `story_links`.
 
-Until it is fixed, leave the Shortcut MCP server in place. Removing it would
-change one broken path into a differently broken path.
+**`grep -rln 'mcp__' programs/agents/` now returns nothing.** The Shortcut MCP
+server can be removed from `~/.claude.json` whenever you want the ~11k–29k
+tokens per request back; nothing in the shared content depends on it.
 
-## Secrets
+## Secrets## Secrets
 
 Three separate layers; only the third is enforcement:
 
