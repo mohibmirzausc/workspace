@@ -51,6 +51,14 @@ api() {
   # request and curl would be sent an empty token.
   tok=$(token) || exit 1
   [ -n "$tok" ] || die "empty shortcut token"
+  # A newline or quote in the token would end the curl --config line and let
+  # the rest be read as further directives (a second `url = ...` redirects the
+  # request, and the header goes with it). The value comes from our own sops
+  # store rather than untrusted input, so this is a guard against corruption
+  # rather than an attack -- but it is a one-line guard.
+  case $tok in
+    *[$'\n\r"\\']*) die "token contains a quote, backslash or newline; refusing to use it" ;;
+  esac
   # The token goes to curl over stdin via --config, never on the command
   # line: anything in argv is world-readable through `ps` for the lifetime
   # of the request, so -H "Shortcut-Token: $tok" would leak it to every
