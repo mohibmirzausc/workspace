@@ -40,14 +40,14 @@ Analyze the PR context above and present a structured overview to the human. Do 
 **1. What is this PR doing?**
 Summarize the goal in 2-3 sentences. Use the PR description, title, and linked tickets.
 
-If the PR references a Shortcut ticket (e.g., `[sc-XXXXX]`), extract the number and fetch the full story using the Shortcut MCP (`mcp__shortcut__stories-get-by-id` with `storyPublicId`). This gives you the acceptance criteria, description, tasks, comments, and context that shaped the PR.
+If the PR references a Shortcut ticket (e.g., `[sc-XXXXX]`), extract the number and fetch the full story with the `sc` CLI: `sc story <id>`. This gives you the acceptance criteria, description, tasks, comments, and context that shaped the PR. Pipe through `jq` to keep only what you need, e.g. `sc story 126509 | jq '{name, description, app_url}'`.
 
 From the Shortcut story, surface:
 - **Description** — The goal, design decisions, and known tradeoffs
 - **Comments** — Implementation notes, caveats, behavioral changes the author flagged
 - **Tasks** — What the author considers the checklist. Note which are complete vs. incomplete — incomplete tasks may indicate the PR isn't fully done or has known gaps
 - **Workflow state** — Is this "Started", "Dev Finished", or "Acceptance Testing"? This shapes your review posture
-- **Related stories** — Fetch the titles of related stories (`mcp__shortcut__stories-get-by-id` for each `related_stories` ID). These reveal prerequisite work, parallel efforts, or planned follow-ups that add context. Just the name and a one-line summary — don't go deep unless the reviewer asks
+- **Related stories** — Fetch the titles of related stories (`sc story <id> | jq '{name}'` for each `related_stories` ID). These reveal prerequisite work, parallel efforts, or planned follow-ups that add context. Just the name and a one-line summary — don't go deep unless the reviewer asks
 - **Epic** — What bigger initiative does this fit into?
 
 If the Shortcut MCP is not available, note the ticket reference and move on — don't block the review. If the MCP errors because `SHORTCUT_API_TOKEN` is not set, tell the reviewer:
