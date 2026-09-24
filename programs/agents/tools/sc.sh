@@ -115,6 +115,7 @@ sc -- Shortcut CLI
   sc mine                      stories owned by you, not yet done
   sc comment <id> <text>       add a comment to a story
   sc start <id>                move story to its workflow "started" state
+  sc state <id>                workflow state of a story, resolved to a name
   sc raw <METHOD> <PATH> [json-body]  any API v3 call
 
 Output is JSON; pipe to jq. Examples:
@@ -137,6 +138,13 @@ case "$cmd" in
            WF=$(api GET /workflows | jq -r '.[0].states[] | select(.type=="started") | .id' | head -1)
            [ -n "$WF" ] || die "could not find a started workflow state"
            api PUT "/stories/$1" "$(jq -n --argjson s "$WF" '{workflow_state_id:$s}')" ;;
+  state)   [ $# -ge 1 ] || die "usage: sc state <id>"
+           # A story only carries workflow_state_id, an integer. Resolve it to
+           # a name so callers do not have to fetch /workflows themselves.
+           SID=$(api GET "/stories/$1" | jq -r '.workflow_state_id')
+           api GET /workflows \
+             | jq -r --argjson s "$SID" \
+                 '.[].states[] | select(.id==$s) | "\(.id)\t\(.name)\t\(.type)"' ;;
   raw)     [ $# -ge 2 ] || die "usage: sc raw <METHOD> <PATH> [json-body]"
            api "$1" "$2" "${3-}" ;;
   help|--help|-h) usage ;;

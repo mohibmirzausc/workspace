@@ -101,9 +101,13 @@ under both harnesses.
 Keep it that way. Audit for both classes:
 
 ```bash
-grep -rln 'TeammateTool\|Task tool\|subagent_type\|EnterPlanMode' programs/agents/
-grep -rln 'mcp__' programs/agents/
+grep -rln 'TeammateTool\|Task tool\|subagent_type\|EnterPlanMode' programs/agents/ --exclude=README.md
+grep -rln 'mcp__' programs/agents/ --exclude=README.md
 ```
+
+Both should print nothing. `--exclude=README.md` keeps this file's own examples
+from matching — without it the audit looks dirty forever and you learn to
+ignore it.
 
 Prefer a CLI plus a skill over an MCP tool for anything with a plain HTTP API:
 it works in both harnesses and costs context only when relevant. See
