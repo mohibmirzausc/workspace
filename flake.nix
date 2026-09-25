@@ -19,6 +19,27 @@
 
   outputs = { self, nixpkgs, nix-darwin, home-manager, sops-nix, ... }:
     let
+      # FEATURE FLAGS -- hardcoded on purpose. These are not options a user
+      # sets at runtime; flipping one is a config edit + rebuild, and the
+      # commit message is where the reasoning lives.
+      #
+      # Defined ONCE here and passed to every configuration below. Do not
+      # inline a second copy into one of them: the darwin and linux configs
+      # would then disagree silently, which is the failure this whole file
+      # already avoids for `user` and `home`.
+      features = {
+        # Wallspace animated wallpaper. OFF -- it was the largest single CPU
+        # consumer on this machine: Wallspace + WindowServer measured ~54%
+        # combined against 4.7% for the same video benchmarked alone, and
+        # removing it took system load from ~6.5 to ~1.8.
+        #
+        # On installs the cask, the wallpaper-seeding activation and the
+        # pinned pause settings; off removes all three, and
+        # homebrew.onActivation.cleanup = "uninstall" removes the app on the
+        # next rebuild.
+        wallspace = false;
+      };
+
       # Generic Darwin config — works for any username/hostname/arch.
       # Usage: sudo nix run nix-darwin -- switch --flake .#darwin --impure
       # Reads USER, HOME, and the current system from the environment at build
@@ -32,7 +53,7 @@
         specialArgs = {
           user = currentUser;
           home = currentHome;
-          inherit system;
+          inherit system features;
         };
         modules = [
           ./darwin.nix
@@ -48,7 +69,7 @@
             home-manager.extraSpecialArgs = {
               user = currentUser;
               home = currentHome;
-              inherit system;
+              inherit system features;
             };
           }
         ];
@@ -94,6 +115,11 @@
         extraSpecialArgs = {
           user = currentUser;
           home = currentHome;
+          # home.nix imports the wallspace module, which takes `features`.
+          # Everything in it is additionally guarded on isDarwin, so the value
+          # does not change the linux build -- but it must be the SAME attrset
+          # as the darwin configs use, not a local copy that can drift.
+          inherit features;
         };
       };
     };

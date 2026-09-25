@@ -8,14 +8,32 @@ let
     bell-features = system,attention,title
     theme = dark:Catppuccin Mocha,light:Catppuccin Mocha
     mouse-scroll-multiplier = precision:1,discrete:1
-    # Slightly translucent background (default is 1 = opaque). Applies to cmux
-    # too: cmux reads ~/.config/ghostty/config directly rather than carrying its
-    # own appearance settings, so this is the single place to tune it.
+    # Opaque terminal background. Applies to cmux too: cmux EMBEDS ghostty as
+    # its terminal engine and reads ~/.config/ghostty/config directly, so this
+    # is the single place to tune it. (There is no `ghostty` process to find
+    # for the cmux windows -- `pgrep ghostty` returns nothing while every cmux
+    # window still honours this file. Nor does kCGWindowAlpha reveal the
+    # translucency: that reads 1.0 regardless, being the whole-window
+    # multiplier rather than the framebuffer's per-pixel alpha. To check
+    # whether the desktop shows through, sample pixels over time.)
     #
-    # Trying this out -- if text legibility over busy windows suffers, either
-    # raise this back toward 1 or add `background-blur = true` to frost what is
-    # behind the window instead of showing it sharply.
-    background-opacity = 0.9
+    # NOT justified by a measurement -- be honest about that. Three attempts
+    # to A/B this were all invalidated by background noise: Chrome spiking
+    # from idle to ~39%, window count nearly doubling mid-test, and one run
+    # where the OPAQUE case measured worse than translucent (20% vs 11%),
+    # which is physically impossible and so was noise rather than signal.
+    # WindowServer on this machine swings 9-33% on its own.
+    #
+    # What IS established: the expensive thing was the animated wallpaper,
+    # not transparency. Removing it took WindowServer ~27% -> ~8-13% and load
+    # ~6.5 -> ~1.8. Separately, JankyBorders runs 11 windows over 6.2x screen
+    # area and killing it changed nothing measurable -- so static translucent
+    # surfaces composite once and cache. Cost comes from CHANGE, not layers.
+    #
+    # So this is a preference, chosen while the wallpaper is off and there is
+    # nothing to see through to. Set it back to 0.9 any time; on the evidence
+    # available that costs nothing.
+    background-opacity = 1.0
   '';
 
   tmuxKeybinds = ''

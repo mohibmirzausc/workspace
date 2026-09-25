@@ -1,4 +1,4 @@
-{ config, pkgs, lib, user, home, system, ... }:
+{ config, pkgs, lib, user, home, system, features, ... }:
 
 let
   # Environment shared by the sketchybar daemon and its event bridge, both
@@ -551,13 +551,16 @@ in
       # media engine (measured ~3.6% CPU via a tuned mpv, hardware-decoded)
       # but not free.
       #
-      # NOTE the wallpaper IS visible through the terminals even with windows
-      # tiled edge-to-edge, because ghostty's background-opacity = 0.9 gives
-      # its framebuffer per-pixel alpha and the window server composites the
-      # desktop beneath it. Do not be misled by kCGWindowAlpha reading 1.0 --
-      # that is the whole-window opacity multiplier, a different thing, and
-      # reasoning from it led to the wrong conclusion here. Verified by
-      # setting a magenta wallpaper and watching it bleed through a terminal.
+      # NOTE terminals are opaque now (background-opacity = 1.0 in
+      # programs/ghostty.nix) AND features.wallspace is false, so nothing
+      # shows through. Both are relevant again together: at 0.9 the wallpaper
+      # DID bleed through, because that gives the framebuffer per-pixel alpha
+      # and the window server composites the desktop beneath it.
+      #
+      # Do not be misled by kCGWindowAlpha reading 1.0 when checking that --
+      # it is the whole-window opacity multiplier, a different thing, and
+      # reasoning from it led to the wrong conclusion here twice. Sample
+      # pixels over time instead.
       #
       # So the occlusion pause does NOT make this invisible-and-free; expect
       # to actually pay some CPU while a translucent window is on screen.
@@ -571,6 +574,11 @@ in
       # and the download's sha256 matches the cask pin.
       #
       # auto_updates upstream, so brew bundle defers to the app's own updater.
+      #
+      # GATED on features.wallspace in flake.nix, currently FALSE -- so this
+      # list does not include it and cleanup = "uninstall" removes the app.
+      # See programs/wallspace.nix for the module side.
+    ] ++ lib.optionals features.wallspace [
       "wallspace"
     ];
   };
