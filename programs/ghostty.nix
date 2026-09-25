@@ -34,7 +34,6 @@ let
     # nothing to see through to. Set it back to 0.9 any time; on the evidence
     # available that costs nothing.
     background-opacity = 1.0
-
   '';
 
   tmuxKeybinds = ''
