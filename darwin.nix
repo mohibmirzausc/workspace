@@ -540,6 +540,12 @@ in
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
       "ticktick"
       "finetune"
+      # Official Mojang launcher (downloads from launcher.mojang.com). The
+      # cask is a thin wrapper: the launcher self-updates and pulls game
+      # versions itself, so the cask version (2.1.3,1) tracks the LAUNCHER,
+      # not the game -- there is nothing to bump here for a new Minecraft
+      # release. auto_updates, so brew bundle leaves it alone after install.
+      "minecraft"
       # Animated desktop wallpaper from a local video file.
       #
       # Chosen over the open-source alternatives because it is the only one
