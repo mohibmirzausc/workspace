@@ -143,6 +143,26 @@ try:
     d = json.load(sys.stdin)
 except Exception:
     sys.exit(0)
+
+# Surface an omniwmctl ERROR response instead of silently rendering nothing.
+# OmniWM refuses queries from a client whose protocol version does not match
+# ("code": "protocol_mismatch"), which happens whenever the app updates on
+# disk while an older instance is still running -- omniwmctl ships inside the
+# .app, so the CLI jumps versions the moment the bundle is replaced while the
+# running process stays on the old protocol.
+#
+# Without this the island just goes blank: the payload has no "windows" key,
+# ws comes out empty, and the plugin exits 0 having drawn nothing. That looks
+# identical to "no windows on this workspace", so it cost a real debugging
+# session to find. One line in the log names the cause.
+if isinstance(d, dict) and d.get('ok') is False:
+    code = d.get('code', 'unknown')
+    msg = 'omniwmctl query failed: ' + str(code)
+    if code == 'protocol_mismatch':
+        msg += ' -- restart OmniWM (the running app is older than omniwmctl)'
+    print(msg, file=sys.stderr)
+    sys.exit(0)
+
 d = d.get('result', {}).get('payload', d) if isinstance(d, dict) else d
 ws = d if isinstance(d, list) else d.get('windows', [])
 
