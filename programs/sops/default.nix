@@ -267,5 +267,22 @@ in
         echo "Warning: could not decrypt secrets"
       fi
     fi
+
+    # The patches above write live credentials into ~/.claude.json -- the
+    # shortcut API token and the agent-mail bearer, both in plaintext. Claude
+    # creates that file world-readable (-rw-r--r--), so tighten it every time
+    # we touch it. Claude rewrites the file itself during normal use, which
+    # can restore the loose mode, so this is re-applied on each activation
+    # rather than being a one-time fix.
+    # -f alone would follow a symlink and chmod whatever it points at, so
+    # check for a symlink first and refuse rather than changing the mode of
+    # some other file. Low risk (only this user can write to $HOME) but the
+    # guard is one line.
+    if [ -L "$HOME/.claude.json" ]; then
+      echo "  Skipping ~/.claude.json: it is a symlink, refusing to chmod its target"
+    elif [ -f "$HOME/.claude.json" ]; then
+      chmod 600 "$HOME/.claude.json"
+      echo "  Restricted ~/.claude.json to 0600"
+    fi
   '';
 }
