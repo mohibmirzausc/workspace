@@ -65,7 +65,7 @@ updateChecksEnabled = true
 [gestures]
 fingerCount = 3
 invertDirection = true
-mouseMoveModifierKey = "option"
+mouseMoveModifierKey = "controlOptionCommand"
 mouseResizeModifierKey = "option"
 overviewGestureEnabled = false
 overviewGestureFingerCount = 4
@@ -937,19 +937,19 @@ binding = "Unassigned"
 id = "swapSplit"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F14"
 id = "resizeGrow.horizontal"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F16"
 id = "resizeGrow.vertical"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F13"
 id = "resizeShrink.horizontal"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F15"
 id = "resizeShrink.vertical"
 
 [[hotkeys]]

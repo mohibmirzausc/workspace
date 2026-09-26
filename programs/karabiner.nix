@@ -166,6 +166,41 @@
                 ];
               }
               {
+                description = "Caps Lock+- = [ ] → OmniWM resize in both niri and dwindle";
+                # OmniWM's niri resize (set*Span) and dwindle resize
+                # (resizeGrow/Shrink.*) are separate actions, and it refuses to
+                # register one chord for two actions: both fail as
+                # duplicateBinding. So each key sends two chords -- the niri one
+                # it always had, then a Caps Lock+F13-F16 chord (no physical key,
+                # so nothing else uses it) bound to the dwindle action in
+                # programs/omniwm/settings.toml. OmniWM gates every command on
+                # the active workspace's layout (CommandHandler.performCommand ->
+                # isLayoutCompatible) and ignores the other one as
+                # layout_mismatch, so exactly one resize happens either way.
+                #
+                # Nothing is lost on hold: OmniWM already ignores autorepeat
+                # for side-pinned bindings, so these resize once per press
+                # before and after this rule.
+                manipulators = map (pair: let
+                  mods = [ "right_control" "right_option" "right_command" ];
+                in {
+                  type = "basic";
+                  from = {
+                    key_code = pair.key;
+                    modifiers.mandatory = [ "control" "option" "command" ];
+                  };
+                  to = [
+                    { key_code = pair.key; modifiers = mods; }
+                    { key_code = pair.dwindle; modifiers = mods; }
+                  ];
+                }) [
+                  { key = "hyphen"; dwindle = "f13"; }         # shrink horizontally
+                  { key = "equal_sign"; dwindle = "f14"; }     # grow horizontally
+                  { key = "open_bracket"; dwindle = "f15"; }   # shrink vertically
+                  { key = "close_bracket"; dwindle = "f16"; }  # grow vertically
+                ];
+              }
+              {
                 description = "Side button → Mission Control";
                 manipulators = [
                   {
