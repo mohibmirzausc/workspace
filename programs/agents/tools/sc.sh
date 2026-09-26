@@ -133,6 +133,9 @@ case "$cmd" in
   mine)    MENTION=$(api GET /member | jq -r '.mention_name')
            api GET "/search/stories?query=$(jq -rn --arg q "owner:$MENTION !is:done" '$q|@uri')" ;;
   comment) [ $# -ge 2 ] || die "usage: sc comment <id> <text>"
+           # Guard the text, not the serialized JSON: {"text":""} is non-empty,
+           # so without this an empty argument posts a blank comment.
+           [ -n "$2" ] || die "comment text is empty"
            api POST "/stories/$1/comments" "$(jq -n --arg t "$2" '{text:$t}')" ;;
   start)   [ $# -ge 1 ] || die "usage: sc start <id>"
            WF=$(api GET /workflows | jq -r '.[0].states[] | select(.type=="started") | .id' | head -1)
