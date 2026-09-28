@@ -110,10 +110,14 @@ def collect():
     tree = json.loads(run("cmux", "--json", "tree", "--all"))
     # Stable window identity: cmux's window UUID. The tree has only refs, so
     # join list-windows to it on the selected workspace, which both report.
-    uuid_by_selected = {
-        w.get("selected_workspace_id"): w.get("id")
-        for w in json.loads(run("cmux", "--json", "list-windows"))
-    }
+    uuid_by_selected, seen_keys = {}, set()
+    for w in json.loads(run("cmux", "--json", "list-windows")):
+        key = w.get("selected_workspace_id")
+        if key in seen_keys:  # not unique: no window may take this UUID
+            uuid_by_selected.pop(key, None)
+        elif key and w.get("id"):
+            uuid_by_selected[key] = w["id"]
+        seen_keys.add(key)
     here = tree.get("caller", {}).get("window_ref")
 
     ow_windows = omniwm("windows", "--fields", "id,window-id,app,title,workspace,mode,is-scratchpad")["windows"]
@@ -138,18 +142,20 @@ def collect():
         focused = next((s for s in surfaces if s.get("selected")), surfaces[0] if surfaces else {})
 
         name = sel.get("title") or ""
-        matches = by_title.get(name, [])
+        # An empty name is no identity: it would pair with any untitled window.
+        matches = by_title.get(name, []) if name else []
         match = "ok" if len(matches) == 1 else ("ambiguous" if matches else "none")
         ow = matches[0] if match == "ok" else None
         # Every workspace this window could be on. For an unmatched window the
         # answer is "unknown", which must be treated as "maybe workspace 1".
-        candidates = sorted({ws_number(m) for m in matches} - {None})
-        maybe_user = (not candidates) or USER_WORKSPACE in candidates or \
-            (ow is not None and ws_number(ow) is None)
+        spots = {ws_number(m) for m in matches}
+        candidates = sorted(spots - {None})
+        # A candidate with no workspace could be anywhere, including 1.
+        maybe_user = (not candidates) or USER_WORKSPACE in candidates or None in spots
 
         msg = sel.get("latest_submitted_message") or ""
         windows.append({
-            "id": uuid_by_selected.get(win.get("selected_workspace_id")) or win["ref"],
+            "id": uuid_by_selected.get(win.get("selected_workspace_id") or "") or win["ref"],
             "cmux_window": win["ref"],
             "cmux_workspace": sel.get("ref"),
             "is_this_session": win["ref"] == here,

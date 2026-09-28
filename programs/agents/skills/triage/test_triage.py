@@ -504,10 +504,77 @@ class ExecuteTests(unittest.TestCase):
                           "labels": [{"workspace": 1, "from": "1", "to": "hacked"}],
                           "layouts": [{"workspace": 1, "from": "niri", "to": "dwindle"}]})
             code, out = apply.undo(dry=False)
-            self.assertEqual(code, 1)
+            self.assertEqual(code, 0, out)  # bad entries are ignored, not retried forever
             self.assertEqual(d.ws_of("a"), 3)
-            self.assertEqual(len(out["failed"]), 3)
+            self.assertEqual(len(out["ignored"]), 3)
             self.assertFalse([c for c in d.calls if c[:2] != ("command", "switch-workspace")])
+            self.assertIsNone(state.last_undoable())
+
+    def test_malformed_log_neither_crashes_nor_blocks(self):
+        with self.desk() as d:
+            os.makedirs(state.state_dir(), exist_ok=True)
+            with open(state.log_path(), "a") as f:
+                f.write("5\n[1, 2]\n")
+            state.append({"kind": "apply", "moves": "oops", "labels": [{"workspace": [7]}, "x"],
+                          "projects": [{"workspace": [2], "label": "2 a", "repos": ["a"]}, 7,
+                                       {"workspace": 3, "label": None, "repos": ["a"]}]})
+            d.collect()  # the inventory still runs
+            self.assertEqual(state.label_repos({2: "2 a", 3: None}), {})
+            code, out = apply.undo(dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertTrue(out["ignored"])
+
+    def test_abandon_lets_undo_reach_older_runs(self):
+        with self.desk() as d:
+            apply.apply(full_plan(d, a={"action": "move", "to": 7}), dry=False)
+            first = state.last_undoable()["ts"]
+            apply.apply(full_plan(d, b={"action": "move", "to": 8}), dry=False)
+            d.fail.add(("window", "move-to-workspace", "ow_b", "6"))
+            self.assertEqual(apply.undo(dry=False)[0], 1)  # stuck
+            self.assertEqual(apply.abandon(dry=False)[0], 0)
+            self.assertEqual(state.last_undoable()["ts"], first)
+            apply.undo(dry=False)
+            self.assertEqual((d.ws_of("a"), d.ws_of("b")), (3, 8))
+
+    def test_move_refused_if_its_omniwm_window_changed(self):
+        # Two windows swap names; if titles lag, x's new name would match y.
+        with FakeDesktop({"x": ("a", 3, "r"), "y": ("b", 4, "r")}) as d:
+            plan = full_plan(d, x={"action": "move", "to": 7, "rename": "b"}, y={"action": "stay", "rename": "a"})
+            self.assertEqual(apply.validate(plan, d.collect()), [])
+            real_collect, renamed = d.collect, []
+            d.on_rename = lambda desk: renamed.append(1)
+            def lagging():
+                inv = real_collect()
+                if renamed:  # after the renames, the title join lags behind them
+                    for w in inv["windows"]:
+                        w["omniwm_id"] = {"x": "ow_y", "y": "ow_x"}[w["id"]]
+                return inv
+            inventory.collect = lagging
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 1)
+            self.assertEqual((d.ws_of("x"), d.ws_of("y")), (3, 4))
+
+    def test_undo_rename_does_not_create_a_duplicate(self):
+        with self.desk() as d:
+            apply.apply(full_plan(d, a={"action": "stay", "rename": "a2"}), dry=False)
+            d.w["b"]["name"] = "a"  # the user reuses the old name
+            code, out = apply.undo(dry=False)
+            self.assertEqual((d.w["a"]["name"], d.w["b"]["name"]), ("a2", "a"))
+            self.assertTrue(any("another window is called 'a'" in r for r in out["report"]))
+
+    def test_layout_waits_for_its_workspace_to_be_active(self):
+        with self.desk() as d:
+            real = d.omni
+            def no_op_switch(*args):  # switch "succeeds" but nothing changes
+                if args[:2] == ("command", "switch-workspace"):
+                    return True, "executed"
+                return real(*args)
+            apply.omni = no_op_switch
+            plan = full_plan(d)
+            plan["workspaces"] = [{"number": 8, "layout": "niri"}]
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 1)
+            self.assertNotIn("niri", d.layouts.values())
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 
   apply.py [--dry-run] PLAN.json     validate and apply a plan (- for stdin)
   apply.py --undo [--dry-run]        reverse the most recent apply
+  apply.py --undo --abandon          stop trying to undo it (reach older runs)
 
 Exit status: 0 done, 1 done but something failed (see "failed"), 2 refused.
 
@@ -209,7 +210,7 @@ class Run:
 
     def __init__(self, kind, dry):
         self.dry = dry
-        self.report, self.failed = [], []
+        self.report, self.failed, self.rejected = [], [], []
         self.log = {"kind": kind, "renames": [], "moves": [], "layouts": [], "labels": []}
 
     def say(self, line):
@@ -218,6 +219,13 @@ class Run:
     def fail(self, line):
         self.failed.append(line)
         self.report.append("FAILED: " + line)
+
+    def reject(self, line):
+        """A step that can never succeed (a malformed or out-of-bounds log
+        entry): reported, but it doesn't keep an undo from completing, or one
+        bad entry would block every older undo forever."""
+        self.rejected.append(line)
+        self.report.append("IGNORED: " + line)
 
 
 def displays_now():
@@ -258,9 +266,11 @@ def set_layout(n, layout, run):
         run.say(f"would set workspace {n} to {layout}")
         return False
     ok, status = omni("command", "switch-workspace", n)
-    if not ok:
-        # Setting the layout now would change whichever workspace is active.
-        run.fail(f"layout {n} -> {layout}: couldn't switch there ({status})")
+    shown, focused = displays_now() if ok else ({}, None)
+    if not ok or shown.get(focused) != n:
+        # set-workspace-layout acts on whichever workspace is active, so it
+        # only runs once workspace n is confirmed to be the active one.
+        run.fail(f"layout {n} -> {layout}: couldn't switch there ({status if not ok else 'not active after switching'})")
         return False
     ok, status = omni("command", "set-workspace-layout", layout)
     if not ok:
@@ -303,6 +313,10 @@ def unsafe_to_move(w, validated, fresh_windows):
         return "it is on (or may be on) workspace 1 now"
     if w["omniwm_match"] != "ok":
         return f"no unique OmniWM match ({w['omniwm_match']})"
+    if w["omniwm_id"] != validated["omniwm_id"]:
+        # Its title now matches a different OmniWM window than when the plan
+        # was checked (e.g. two windows swapped names and titles lag).
+        return "its OmniWM window changed since the plan was checked"
     if sum(x["omniwm_id"] == w["omniwm_id"] for x in fresh_windows) > 1:
         return "another cmux window resolves to the same OmniWM window"
     if w.get("floating") or w.get("scratchpad"):
@@ -330,6 +344,8 @@ def finish(run, view, decided_ids):
     if run.dry:
         return
     run.log["failed"] = run.failed
+    if run.rejected:
+        run.log["ignored"] = run.rejected
     if decided_ids is not None:
         run.log["snapshot"] = sorted(decided_ids)
     if run.log["kind"] == "undo":
@@ -341,6 +357,8 @@ def result(run, done_key, ts):
     out = {"dry_run": True, "would": run.report} if run.dry else {done_key: ts, "report": run.report}
     if run.failed:
         out["failed"] = run.failed
+    if run.rejected:
+        out["ignored"] = run.rejected
     return (1 if run.failed else 0), out
 
 
@@ -424,6 +442,20 @@ def execute(plan, validated, run):
 
 # ---------------------------------------------------------------------- undo
 
+def abandon(dry):
+    """Give up on undoing the most recent run (e.g. its undo keeps failing for
+    a reason that won't clear), so --undo can reach older runs. Changes
+    nothing on screen."""
+    entry = state.last_undoable()
+    if entry is None:
+        return 0, {"undo": "nothing to undo"}
+    if dry:
+        return 0, {"dry_run": True, "would": [f"stop trying to undo the run from {entry['ts']}"]}
+    state.append({"kind": "undo", "undoes": entry["ts"], "complete": True, "abandoned": True,
+                  "renames": [], "moves": [], "layouts": [], "labels": [], "failed": []})
+    return 0, {"abandoned": entry["ts"]}
+
+
 def undo(dry):
     entry = state.last_undoable()
     if entry is None:
@@ -452,10 +484,25 @@ def reverse(entry, inv, run):
     def label_now(n):
         return live.get(n, {}).get("label") or str(n)
 
-    for lab in reversed(entry.get("labels", [])):
+    def items(key):
+        """The entry's list for key, keeping only well-formed objects."""
+        value = entry.get(key, [])
+        if not isinstance(value, list):
+            run.reject(f"malformed {key!r} in the log")
+            return []
+        good = [x for x in value if isinstance(x, dict)]
+        if len(good) != len(value):
+            run.reject(f"{len(value) - len(good)} malformed {key!r} entries in the log")
+        return good
+
+    names_now = {}
+    for x in inv["windows"]:
+        names_now.setdefault(x["name"], []).append(x["id"])
+
+    for lab in reversed(items("labels")):
         n, frm, to = lab.get("workspace"), lab.get("from"), lab.get("to")
         if not (is_int(n) and n in LABELLED and isinstance(frm, str) and isinstance(to, str)):
-            run.fail(f"ignored an out-of-bounds label entry: {lab!r}")
+            run.reject(f"out-of-bounds label entry: {lab!r}")
         elif label_now(n) == frm:
             run.say(f"label {n} already {frm!r}")
         elif label_now(n) != to:
@@ -463,12 +510,14 @@ def reverse(entry, inv, run):
         elif set_label(n, frm, run):
             run.log["labels"].append({"workspace": n, "from": to, "to": frm})
 
-    for lay in reversed(entry.get("layouts", [])):
+    for lay in reversed(items("layouts")):
         n, frm, to = lay.get("workspace"), lay.get("from"), lay.get("to")
+        if not (is_int(n) and n in LABELLED and isinstance(frm, str) and isinstance(to, str)
+                and frm in LAYOUTS and to in LAYOUTS):
+            run.reject(f"out-of-bounds layout entry: {lay!r}")
+            continue
         current = live.get(n, {}).get("layout")
-        if not (is_int(n) and n in LABELLED and frm in LAYOUTS and to in LAYOUTS):
-            run.fail(f"ignored an out-of-bounds layout entry: {lay!r}")
-        elif current == frm:
+        if current == frm:
             run.say(f"layout {n} already {frm}")
         elif current != to:
             run.say(f"left layout {n}: changed since")
@@ -476,11 +525,13 @@ def reverse(entry, inv, run):
             run.log["layouts"].append({"workspace": n, "from": to, "to": frm})
 
     moveable = POOL | {REVIEW_WORKSPACE}
-    for mv in reversed(entry.get("moves", [])):
-        frm, to, w = mv.get("from"), mv.get("to"), by_id.get(mv.get("id"))
-        if not (is_int(frm) and is_int(to) and frm in moveable and to in moveable):
-            run.fail(f"ignored an out-of-bounds move entry: {mv!r}")
-        elif w is None:
+    for mv in reversed(items("moves")):
+        frm, to, wid = mv.get("from"), mv.get("to"), mv.get("id")
+        if not (is_int(frm) and is_int(to) and frm in moveable and to in moveable and isinstance(wid, str)):
+            run.reject(f"out-of-bounds move entry: {mv!r}")
+            continue
+        w = by_id.get(wid)
+        if w is None:
             run.say(f"left {mv.get('name', mv.get('id'))!r}: closed since")
         elif w["omniwm_match"] != "ok":
             # Can't tell where it is (e.g. a new window took its title): not a
@@ -495,11 +546,14 @@ def reverse(entry, inv, run):
         elif move(w, frm, run, verb="moved back"):
             run.log["moves"].append({"id": mv["id"], "name": w["name"], "from": to, "to": frm})
 
-    for rn in reversed(entry.get("renames", [])):
-        frm, to, w = rn.get("from"), rn.get("to"), by_id.get(rn.get("id"))
-        if not (isinstance(frm, str) and isinstance(to, str)):
-            run.fail(f"ignored a malformed rename entry: {rn!r}")
-        elif w is None:
+    for rn in reversed(items("renames")):
+        frm, to, wid = rn.get("from"), rn.get("to"), rn.get("id")
+        if not (isinstance(frm, str) and isinstance(to, str) and isinstance(wid, str)
+                and frm and len(frm) <= 256 and frm.isprintable()):
+            run.reject(f"malformed rename entry: {rn!r}")
+            continue
+        w = by_id.get(wid)
+        if w is None:
             run.say(f"left {to!r}: closed since")
         elif w["name"] == frm:
             run.say(f"{frm!r} already has its old name")
@@ -507,6 +561,8 @@ def reverse(entry, inv, run):
             run.say(f"left {to!r}: renamed since (now {w['name']!r})")
         elif w.get("maybe_user_workspace") or w["omniwm_workspace"] == USER_WORKSPACE:
             run.say(f"left {to!r}: it is on workspace 1 now")
+        elif [i for i in names_now.get(frm, []) if i != wid]:
+            run.say(f"left {to!r}: another window is called {frm!r} now")
         elif run.dry:
             run.say(f"would rename {to!r} back to {frm!r}")
         else:
@@ -522,6 +578,8 @@ def main(argv):
     args = [a for a in argv if a != "--dry-run"]
     if args == ["--undo"]:
         code, out = undo(dry)
+    elif sorted(args) == ["--abandon", "--undo"]:
+        code, out = abandon(dry)
     elif len(args) == 1 and not args[0].startswith("--"):
         try:
             if args[0] == "-":

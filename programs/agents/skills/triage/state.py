@@ -47,10 +47,12 @@ def read_log():
         if not line:
             continue
         try:
-            entries.append(json.loads(line))
+            entry = json.loads(line)
         except json.JSONDecodeError:
             # A torn last line (crash mid-write) must not hide the good ones.
             continue
+        if isinstance(entry, dict):  # anything else is a hand edit; ignore it
+            entries.append(entry)
     return entries
 
 
@@ -97,8 +99,8 @@ def last_undoable():
     undone = set()
     for entry in reversed(read_log()):
         if entry.get("kind") == "undo":
-            if entry.get("complete"):
-                undone.add(entry.get("undoes"))
+            if entry.get("complete") and isinstance(entry.get("undoes"), str):
+                undone.add(entry["undoes"])
         elif entry.get("kind") == "apply" and entry.get("ts") not in undone and changed(entry):
             return entry
     return None
@@ -116,10 +118,14 @@ def label_repos(current_labels):
     # finds the repos recorded for that label.
     latest = {}
     for entry in read_log():
-        for proj in entry.get("projects", []):
-            repos = proj.get("repos")
-            if isinstance(repos, list) and repos and all(isinstance(r, str) and r for r in repos):
-                latest[(proj.get("workspace"), proj.get("label"))] = set(repos)
+        projects = entry.get("projects")
+        for proj in projects if isinstance(projects, list) else []:
+            if not isinstance(proj, dict):
+                continue
+            n, label, repos = proj.get("workspace"), proj.get("label"), proj.get("repos")
+            if (type(n) is int and isinstance(label, str) and label and isinstance(repos, list)
+                    and repos and all(isinstance(r, str) and r for r in repos)):
+                latest[(n, label)] = set(repos)
     return {
         n: latest[(n, label)]
         for n, label in current_labels.items()

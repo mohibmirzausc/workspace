@@ -227,3 +227,8 @@ then moves, then renames.
 - It refuses log entries that are outside triage's bounds.
 - Undoing again goes one run further back.
 - If an undo fails part-way (exit 1), running `--undo` again finishes it.
+- Malformed or out-of-bounds log entries are listed under `ignored`. They
+  never run, and they don't block the undo.
+- If a retry keeps failing for a reason that won't clear, `apply.py --undo
+  --abandon` stops trying to undo that run, so `--undo` can reach older
+  ones. It changes nothing on screen. Ask the user before abandoning.
