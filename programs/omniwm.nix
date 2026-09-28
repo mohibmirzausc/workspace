@@ -59,7 +59,21 @@
 #
 # In short: OmniWM mixes config and derived state in one file with no marker
 # distinguishing them, so the safe default is to track everything verbatim.
+#
+# One carve-out: the displayName and layoutType of workspaces 2-10 are runtime
+# state owned by the triage skill (project labels like "F1 dotfiles"). When
+# the seed is re-installed, those two keys are carried over from the live file
+# instead of reset, so a rebuild never undoes a triage run. To change them,
+# edit the live file or re-run triage, not the seed.
 
+let
+  # Carries the pool workspaces' runtime labels and layouts (set by the triage
+  # skill) into a re-installed seed. See programs/omniwm/keep-workspace-state.py.
+  keepWorkspaceState = pkgs.writeShellScript "omniwm-keep-workspace-state" ''
+    exec ${pkgs.python3.withPackages (ps: [ ps.tomlkit ])}/bin/python3 \
+      ${./omniwm/keep-workspace-state.py} "$@"
+  '';
+in
 {
   home.activation.installOmniwmConfig = lib.mkIf pkgs.stdenv.isDarwin
     (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -84,8 +98,26 @@
 
       # Only overwrite when the tracked seed itself changed, so settings saved
       # from OmniWM's UI survive unrelated rebuilds.
+      #
+      # Even then, the pool workspaces (2-10) keep their live displayName and
+      # layoutType: those are the triage skill's runtime project labels and
+      # layouts, and a seed change elsewhere must not reset them. If the merge
+      # fails for any reason, fall back to the plain seed. Losing labels is
+      # recoverable (re-run triage); a broken settings file is not.
       if [ ! -f "$OW_FILE" ] || [ "$SEED_HASH" != "$PREV_HASH" ]; then
-        $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 644 "$OW_SEED" "$OW_FILE"
+        OW_NEW="$OW_SEED"
+        if [ -f "$OW_FILE" ]; then
+          OW_MERGED="$(${pkgs.coreutils}/bin/mktemp)"
+          if ${keepWorkspaceState} "$OW_SEED" "$OW_FILE" > "$OW_MERGED"; then
+            OW_NEW="$OW_MERGED"
+          else
+            echo "warning: could not keep OmniWM workspace labels; installing the plain seed"
+          fi
+        fi
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 644 "$OW_NEW" "$OW_FILE"
+        if [ -n "''${OW_MERGED:-}" ]; then
+          ${pkgs.coreutils}/bin/rm -f "$OW_MERGED"
+        fi
         if [ -z "$DRY_RUN_CMD" ]; then
           printf '%s\n' "$SEED_HASH" > "$OW_STAMP"
         else
