@@ -1070,6 +1070,7 @@ name = "5"
 type = "secondary"
 
 [[workspaces]]
+displayName = "F1"
 id = "EFAED30A-2A1A-425E-A2CE-2EF8F898E1D6"
 layoutType = "dwindle"
 name = "6"
@@ -1078,6 +1079,7 @@ name = "6"
 type = "main"
 
 [[workspaces]]
+displayName = "F2"
 id = "78E0C4A3-DBC5-489D-9BBB-00A800E79E26"
 layoutType = "dwindle"
 name = "7"
@@ -1086,6 +1088,7 @@ name = "7"
 type = "main"
 
 [[workspaces]]
+displayName = "F3"
 id = "F605D350-A3A7-4675-9069-C3C63F5DB67A"
 layoutType = "dwindle"
 name = "8"
@@ -1094,6 +1097,7 @@ name = "8"
 type = "main"
 
 [[workspaces]]
+displayName = "F4"
 id = "08E1FB4E-8574-4531-AD51-AEB62DACDE9A"
 layoutType = "dwindle"
 name = "9"
@@ -1102,6 +1106,7 @@ name = "9"
 type = "main"
 
 [[workspaces]]
+displayName = "F5"
 id = "29A716AA-5EB9-461A-8781-993B5BC86AE3"
 layoutType = "dwindle"
 name = "10"
