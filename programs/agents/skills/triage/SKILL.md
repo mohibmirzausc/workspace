@@ -128,20 +128,28 @@ Write the plan as JSON: **one entry for every window in the inventory.**
 - **Actions:**
   - `move` needs `to`, a pool workspace from 2 to 9.
   - `review` means workspace 10.
-  - `skip` is for workspace 1 only, and every window there must be `skip`.
+  - `skip` is for workspace 1. Every window there must be `skip`, and so must
+    any window with `maybe_user_workspace: true`. That's a window whose title
+    collides with another, so it can't be located and might be on
+    workspace 1. Skipped windows can't be renamed.
   - `stay` keeps the window where it is. A flagged window can `stay` only
     with a `reason`.
-- **`rename`** is optional: 16 characters at most, following the naming rule
-  in `~/.claude/CLAUDE.md`. Rename junk names, and give a unique rename to
-  any window whose `omniwm_match` isn't `ok`, so it can be matched after the
-  rename.
+- **Only matched, tiled windows move.** A window whose `omniwm_match` isn't
+  `ok` can only `stay`. Give it a unique `rename` so it matches, and it can
+  move on the next run. `floating` and `scratchpad` windows never move.
+- **`rename`** is optional. Base the name on the window's `last_message`,
+  `repo` and `cwd`, following the naming rule in `~/.claude/CLAUDE.md`:
+  16 characters at most, with the distinguishing word first. Names must stay
+  unique across all windows once the plan has run.
 - **Workspaces:**
   - `label` is `<key> <project>`, where the key is the one the user presses:
     the digit for 2-5, F1-F5 for 6-10. Examples: `2 alloc`, `F1 dotfiles`,
     `F5 review`. The whole label is at most 12 characters. OmniWM's bar shows
     the label *instead of* the number, so the key must be in it.
   - `repos` records which repos the label stands for, which is how later
-    runs know a workspace's project.
+    runs know a workspace's project. It's recorded on every run, even when
+    the label doesn't change. So list every project workspace with its label
+    and `repos` each time, including ones that are already right.
   - When a pool workspace empties, set its label to the bare key: `"3"` for
     2-5, `"F2"` for 6-10.
   - Label workspace 10 `F5 review` while it holds anything, and `F5` when
@@ -177,10 +185,19 @@ python3 <this skill's directory>/apply.py /tmp/triage-plan.json
 ```
 
 It applies the plan in order: renames, then a fresh inventory, then moves,
-layouts and labels. It then returns the user to their workspace and logs the
-run to `~/.local/state/triage/log.jsonl`. If a move reports `already on N`,
-the change was already made, for example by an earlier run in a
-rolled-back conversation. That's expected.
+layouts and labels. Each move is re-checked against the fresh inventory right
+before it happens. It then puts every display back on the workspace it showed
+and logs the run to `~/.local/state/triage/log.jsonl`. If a move reports
+`already on N`, the change was already made, for example by an earlier run in
+a rolled-back conversation. That's expected.
+
+**Exit status:**
+
+- **0:** everything was done.
+- **2:** the plan was refused, and nothing changed.
+- **1:** some steps failed. The JSON lists them under `failed`, and whatever
+  did happen is logged. Tell the user what failed, re-run the inventory, and
+  then either plan again for what's left or offer `--undo`.
 
 ### 7. Verify and report
 
@@ -202,5 +219,9 @@ python3 <this skill's directory>/apply.py --undo
 ```
 
 It reverses the most recent run that changed something: labels, then layouts,
-then moves, then renames. It leaves alone anything the user has changed since,
-and says so. Undoing again goes one run further back.
+then moves, then renames.
+
+- It leaves alone anything the user has changed since, and says so.
+- It refuses log entries that are outside triage's bounds.
+- Undoing again goes one run further back.
+- If an undo fails part-way (exit 1), running `--undo` again finishes it.

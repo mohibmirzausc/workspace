@@ -7,12 +7,19 @@ apply.py after every run and read by inventory.py (to flag windows that are new
 since the last run) and by `apply.py --undo`.
 
 Entry shape:
-  {"ts": ISO-8601, "kind": "apply" | "undo", "undoes": ts (undo only),
-   "renames": [{"id", "cmux_workspace", "from", "to"}],
-   "moves":   [{"id", "name", "from", "to"}],
-   "layouts": [{"workspace", "from", "to"}],
-   "labels":  [{"workspace", "from", "to", "repos"}],
-   "snapshot": [window ids present after the run]}
+  {"ts": ISO-8601, "kind": "apply" | "undo",
+   "undoes": ts, "complete": bool          (undo only)
+   "renames":  [{"id", "cmux_workspace", "from", "to"}],
+   "moves":    [{"id", "name", "from", "to"}],
+   "layouts":  [{"workspace", "from", "to"}],
+   "labels":   [{"workspace", "from", "to"}],
+   "projects": [{"workspace", "label", "repos"}],   (apply only; not undone)
+   "failed":   ["what failed"],
+   "snapshot": [window ids the run decided on]}
+
+`projects` records which repos each planned label stands for, on every run,
+whether or not the label changed. That is how later runs learn a workspace's
+project, including for labels set before this log existed.
 """
 
 import datetime
@@ -76,12 +83,14 @@ def last_undoable():
 
     Runs that changed nothing (e.g. a re-applied plan where everything was
     "already there") are logged for their snapshot but are not undo targets,
-    or --undo would silently undo nothing.
+    or --undo would silently undo nothing. An undo that failed part-way is
+    not "complete", so its target stays undoable and can be retried.
     """
     undone = set()
     for entry in reversed(read_log()):
         if entry.get("kind") == "undo":
-            undone.add(entry.get("undoes"))
+            if entry.get("complete"):
+                undone.add(entry.get("undoes"))
         elif entry.get("kind") == "apply" and entry.get("ts") not in undone and changed(entry):
             return entry
     return None
@@ -95,12 +104,16 @@ def label_repos(current_labels):
     two imogen repos). It counts only while the live label is still
     the one triage wrote; a hand edit or a newer label drops the mapping.
     """
+    # Keyed by (workspace, label text), so undoing back to an older label
+    # finds the repos recorded for that label.
     latest = {}
     for entry in read_log():
-        for lab in entry.get("labels", []):
-            latest[lab.get("workspace")] = lab
+        for proj in entry.get("projects", []):
+            repos = proj.get("repos")
+            if isinstance(repos, list) and repos and all(isinstance(r, str) and r for r in repos):
+                latest[(proj.get("workspace"), proj.get("label"))] = set(repos)
     return {
-        n: set(lab["repos"])
-        for n, lab in latest.items()
-        if lab.get("repos") and current_labels.get(n) == lab.get("to")
+        n: latest[(n, label)]
+        for n, label in current_labels.items()
+        if (n, label) in latest
     }

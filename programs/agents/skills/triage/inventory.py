@@ -102,6 +102,10 @@ def live_titles():
     return titles
 
 
+def ws_number(ow_window):
+    return (ow_window.get("workspace") or {}).get("number")
+
+
 def collect():
     tree = json.loads(run("cmux", "--json", "tree", "--all"))
     # Stable window identity: cmux's window UUID. The tree has only refs, so
@@ -112,7 +116,7 @@ def collect():
     }
     here = tree.get("caller", {}).get("window_ref")
 
-    ow_windows = omniwm("windows", "--fields", "id,window-id,app,title,workspace")["windows"]
+    ow_windows = omniwm("windows", "--fields", "id,window-id,app,title,workspace,mode,is-scratchpad")["windows"]
     ow_workspaces = omniwm("workspaces")["workspaces"]
     cg = live_titles()
 
@@ -137,6 +141,11 @@ def collect():
         matches = by_title.get(name, [])
         match = "ok" if len(matches) == 1 else ("ambiguous" if matches else "none")
         ow = matches[0] if match == "ok" else None
+        # Every workspace this window could be on. For an unmatched window the
+        # answer is "unknown", which must be treated as "maybe workspace 1".
+        candidates = sorted({ws_number(m) for m in matches} - {None})
+        maybe_user = (not candidates) or USER_WORKSPACE in candidates or \
+            (ow is not None and ws_number(ow) is None)
 
         msg = sel.get("latest_submitted_message") or ""
         windows.append({
@@ -155,13 +164,17 @@ def collect():
             "cmux_tabs": [t.get("title") for t in tabs] if len(tabs) > 1 else [],
             "omniwm_match": match,
             "omniwm_id": ow["id"] if ow else None,
-            "omniwm_workspace": ow["workspace"]["number"] if ow else None,
+            "omniwm_workspace": ws_number(ow) if ow else None,
+            "omniwm_candidates": candidates,
+            "maybe_user_workspace": maybe_user,
+            "floating": bool(ow) and ow.get("mode") not in (None, "tiling"),
+            "scratchpad": bool(ow) and bool(ow.get("isScratchpad")),
         })
 
     others = {}
     for w in ow_windows:
-        if app_name(w) != "cmux" and w.get("workspace"):
-            others.setdefault(w["workspace"]["number"], []).append(app_name(w))
+        if app_name(w) != "cmux" and ws_number(w) is not None:
+            others.setdefault(ws_number(w), []).append(app_name(w))
 
     workspaces = [{
         "number": ws["number"],
@@ -178,11 +191,12 @@ def collect():
 
 
 def flag(windows, workspaces):
-    """Add new / misplaced / home to each window, and project_repo to each workspace."""
+    """Add new / misplaced / home to each window, and project_repos to each workspace."""
     seen = state.last_snapshot()
     repos_on = {}
     for w in windows:
-        if w["omniwm_workspace"] is not None:
+        # A window with no repo (its directory is gone) casts no vote.
+        if w["omniwm_workspace"] is not None and w["repo"] is not None:
             repos_on.setdefault(w["omniwm_workspace"], []).append(w["repo"])
 
     # A pool workspace's project is the repo triage labelled it for, else the
@@ -201,10 +215,10 @@ def flag(windows, workspaces):
         w["new"] = None if seen is None else w["id"] not in seen
         # A repo that is the project of several workspaces (the dotfiles repo,
         # split by task) has no single home.
-        homes = [m for m, repos in project.items() if repo in repos]
+        homes = [m for m, repos in project.items() if repo in repos] if repo else []
         w["home"] = homes[0] if len(homes) == 1 and homes[0] != n else None
         w["misplaced"] = None
-        if n not in POOL or repo in project.get(n, ()):
+        if repo is None or n not in POOL or repo in project.get(n, ()):
             continue
         where = next((ws["label"] for ws in workspaces if ws["number"] == n), None) or str(n)
         if project.get(n):
