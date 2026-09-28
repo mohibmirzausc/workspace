@@ -8,9 +8,16 @@ skill manages those at runtime, and a rebuild that re-installs the seed must
 not wipe them. Workspace 1 is the user's hand-set workspace, so it always comes
 from the seed, as do workspaces the live file does not know about.
 
-A live workspace with no displayName keeps the seed's default (e.g. "F1"),
+A live workspace with no displayName keeps the seed's default, if the seed
+has one (e.g. "F1" for workspace 6 once the seed sets key labels),
 since a missing key there usually means the live file predates that default
-rather than a deliberate clear.
+rather than a deliberate clear. So a cleared label comes back as the seed
+default on the next seed change. OmniWM never writes an empty displayName (it
+stores "" as no key), so there is no way to tell a clear from "never set".
+
+layoutType has no such gap: OmniWM always writes it, so on an existing machine
+the live value always wins and the seed's layoutType only matters on a fresh
+install. To change a pool workspace's layout, change it live.
 """
 
 import sys

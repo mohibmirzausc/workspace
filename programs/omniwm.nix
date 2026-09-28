@@ -8,8 +8,9 @@
 # than a binary-split tree like yabai/Amethyst. niri.visibleContainerCount
 # controls how many columns are on screen at once. A traditional split layout
 # ("dwindle") is also configured and reachable at runtime via Opt+Shift+L.
-# Workspaces 6-10 are pinned to dwindle (per-workspace layoutType) to try it
-# side by side: Caps Lock+F1-F4 reach 6-9 natively (Karabiner un-media-keys the
+# Workspaces 6-10 start as dwindle (per-workspace layoutType in the seed; on an
+# existing machine the triage skill owns layouts, see the carve-out below) to
+# try it side by side: Caps Lock+F1-F4 reach 6-9 natively (Karabiner un-media-keys the
 # top row while Caps Lock is held), and F5 -> 10 goes through Karabiner +
 # omniwmctl because OmniWM has no hotkey slot past 9
 # (see the rule in programs/karabiner.nix).
@@ -40,7 +41,10 @@
 #     cp ~/.config/omniwm/settings.toml programs/omniwm/settings.toml
 #
 # and commit. Editing the tracked seed directly also works -- the hash change
-# is what triggers the re-copy on the next rebuild.
+# is what triggers the re-copy on the next rebuild -- EXCEPT for the
+# displayName/layoutType of workspaces 2-10 (carve-out below). When copying the
+# live file back, drop the changes to those two keys first: they are triage's
+# runtime labels ("F1 dotfiles"), not config.
 #
 # The file is tracked in FULL, including the sections that look machine-written.
 # Do not be tempted to "clean up" the two array-of-table sections:
@@ -106,16 +110,22 @@ in
       # recoverable (re-run triage); a broken settings file is not.
       if [ ! -f "$OW_FILE" ] || [ "$SEED_HASH" != "$PREV_HASH" ]; then
         OW_NEW="$OW_SEED"
-        if [ -f "$OW_FILE" ]; then
-          OW_MERGED="$(${pkgs.coreutils}/bin/mktemp)"
-          if ${keepWorkspaceState} "$OW_SEED" "$OW_FILE" > "$OW_MERGED"; then
-            OW_NEW="$OW_MERGED"
-          else
-            echo "warning: could not keep OmniWM workspace labels; installing the plain seed"
+        OW_MERGED=""
+        if [ -n "$DRY_RUN_CMD" ]; then
+          echo "would install $OW_SEED to $OW_FILE, keeping workspace 2-10 labels and layouts"
+        else
+          if [ -f "$OW_FILE" ]; then
+            OW_MERGED="$(${pkgs.coreutils}/bin/mktemp)"
+            # stderr only, so a failure is one warning line, not a traceback.
+            if OW_ERR="$(${keepWorkspaceState} "$OW_SEED" "$OW_FILE" 2>&1 >"$OW_MERGED")"; then
+              OW_NEW="$OW_MERGED"
+            else
+              echo "warning: could not keep OmniWM workspace labels ($(printf '%s\n' "$OW_ERR" | ${pkgs.coreutils}/bin/tail -n 1)); installing the plain seed"
+            fi
           fi
-        fi
-        $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 644 "$OW_NEW" "$OW_FILE"
-        if [ -n "''${OW_MERGED:-}" ]; then
+          # Remove the temp file even if install fails (set -e would skip it).
+          ${pkgs.coreutils}/bin/install -m 644 "$OW_NEW" "$OW_FILE" \
+            || { ${pkgs.coreutils}/bin/rm -f "$OW_MERGED"; false; }
           ${pkgs.coreutils}/bin/rm -f "$OW_MERGED"
         fi
         if [ -z "$DRY_RUN_CMD" ]; then
