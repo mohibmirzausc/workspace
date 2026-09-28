@@ -14,6 +14,9 @@
 # top row while Caps Lock is held), and F5 -> 10 goes through Karabiner +
 # omniwmctl because OmniWM has no hotkey slot past 9
 # (see the rule in programs/karabiner.nix).
+# Their displayNames default to "F1"-"F5" because OmniWM's workspace bar shows
+# the label INSTEAD of the number, so the bar names the key to press. The
+# triage skill keeps that prefix when it labels a workspace ("F1 dotfiles").
 #
 # The settings live in ./omniwm/settings.toml rather than as a Nix attrset
 # because OmniWM owns this file's schema (schemaVersion = 3) and writes ~1000
