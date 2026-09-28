@@ -197,7 +197,9 @@ a rolled-back conversation. That's expected.
 - **2:** the plan was refused, and nothing changed.
 - **1:** some steps failed. The JSON lists them under `failed`, and whatever
   did happen is logged. Tell the user what failed, re-run the inventory, and
-  then either plan again for what's left or offer `--undo`.
+  then either plan again for what's left or offer `--undo`. If it exits 1
+  with no JSON at all, a cmux or OmniWM query failed before the plan was
+  checked, so nothing changed. The error is on stderr.
 
 ### 7. Verify and report
 

@@ -38,6 +38,7 @@ the log backwards under the same workspace bounds.
 import json
 import subprocess
 import sys
+import time
 
 import inventory
 import state
@@ -51,6 +52,7 @@ WORKSPACE_KEYS = {"number", "label", "repos", "layout"}
 LABELLED = POOL | {REVIEW_WORKSPACE}
 MAX_LABEL = 12
 MAX_NAME = 16
+SETTLE_TRIES, SETTLE_SECONDS = 6, 0.25
 
 
 def key_for(n):
@@ -122,7 +124,7 @@ def validate(plan, inv):
     final_names = {}
     for i, w in by_id.items():
         new = seen.get(i, {}).get("rename")
-        final_names.setdefault(new if isinstance(new, str) else w["name"], []).append(i)
+        final_names.setdefault(new if isinstance(new, str) and new else w["name"], []).append(i)
     moving = {}
 
     for wid, e in seen.items():
@@ -157,7 +159,7 @@ def validate(plan, inv):
         flags = [f for f in ("new", "misplaced") if w.get(f)]
         if flags and action == "stay" and not (isinstance(e.get("reason"), str) and e["reason"].strip()):
             problems.append(f"{name!r} is flagged {' and '.join(flags)}: 'stay' is fine but needs a 'reason'")
-        if "rename" in e:
+        if "rename" in e and e["rename"] != name:
             new = e["rename"]
             if action == "skip":
                 problems.append(f"{name!r}: a skipped window can't be renamed")
@@ -187,6 +189,8 @@ def validate(plan, inv):
                 problems.append(f"workspace {n}: label must be 1-{MAX_LABEL} printable characters, got {label!r}")
             elif not (label == key or (label.startswith(key + " ") and label[len(key) + 1:].strip())):
                 problems.append(f"workspace {n}: label {label!r} must be {key!r} or start with {key + ' '!r}")
+            elif label != key and not ws.get("repos") and n != REVIEW_WORKSPACE:
+                problems.append(f"workspace {n}: project label {label!r} needs 'repos' (the repos it stands for)")
         if "repos" in ws:
             repos = ws["repos"]
             if not (isinstance(repos, list) and all(isinstance(r, str) and r for r in repos)):
@@ -233,13 +237,14 @@ def restore_view(view, run):
     shown, focused = view
     if run.dry or not shown:
         return
-    now, _ = displays_now()
+    now, now_focused = displays_now()
     order = [d for d in shown if d != focused] + ([focused] if focused in shown else [])
     switched = False
     for d in order:
-        # Switching another display moves focus, so the focused one is
-        # re-selected whenever anything was switched.
-        if now.get(d) != shown[d] or (switched and d == focused):
+        # Switching a display focuses it, so the originally focused display is
+        # re-selected if anything was switched or focus moved (set_layout
+        # focuses the display of the workspace it re-lays-out).
+        if now.get(d) != shown[d] or (d == focused and (switched or now_focused != focused)):
             ok, status = omni("command", "switch-workspace", shown[d])
             switched = True
             if not ok:
@@ -312,6 +317,8 @@ def guarded(body, run, *args):
         body(*args, run)
     except SystemExit as exc:
         run.fail(f"stopped part-way: {exc}")
+    except Exception as exc:  # still log and restore, and report as JSON
+        run.fail(f"stopped part-way: {type(exc).__name__}: {exc}")
 
 
 def finish(run, view, decided_ids):
@@ -323,7 +330,8 @@ def finish(run, view, decided_ids):
     if run.dry:
         return
     run.log["failed"] = run.failed
-    run.log["snapshot"] = sorted(decided_ids)
+    if decided_ids is not None:
+        run.log["snapshot"] = sorted(decided_ids)
     if run.log["kind"] == "undo":
         run.log["complete"] = not run.failed
     run.log["ts"] = state.append(run.log)["ts"]
@@ -372,8 +380,16 @@ def execute(plan, validated, run):
         run.log["renames"].append({"id": wid, "cmux_workspace": w["cmux_workspace"], "from": w["name"], "to": new})
         run.say(f"renamed {w['name']!r} -> {new!r}")
 
-    # Renames changed titles, and titles are the join to OmniWM.
-    fresh = inventory.collect()["windows"] if run.log["renames"] else list(validated.values())
+    # Renames changed titles, and titles are the join to OmniWM. Window titles
+    # can lag a cmux rename briefly, so poll until the renamed windows match.
+    fresh = list(validated.values())
+    if run.log["renames"]:
+        renamed = {r["id"] for r in run.log["renames"]}
+        for attempt in range(SETTLE_TRIES):
+            fresh = inventory.collect()["windows"]
+            if all(w["omniwm_match"] == "ok" for w in fresh if w["id"] in renamed):
+                break
+            time.sleep(SETTLE_SECONDS)
     now = {w["id"]: w for w in fresh}
     for wid, e in entries.items():
         if e["action"] not in ("move", "review"):
@@ -411,7 +427,7 @@ def execute(plan, validated, run):
 def undo(dry):
     entry = state.last_undoable()
     if entry is None:
-        return 1, {"undo": "nothing to undo"}
+        return 0, {"undo": "nothing to undo"}
     run = Run("undo", dry)
     run.log["undoes"] = entry["ts"]
     inv = inventory.collect()
@@ -419,7 +435,9 @@ def undo(dry):
     try:
         guarded(reverse, run, entry, inv)
     finally:
-        finish(run, view, {w["id"] for w in inv["windows"]})
+        # No snapshot: undoing a run should leave its windows reading "new"
+        # again, as they did before it (state.last_snapshot skips undone runs).
+        finish(run, view, None)
     return result(run, "undid", entry["ts"])
 
 
@@ -464,6 +482,10 @@ def reverse(entry, inv, run):
             run.fail(f"ignored an out-of-bounds move entry: {mv!r}")
         elif w is None:
             run.say(f"left {mv.get('name', mv.get('id'))!r}: closed since")
+        elif w["omniwm_match"] != "ok":
+            # Can't tell where it is (e.g. a new window took its title): not a
+            # deliberate skip, so the undo stays retryable.
+            run.fail(f"can't locate {w['name']!r} to move it back ({w['omniwm_match']} match)")
         elif w["omniwm_workspace"] == frm:
             run.say(f"{w['name']!r} already back on {frm}")
         elif w["omniwm_workspace"] != to:

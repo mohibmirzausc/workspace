@@ -64,9 +64,17 @@ def append(entry):
 
 
 def last_snapshot():
-    """Window ids present after the most recent run, or None if never run."""
+    """Window ids the most recent standing run decided on, or None if never run.
+
+    Undone runs don't count: after an undo, the windows that run placed read
+    "new" again, as they did before it.
+    """
+    undone = set()
     for entry in reversed(read_log()):
-        if "snapshot" in entry:
+        if entry.get("kind") == "undo":
+            if entry.get("complete"):
+                undone.add(entry.get("undoes"))
+        elif entry.get("ts") not in undone and isinstance(entry.get("snapshot"), list):
             return set(entry["snapshot"])
     return None
 

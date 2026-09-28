@@ -197,7 +197,7 @@ class ValidateTests(unittest.TestCase):
                              (6, "dotfiles", False), (6, "6 dotfiles", False), (2, "F1 alloc", False),
                              (7, "F2 a-very-long-name", False), (1, "1 mine", False)]:
             plan = self.plan()
-            plan["workspaces"] = [{"number": n, "label": label}]
+            plan["workspaces"] = [{"number": n, "label": label, "repos": ["x"]}]
             self.assertEqual(apply.validate(plan, self.inv) == [], ok, f"{n} {label!r}")
 
     def test_bad_rename_and_layout_are_refused(self):
@@ -360,7 +360,7 @@ class ExecuteTests(unittest.TestCase):
             self.assertEqual(code, 0, out)
             self.assertEqual((d.ws_of("a"), d.w["a"]["name"], d.labels.get(7), d.layouts[7]), (3, "a", None, "dwindle"))
             self.assertEqual(d.shown, {"A": 2, "B": 6})
-            self.assertEqual(apply.undo(dry=False)[0], 1)  # nothing left to undo
+            self.assertEqual(apply.undo(dry=False), (0, {"undo": "nothing to undo"}))
 
     def test_reapplying_is_harmless(self):
         with self.desk() as d:
@@ -425,7 +425,7 @@ class ExecuteTests(unittest.TestCase):
     def test_dry_run_changes_and_logs_nothing(self):
         with self.desk() as d:
             plan = full_plan(d, a={"action": "move", "to": 7, "rename": "a2"})
-            plan["workspaces"] = [{"number": 7, "label": "F2 x", "layout": "niri"}]
+            plan["workspaces"] = [{"number": 7, "label": "F2 x", "repos": ["x"], "layout": "niri"}]
             code, out = apply.apply(plan, dry=True)
             self.assertEqual(code, 0, out)
             self.assertEqual((d.ws_of("a"), d.w["a"]["name"], d.labels.get(7)), (3, "a", None))
@@ -447,6 +447,56 @@ class ExecuteTests(unittest.TestCase):
             self.assertEqual(d.w["a"]["name"], "a2")
             apply.undo(dry=False)
             self.assertEqual(d.w["a"]["name"], "a")
+
+    def test_focus_returns_to_the_focused_display(self):
+        # Workspace 6 is visible on B while A is focused; re-laying-out 6
+        # focuses B without changing what either display shows.
+        with self.desk(current="A") as d:
+            plan = full_plan(d)
+            plan["workspaces"] = [{"number": 6, "layout": "niri"}]
+            apply.apply(plan, dry=False)
+            self.assertEqual((d.layouts[6], d.shown, d.current), ("niri", {"A": 2, "B": 6}, "A"))
+            apply.undo(dry=False)
+            self.assertEqual((d.layouts[6], d.current), ("dwindle", "A"))
+
+    def test_undo_of_an_unlocatable_window_stays_retryable(self):
+        with self.desk() as d:
+            apply.apply(full_plan(d, a={"action": "move", "to": 7}), dry=False)
+            d.w["a2"] = dict(name="a", ws=8, repo="x")  # a new window takes its title
+            self.assertEqual(apply.undo(dry=False)[0], 1)
+            del d.w["a2"]
+            self.assertEqual(apply.undo(dry=False)[0], 0)
+            self.assertEqual(d.ws_of("a"), 3)
+
+    def test_undone_run_leaves_its_windows_new(self):
+        with self.desk() as d:
+            apply.apply(full_plan(d), dry=False)  # first run: everything seen
+            d.w["n"] = dict(name="n", ws=3, repo="x")
+            inv = d.collect()
+            self.assertTrue(next(w for w in inv["windows"] if w["id"] == "n")["new"])
+            apply.apply(full_plan(d, n={"action": "move", "to": 7}), dry=False)
+            self.assertFalse(next(w for w in d.collect()["windows"] if w["id"] == "n")["new"])
+            apply.undo(dry=False)
+            self.assertTrue(next(w for w in d.collect()["windows"] if w["id"] == "n")["new"])
+
+    def test_renaming_to_the_current_name_is_a_no_op(self):
+        with self.desk() as d:
+            self.assertEqual(apply.validate(full_plan(d, a={"action": "stay", "rename": "a"}), d.collect()), [])
+
+    def test_unexpected_error_still_logs_and_reports(self):
+        with self.desk() as d:
+            real = d.omni
+            def boom(*args):
+                if args[:2] == ("workspace", "rename"):
+                    raise KeyError("surprise")
+                return real(*args)
+            apply.omni = boom
+            plan = full_plan(d, a={"action": "move", "to": 7})
+            plan["workspaces"] = [{"number": 7, "label": "F2 x", "repos": ["x"]}]
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 1)
+            self.assertTrue(any("KeyError" in f for f in out["failed"]))
+            self.assertEqual(state.last_undoable()["moves"][0]["to"], 7)
 
     def test_undo_refuses_a_hand_edited_log(self):
         with self.desk() as d:
