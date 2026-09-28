@@ -134,12 +134,22 @@ review), labels and layouts.
 3. **Move** each window:
    `omniwmctl window move-to-workspace <omniwm_id> <N>`.
 4. **Set layouts** as in step 4.
-5. **Label** each project's workspace with a short label on the bar
-   (10 characters or fewer):
-   `omniwmctl workspace rename <N> "<label>"`. Clear the label of any pool
-   workspace that is now empty: `omniwmctl workspace rename <N> ""`.
-6. **Label workspace 10 `review`** while it holds anything, and clear the
-   label when it's empty. It keeps whatever layout the window count calls for
+5. **Label** each project's workspace as `<key> <project>`, where the key is
+   the one the user presses to get there. That's the digit for 2-5 and F1-F5
+   for 6-10: `2 alloc`, `F1 dotfiles`, `F5 review`. OmniWM's bar shows the
+   label *instead of* the workspace number, so a label without the key hides
+   which button to press. Keep the whole label to 12 characters or fewer:
+
+   ```bash
+   omniwmctl workspace rename <N> "<key> <project>"
+   ```
+
+   When a pool workspace empties, reset its label to the bare key. For 2-5
+   that's `omniwmctl workspace rename <N> ""`, which falls back to the digit.
+   For 6-10 it's `omniwmctl workspace rename <N> "F<N-5>"`; an empty label
+   there would show "6"-"10", which isn't a key.
+6. **Label workspace 10 `F5 review`** while it holds anything, and reset it
+   to `F5` when it's empty. It keeps whatever layout the window count calls for
    (step 4), like any other workspace.
 
 ### 7. Verify and report
