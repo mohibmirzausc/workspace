@@ -14,16 +14,32 @@ workspace). Two traps shape how that is done:
     CoreGraphics helper sketchybar already builds (windowId<TAB>title).
   * Titles collide (several windows were once all "✳ hanya"). A title that
     matches more than one window is reported as ambiguous, never guessed.
+
+It also flags windows that need a decision, so placing them does not depend on
+a careful read of the table:
+
+  * new: not present at the last triage run (per the log in state.py). New
+    windows are the ones nobody has placed yet.
+  * misplaced: on a pool workspace whose other windows are a different repo,
+    with the reason spelled out.
+  * home: the pool workspace that already holds this repo's windows, if it is
+    not the one the window is on.
 """
 
 import json
 import os
 import subprocess
 import sys
+from collections import Counter
+
+import state
 
 CG_TITLES = os.path.expanduser("~/.config/sketchybar/helpers/window-titles")
 SPINNER = set("◐◑◒◓") | {chr(c) for c in range(0x2800, 0x2900)}
 MESSAGE_CHARS = 140
+USER_WORKSPACE = 1
+REVIEW_WORKSPACE = 10
+POOL = set(range(2, 10))
 
 
 def run(*cmd):
@@ -86,8 +102,14 @@ def live_titles():
     return titles
 
 
-def main():
+def collect():
     tree = json.loads(run("cmux", "--json", "tree", "--all"))
+    # Stable window identity: cmux's window UUID. The tree has only refs, so
+    # join list-windows to it on the selected workspace, which both report.
+    uuid_by_selected = {
+        w.get("selected_workspace_id"): w.get("id")
+        for w in json.loads(run("cmux", "--json", "list-windows"))
+    }
     here = tree.get("caller", {}).get("window_ref")
 
     ow_windows = omniwm("windows", "--fields", "id,window-id,app,title,workspace")["windows"]
@@ -118,6 +140,7 @@ def main():
 
         msg = sel.get("latest_submitted_message") or ""
         windows.append({
+            "id": uuid_by_selected.get(win.get("selected_workspace_id")) or win["ref"],
             "cmux_window": win["ref"],
             "cmux_workspace": sel.get("ref"),
             "is_this_session": win["ref"] == here,
@@ -149,7 +172,57 @@ def main():
         "non_cmux_apps": sorted(set(others.get(ws["number"], []))),
     } for ws in ow_workspaces]
 
-    json.dump({"windows": windows, "workspaces": workspaces}, sys.stdout, indent=1, ensure_ascii=False)
+    flag(windows, workspaces)
+    current = next((ws["number"] for ws in ow_workspaces if ws.get("isCurrent")), None)
+    return {"current_workspace": current, "windows": windows, "workspaces": workspaces}
+
+
+def flag(windows, workspaces):
+    """Add new / misplaced / home to each window, and project_repo to each workspace."""
+    seen = state.last_snapshot()
+    repos_on = {}
+    for w in windows:
+        if w["omniwm_workspace"] is not None:
+            repos_on.setdefault(w["omniwm_workspace"], []).append(w["repo"])
+
+    # A pool workspace's project is the repo triage labelled it for, else the
+    # repo most of its windows are in; a tie has no clear project.
+    project = state.label_repos({ws["number"]: ws["label"] for ws in workspaces})
+    project = {n: r for n, r in project.items() if n in POOL}
+    for n, repos in repos_on.items():
+        top = Counter(repos).most_common(2)
+        if n in POOL and n not in project and top and (len(top) == 1 or top[0][1] > top[1][1]):
+            project[n] = {top[0][0]}
+    for ws in workspaces:
+        ws["project_repos"] = sorted(project.get(ws["number"], ()))
+
+    for w in windows:
+        n, repo = w["omniwm_workspace"], w["repo"]
+        w["new"] = None if seen is None else w["id"] not in seen
+        # A repo that is the project of several workspaces (the dotfiles repo,
+        # split by task) has no single home.
+        homes = [m for m, repos in project.items() if repo in repos]
+        w["home"] = homes[0] if len(homes) == 1 and homes[0] != n else None
+        w["misplaced"] = None
+        if n not in POOL or repo in project.get(n, ()):
+            continue
+        where = next((ws["label"] for ws in workspaces if ws["number"] == n), None) or str(n)
+        if project.get(n):
+            reason = f"repo {repo}, but workspace {where!r} is {', '.join(sorted(project[n]))}"
+        elif w["home"]:
+            # Mixed workspace with no clear project, but this repo clearly
+            # lives elsewhere.
+            reason = f"repo {repo} on mixed workspace {where!r}"
+        else:
+            # A mixed workspace of repos with no home: nothing to point at.
+            continue
+        if w["home"]:
+            reason += f"; its repo's windows are on workspace {w['home']}"
+        w["misplaced"] = reason
+
+
+def main():
+    json.dump(collect(), sys.stdout, indent=1, ensure_ascii=False)
     print()
 
 

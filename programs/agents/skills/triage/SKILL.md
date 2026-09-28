@@ -37,10 +37,11 @@ over from the live file (`programs/omniwm/keep-workspace-state.py`).
 - **Never close a window.** Closing is the only step that can lose work, and
   the user closes windows themselves. Park doubtful windows on `review`
   instead.
-- **Never guess which window to move.** Move only windows whose
-  `omniwm_match` is `ok`, by their `omniwm_id`. Never use
-  `omniwmctl command move-to-workspace`: it moves whatever window is focused,
-  which may not be the one you mean.
+- **All changes go through `apply.py`.** Don't run the rename, move, layout
+  or label commands by hand. `apply.py` refuses a plan that leaves any
+  window without a decision. It moves windows by their own OmniWM ID, never
+  the focused window. It skips windows already in place, returns the user to
+  their workspace, and logs every change so `--undo` can reverse it.
 - **Stability over tidiness.** A project already on one workspace stays there.
   Don't reshuffle workspaces to close gaps in the numbering.
 
@@ -60,7 +61,21 @@ It prints JSON and changes nothing. For each cmux window it gives:
 - `cmux_tab_count`: more than 1 means a window full of tabs
 - `omniwm_id`, `omniwm_workspace` and `omniwm_match`
 
-For each workspace it gives its label, layout, tiled count and non-cmux apps.
+It also flags the windows that need a decision:
+
+- `new`: not open at the last triage run. `null` means there's no log yet.
+- `misplaced`: on a pool workspace whose project is a different repo. The
+  reason says why, e.g. "repo internal-allocations, but workspace
+  'F1 dotfiles' is workspace; its repo's windows are on workspace 2".
+- `home`: the one pool workspace that already holds this repo's windows, if
+  it isn't the one the window is on.
+
+**A flag means "consider this", not "move this".** A new window can be exactly
+where it belongs. But every flagged window must be weighed deliberately, and
+keeping it in place takes a stated `reason` (step 5).
+
+For each workspace it gives its label, layout, tiled count, non-cmux apps,
+and `project_repos`. The inventory also reports `current_workspace`.
 
 ### 2. Group windows into projects
 
@@ -91,72 +106,101 @@ already there:
 - **Hysteresis:** only switch a niri workspace back to dwindle at 3 or fewer.
   That stops it flipping every run when a project hovers around 4-5.
 
-OmniWM can only set the layout of the **active** workspace. So switch to it,
-set the layout, and switch back to where the user was (note the current
-workspace number first):
-
-```bash
-omniwmctl command switch-workspace <N>
-omniwmctl command set-workspace-layout <dwindle|niri>
-omniwmctl command switch-workspace <where-the-user-was>
-```
+OmniWM can only set the layout of the **active** workspace, so `apply.py`
+briefly switches to each workspace whose layout changes, then returns the
+user to where they were.
 
 ### 5. Plan, then ask once
 
-Show one table: each project, its windows, the target workspace and layout,
-and the label. Below it, list separately:
+Write the plan as JSON: **one entry for every window in the inventory.**
 
-- **Renames**: windows whose name is junk.
-- **Review**: windows headed for workspace 10, each with its reason. A window
-  goes to review when it has been idle for a day or more with nothing pending,
-  when it is a plain `shell` in a home, `~/src` or scratch directory, or when
-  you can't tell which project it belongs to. Windows already on `review` stay
-  there unless they clearly belong to a project now.
-- **Tab hoards** (`cmux_tab_count` > 1): suggest splitting live tabs into their
-  own windows, but don't do it automatically.
+```json
+{"windows": [
+   {"id": "<id>", "action": "move", "to": 2, "reason": "internal-allocations work"},
+   {"id": "<id>", "action": "stay", "reason": "new, but it is dotfiles work"},
+   {"id": "<id>", "action": "review", "reason": "idle 4 days, plain shell"},
+   {"id": "<id>", "action": "skip"},
+   {"id": "<id>", "action": "stay", "rename": "dotfiles PRs"}],
+ "workspaces": [
+   {"number": 2, "label": "2 alloc", "repos": ["internal-allocations"], "layout": "niri"}]}
+```
 
-Ask for a single go-ahead covering everything: renames, moves (including to
-review), labels and layouts.
+- **Actions:**
+  - `move` needs `to`, a pool workspace from 2 to 9.
+  - `review` means workspace 10.
+  - `skip` is for workspace 1 only, and every window there must be `skip`.
+  - `stay` keeps the window where it is. A flagged window can `stay` only
+    with a `reason`.
+- **`rename`** is optional: 16 characters at most, following the naming rule
+  in `~/.claude/CLAUDE.md`. Rename junk names, and give a unique rename to
+  any window whose `omniwm_match` isn't `ok`, so it can be matched after the
+  rename.
+- **Workspaces:**
+  - `label` is `<key> <project>`, where the key is the one the user presses:
+    the digit for 2-5, F1-F5 for 6-10. Examples: `2 alloc`, `F1 dotfiles`,
+    `F5 review`. The whole label is at most 12 characters. OmniWM's bar shows
+    the label *instead of* the number, so the key must be in it.
+  - `repos` records which repos the label stands for, which is how later
+    runs know a workspace's project.
+  - When a pool workspace empties, set its label to the bare key: `"3"` for
+    2-5, `"F2"` for 6-10.
+  - Label workspace 10 `F5 review` while it holds anything, and `F5` when
+    it's empty.
+- **Review** is for windows idle for a day or more with nothing pending, plain
+  `shell` windows in a home, `~/src` or scratch directory, and anything you
+  can't place. Windows already on review stay there unless they clearly
+  belong to a project now.
 
-### 6. Execute, in this order
+Save the plan to a temp file and dry-run it:
 
-1. **Rename** junk-named windows. Base the name on `last_message`, `repo` and
-   `cwd`, using the naming rule in `~/.claude/CLAUDE.md`: 16 characters at
-   most, with the distinguishing word first. Here `--workspace` is required,
-   because you are renaming other sessions' windows:
+```bash
+python3 <this skill's directory>/apply.py --dry-run /tmp/triage-plan.json
+```
 
-   ```bash
-   cmux workspace-action --workspace <cmux_workspace> --action rename --title "<name>"
-   ```
+If it prints `refused`, fix the plan. Every problem names its window. Then
+show the user:
 
-2. **Re-run the inventory.** Renames change titles, and titles are how
-   windows are matched to OmniWM, so matches taken from before the renames
-   are stale.
-3. **Move** each window:
-   `omniwmctl window move-to-workspace <omniwm_id> <N>`.
-4. **Set layouts** as in step 4.
-5. **Label** each project's workspace as `<key> <project>`, where the key is
-   the one the user presses to get there. That's the digit for 2-5 and F1-F5
-   for 6-10: `2 alloc`, `F1 dotfiles`, `F5 review`. OmniWM's bar shows the
-   label *instead of* the workspace number, so a label without the key hides
-   which button to press. Keep the whole label to 12 characters or fewer:
+- **Moves**, one line each: `alloc misc  6 → 2  (misplaced: internal-allocations on F1 dotfiles)`.
+  Put these first, so none gets lost in a table.
+- **Flagged windows that stay**, each with its reason.
+- **Renames, review, labels and layouts.**
+- **Tab hoards** (`cmux_tab_count` > 1): suggest splitting live tabs, but
+  don't do it.
+- **Coverage**: `12 / 12 windows`.
 
-   ```bash
-   omniwmctl workspace rename <N> "<key> <project>"
-   ```
+Ask for one go-ahead covering all of it.
 
-   When a pool workspace empties, reset its label to the bare key. For 2-5
-   that's `omniwmctl workspace rename <N> ""`, which falls back to the digit.
-   For 6-10 it's `omniwmctl workspace rename <N> "F<N-5>"`; an empty label
-   there would show "6"-"10", which isn't a key.
-6. **Label workspace 10 `F5 review`** while it holds anything, and reset it
-   to `F5` when it's empty. It keeps whatever layout the window count calls for
-   (step 4), like any other workspace.
+### 6. Execute
+
+```bash
+python3 <this skill's directory>/apply.py /tmp/triage-plan.json
+```
+
+It applies the plan in order: renames, then a fresh inventory, then moves,
+layouts and labels. It then returns the user to their workspace and logs the
+run to `~/.local/state/triage/log.jsonl`. If a move reports `already on N`,
+the change was already made, for example by an earlier run in a
+rolled-back conversation. That's expected.
 
 ### 7. Verify and report
 
-Re-run the inventory and check that every moved window landed where planned.
-Report in a few lines: which projects are on which workspaces (with their
-Caps Lock key: 2-5 are Caps+2-5, 6-9 are Caps+F1-F4, review is Caps+F5), what was
-renamed, what went to review, and anything skipped with the reason. Skips include
-ambiguous matches and windows on workspace 1.
+Re-run the inventory and check that every window is where the plan put it.
+Report in a few lines:
+
+- which projects are on which workspaces, with their Caps Lock key: 2-5 are
+  Caps+2-5, 6-9 are Caps+F1-F4, review is Caps+F5
+- what was renamed, and what went to review
+- anything skipped, with the reason
+
+### Undo
+
+If the user wants the last run reversed:
+
+```bash
+python3 <this skill's directory>/apply.py --undo --dry-run   # show what it would do
+python3 <this skill's directory>/apply.py --undo
+```
+
+It reverses the most recent run that changed something: labels, then layouts,
+then moves, then renames. It leaves alone anything the user has changed since,
+and says so. Undoing again goes one run further back.
