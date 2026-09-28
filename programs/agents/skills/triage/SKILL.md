@@ -18,8 +18,9 @@ Each run reads that state fresh and changes as little as it can.
 OmniWM persists labels and layouts into `~/.config/omniwm/settings.toml`, so
 the live file drifts from the repo seed while projects are allocated. That is
 expected. These are runtime state, so don't copy them back into
-`programs/omniwm/settings.toml`. A rebuild that changes the seed resets them,
-and the next triage run puts them back.
+`programs/omniwm/settings.toml`. Rebuilds keep them: when the seed is
+re-installed, the pool workspaces' `displayName` and `layoutType` are carried
+over from the live file (`programs/omniwm/keep-workspace-state.py`).
 
 ## Rules
 
