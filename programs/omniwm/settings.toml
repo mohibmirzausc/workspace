@@ -7,6 +7,7 @@ schemaVersion = 3
 
 [appearance]
 mode = "dark"
+tabRailAppIcons = false
 
 [borders]
 enabled = false
@@ -64,12 +65,19 @@ updateChecksEnabled = true
 [gestures]
 fingerCount = 3
 invertDirection = true
-mouseMoveModifierKey = "option"
+mouseMoveModifierKey = "controlOptionCommand"
 mouseResizeModifierKey = "option"
+overviewGestureEnabled = false
+overviewGestureFingerCount = 4
 scrollEnabled = true
 scrollModifierKey = "optionShift"
 scrollSensitivity = 5.0
 trackpadScrollStyle = "snap"
+windowGestureSensitivity = 1.0
+windowMoveEnabled = false
+windowMoveFingerCount = 4
+windowResizeEnabled = false
+windowResizeFingerCount = 3
 workspaceSwipeAxis = "vertical"
 workspaceSwipeEnabled = false
 workspaceSwipeFingerCount = 3
@@ -93,6 +101,9 @@ singleWindowFit = "fill"
 visibleContainerCount = 2
 
 [overview]
+invertScrollDirection = false
+matchFocusBorder = true
+mouseScrollSpeed = 1.0
 zoom = 1.0
 
 [overview.backdrop]
@@ -134,8 +145,22 @@ position = "center"
 widthPercent = 50.0
 
 [routing]
-arrangements = []
-mode = "macOS"
+mode = "custom"
+
+[[routing.arrangements]]
+id = "1C4FE5AF-A567-4E82-A091-338F0C008FC6"
+
+[[routing.arrangements.monitors]]
+gridColumn = 0
+gridRow = 0
+monitorDisplayUUID = "1D472CAD-FD27-4ED1-894F-BA1EE5E2955C"
+monitorName = "S32B80P"
+
+[[routing.arrangements.monitors]]
+gridColumn = 0
+gridRow = 1
+monitorDisplayUUID = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
+monitorName = "Built-in Retina Display"
 
 [scratchpads]
 
@@ -160,9 +185,13 @@ position = "overlappingMenuBar"
 reserveLayoutSpace = false
 revealHoldMilliseconds = 0.0
 revealModifier = "controlOptionCommand"
+showAccentHighlights = true
 showFloatingWindows = false
+showItemBackgrounds = true
 showLabels = true
+solidBlackBackground = false
 systemStatsButton = true
+transparentBackground = false
 windowLevel = "popup"
 xOffset = 0.0
 yOffset = 0.0
@@ -360,7 +389,7 @@ binding = "Right Control+Right Option+Shift+Right Command+4"
 id = "moveToWorkspace.3"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Option+Command+5"
 id = "switchWorkspace.4"
 
 [[hotkeys]]
@@ -368,35 +397,35 @@ binding = "Unassigned"
 id = "moveToWorkspace.4"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F1"
 id = "switchWorkspace.5"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Shift+Right Command+F1"
 id = "moveToWorkspace.5"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F2"
 id = "switchWorkspace.6"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Shift+Right Command+F2"
 id = "moveToWorkspace.6"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F3"
 id = "switchWorkspace.7"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Shift+Right Command+F3"
 id = "moveToWorkspace.7"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F4"
 id = "switchWorkspace.8"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Shift+Right Command+F4"
 id = "moveToWorkspace.8"
 
 [[hotkeys]]
@@ -908,19 +937,19 @@ binding = "Unassigned"
 id = "swapSplit"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F14"
 id = "resizeGrow.horizontal"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F16"
 id = "resizeGrow.vertical"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F13"
 id = "resizeShrink.horizontal"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Right Command+F15"
 id = "resizeShrink.vertical"
 
 [[hotkeys]]
@@ -1006,7 +1035,7 @@ layoutType = "niri"
 name = "1"
 
 [workspaces.monitorAssignment]
-type = "main"
+type = "secondary"
 
 [[workspaces]]
 id = "454CECD4-5E9D-4ED1-95D7-979D48817F5F"
@@ -1014,7 +1043,7 @@ layoutType = "niri"
 name = "2"
 
 [workspaces.monitorAssignment]
-type = "main"
+type = "secondary"
 
 [[workspaces]]
 id = "BEB842B5-E894-4791-9FD1-397C3CDD3538"
@@ -1028,6 +1057,54 @@ type = "main"
 id = "248AA883-2261-4D45-943C-79C0E46A232B"
 layoutType = "niri"
 name = "4"
+
+[workspaces.monitorAssignment]
+type = "main"
+
+[[workspaces]]
+id = "C7967C0E-10AE-46FC-B240-DAF47902DDD2"
+layoutType = "dwindle"
+name = "5"
+
+[workspaces.monitorAssignment]
+type = "secondary"
+
+[[workspaces]]
+id = "EFAED30A-2A1A-425E-A2CE-2EF8F898E1D6"
+layoutType = "dwindle"
+name = "6"
+
+[workspaces.monitorAssignment]
+type = "main"
+
+[[workspaces]]
+id = "78E0C4A3-DBC5-489D-9BBB-00A800E79E26"
+layoutType = "dwindle"
+name = "7"
+
+[workspaces.monitorAssignment]
+type = "main"
+
+[[workspaces]]
+id = "F605D350-A3A7-4675-9069-C3C63F5DB67A"
+layoutType = "dwindle"
+name = "8"
+
+[workspaces.monitorAssignment]
+type = "main"
+
+[[workspaces]]
+id = "08E1FB4E-8574-4531-AD51-AEB62DACDE9A"
+layoutType = "dwindle"
+name = "9"
+
+[workspaces.monitorAssignment]
+type = "main"
+
+[[workspaces]]
+id = "29A716AA-5EB9-461A-8781-993B5BC86AE3"
+layoutType = "dwindle"
+name = "10"
 
 [workspaces.monitorAssignment]
 type = "main"

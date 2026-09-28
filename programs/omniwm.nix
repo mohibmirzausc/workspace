@@ -8,6 +8,11 @@
 # than a binary-split tree like yabai/Amethyst. niri.visibleContainerCount
 # controls how many columns are on screen at once. A traditional split layout
 # ("dwindle") is also configured and reachable at runtime via Opt+Shift+L.
+# Workspaces 6-10 are pinned to dwindle (per-workspace layoutType) to try it
+# side by side: Caps Lock+F1-F4 reach 6-9 natively (Karabiner un-media-keys the
+# top row while Caps Lock is held), and F5 -> 10 goes through Karabiner +
+# omniwmctl because OmniWM has no hotkey slot past 9
+# (see the rule in programs/karabiner.nix).
 #
 # The settings live in ./omniwm/settings.toml rather than as a Nix attrset
 # because OmniWM owns this file's schema (schemaVersion = 3) and writes ~1000
