@@ -451,6 +451,21 @@ in
       # the launchd agent here owns the process, and running both would start
       # two bars.
       "felixkratz/formulae/sketchybar"
+
+      # DEPENDENCY OF THE gcloud-cli CASK, declared only so cleanup does not
+      # trip over it. gcloud-cli needs mpdecimal but does not pull it in as a
+      # managed dependency, so cleanup = "uninstall" saw an undeclared
+      # formula, tried to remove it, and Homebrew refused:
+      #
+      #   Error: Refusing to uninstall /opt/homebrew/Cellar/mpdecimal/4.0.1
+      #   because it is required by gcloud-cli, which is currently installed.
+      #
+      # That aborts the WHOLE cleanup pass, so nothing else got pruned either
+      # -- cleanup has been silently doing nothing for a while. The error is
+      # loud but harmless in itself (nothing was removed; the "Uninstalled 52
+      # formulae" line right after it refers to cache, not packages), which
+      # is why it sat unnoticed.
+      "mpdecimal"
     ];
     casks = [
       "1password-cli"
