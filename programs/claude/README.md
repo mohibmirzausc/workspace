@@ -5,6 +5,7 @@ This directory contains my Claude Code configuration, managed via Nix home-manag
 ## Files
 
 - **settings.json** - Global Claude settings including hooks, marketplaces, enabled plugins, and base permissions
+- **CLAUDE.md** - Global instructions loaded into every session (`~/.claude/CLAUDE.md`), e.g. naming the cmux workspace after the task
 - **beep-state** - Beep notification preference (ENABLED/DISABLED)
 - **hooks/** - Hook scripts that run during Claude Code execution
   - **tool-after.sh** - Plays system beep when tools complete
