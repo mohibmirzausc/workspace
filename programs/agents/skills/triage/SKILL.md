@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Use when the user says "/triage", "triage my windows", "organize my terminals", "clean up my workspaces", or complains they cannot find a session. Groups open cmux windows into projects, gives each project its own OmniWM workspace (2-10, dwindle for small projects, niri for large ones), labels the workspaces, fixes junk window names, and proposes what to close.
+description: Use when the user says "/triage", "triage my windows", "organize my terminals", "clean up my workspaces", or complains they cannot find a session. Groups open cmux windows into projects, gives each project its own OmniWM workspace (2-9, dwindle for small projects, niri for large ones), labels the workspaces, fixes junk window names, and parks anything it is unsure about on workspace 10 ("review"). It never closes windows.
 ---
 
 # Triage
@@ -25,12 +25,17 @@ and the next triage run puts them back.
 
 - **Workspace 1 is the user's.** Never move a window into it or out of it,
   and never relabel or re-layout it. Report what is there, but leave it alone.
-- **The pool is workspaces 2-10.** Projects are allocated from it.
+- **The pool is workspaces 2-9.** Projects are allocated from it.
+- **Workspace 10 is `review`.** Anything you're unsure about goes there
+  instead of being closed or guessed into a project. That means windows that
+  look finished or abandoned, and windows you can't place. The user clears it
+  by hand.
 - **Only cmux windows move.** Leave every other app where it is (browsers,
   Slack, Docker). Scratchpad and floating windows are the user's comms setup,
   so never touch them either.
-- **Nothing closes without an explicit, per-item OK.** Closing is the only
-  step that can lose work.
+- **Never close a window.** Closing is the only step that can lose work, and
+  the user closes windows themselves. Park doubtful windows on `review`
+  instead.
 - **Never guess which window to move.** Move only windows whose
   `omniwm_match` is `ok`, by their `omniwm_id`. Never use
   `omniwmctl command move-to-workspace`: it moves whatever window is focused,
@@ -73,7 +78,7 @@ keep windows together: one project too many is worse than one too few.
 3. **Otherwise** take the lowest-numbered **free** pool workspace. Free means
    no tiled windows and no label.
 4. **Out of workspaces?** Merge the two smallest idle projects onto one
-   workspace, and say so in the plan.
+   workspace, and say so in the plan. Never overflow a project onto 10.
 
 ### 4. Pick the layout from the project's size
 
@@ -101,14 +106,16 @@ Show one table: each project, its windows, the target workspace and layout,
 and the label. Below it, list separately:
 
 - **Renames**: windows whose name is junk.
-- **Close candidates**: idle for a day or more with nothing pending, and
-  plain `shell` windows sitting in a home or `~/src` directory. Give the
-  reason for each.
+- **Review**: windows headed for workspace 10, each with its reason. A window
+  goes to review when it has been idle for a day or more with nothing pending,
+  when it is a plain `shell` in a home, `~/src` or scratch directory, or when
+  you can't tell which project it belongs to. Windows already on `review` stay
+  there unless they clearly belong to a project now.
 - **Tab hoards** (`cmux_tab_count` > 1): suggest splitting live tabs into their
   own windows, but don't do it automatically.
 
-Ask for a single go-ahead for the renames, moves, labels and layouts. Closing
-is asked separately, item by item.
+Ask for a single go-ahead covering everything: renames, moves (including to
+review), labels and layouts.
 
 ### 6. Execute, in this order
 
@@ -131,12 +138,14 @@ is asked separately, item by item.
    (10 characters or fewer):
    `omniwmctl workspace rename <N> "<label>"`. Clear the label of any pool
    workspace that is now empty: `omniwmctl workspace rename <N> ""`.
-6. **Close** only the windows the user approved, one at a time.
+6. **Label workspace 10 `review`** while it holds anything, and clear the
+   label when it's empty. It keeps whatever layout the window count calls for
+   (step 4), like any other workspace.
 
 ### 7. Verify and report
 
 Re-run the inventory and check that every moved window landed where planned.
 Report in a few lines: which projects are on which workspaces (with their
-Caps Lock key: 2-5 are Caps+2-5, 6-9 are Caps+F1-F4, 10 is Caps+F5), what was
-renamed and closed, and anything skipped with the reason. Skips include
+Caps Lock key: 2-5 are Caps+2-5, 6-9 are Caps+F1-F4, review is Caps+F5), what was
+renamed, what went to review, and anything skipped with the reason. Skips include
 ambiguous matches and windows on workspace 1.
