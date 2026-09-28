@@ -10,12 +10,17 @@ When `$CMUX_WORKSPACE_ID` is set, rename this session's workspace as soon as
 the task is clear, usually right after my first real request:
 
 ```bash
-cmux workspace-action --action rename --title "<repo>: <task>"
+cmux workspace-action --action rename --title "<task>"
 ```
 
-- `<repo>` is the git repo (or directory) you are working in; `<task>` is 2-5
-  words, e.g. `workspace: omniwm dwindle keys`, `release-ops: cve triage`.
-  Keep it under ~40 characters.
+- **16 characters at most.** The name shows on the sketchybar workspace bar,
+  where each window pill is cut at 16 characters (`WM_WIN_CHARS` in
+  darwin.nix; wider pills run under the notch). Anything past 16 is invisible,
+  so a longer name is no better than a cut-off one.
+- Put the distinguishing word first, since the end is what gets cut:
+  `dwindle keys`, `cve triage`, `mx mouse tilt`, not `workspace: omniwm
+  dwindle keys`. Skip the repo name unless it is the distinguishing part
+  (`release-ops cve`).
 - Rename again only if the task genuinely changes, not every turn.
 - Do it silently. It is housekeeping, not something to report.
 - Skip it if you are a subagent or fork. Subagents inherit the parent's
