@@ -163,6 +163,13 @@ in
       source = ./programs/claude/hooks;
       force = true;
     };
+    # Global instructions for every Claude Code session. Claude-only for now:
+    # Pi's equivalent (~/.pi/agent/AGENTS.md) is written by mo-pi between its
+    # own markers, so it is not managed from here.
+    ".claude/CLAUDE.md" = {
+      source = ./programs/claude/CLAUDE.md;
+      force = true;
+    };
 
     # Harness-neutral agent content, shared by Claude Code and Pi.
     #
