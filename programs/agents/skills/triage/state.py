@@ -11,15 +11,25 @@ Entry shape:
    "undoes": ts, "complete": bool          (undo only)
    "renames":  [{"id", "cmux_workspace", "from", "to"}],
    "moves":    [{"id", "name", "from", "to"}],
+   "restores": [{"id", "name", "from", "to"}],   (from 1 after a restart; undo: back to 1)
    "layouts":  [{"workspace", "from", "to"}],
    "labels":   [{"workspace", "from", "to"}],
    "projects": [{"workspace", "label", "repos"}],   (apply only; not undone)
    "failed":   ["what failed"],
-   "snapshot": [window ids the run decided on]}
+   "snapshot": [window ids the run decided on],
+   "placements": [{"name", "workspace", "repo", "carried"?}]}   (every cmux window after the run)
 
 `projects` records which repos each planned label stands for, on every run,
 whether or not the label changed. That is how later runs learn a workspace's
 project, including for labels set before this log existed.
+
+`placements` is where every cmux window was when the run ended, keyed by name
+because names survive a cmux restart and window ids don't. After a restart
+every window lands on workspace 1; the last placements say where each one
+belongs, so they can be restored. A window still on workspace 1 only because
+of a restart (its restore failed or was declined, or an undo put it back) is
+recorded at the workspace it came from, marked "carried", so one partial run
+doesn't erase where it belongs.
 """
 
 import datetime
@@ -81,7 +91,7 @@ def last_snapshot():
     return None
 
 
-CHANGES = ("renames", "moves", "layouts", "labels")
+CHANGES = ("renames", "moves", "restores", "layouts", "labels")
 
 
 def changed(entry):
@@ -131,3 +141,35 @@ def label_repos(current_labels):
         for n, label in current_labels.items()
         if (n, label) in latest
     }
+
+
+def last_placements():
+    """{name: workspace} from the most recent standing entry with placements.
+
+    Undone applies don't count (the undo's own placements follow them). A
+    name recorded more than once, or with no workspace, is dropped: it can't
+    say where one window belongs.
+    """
+    undone = set()
+    for entry in reversed(read_log()):
+        if entry.get("kind") == "undo" and entry.get("complete") and isinstance(entry.get("undoes"), str):
+            undone.add(entry["undoes"])
+        if entry.get("kind") not in ("apply", "undo") or entry.get("ts") in undone:
+            continue
+        placements = entry.get("placements")
+        if not isinstance(placements, list):
+            continue
+        spots, dupes = {}, set()
+        for p in placements:
+            if not isinstance(p, dict) or not isinstance(p.get("name"), str) or not p["name"]:
+                continue
+            name, n = p["name"], p.get("workspace")
+            if name in spots or name in dupes:
+                dupes.add(name)
+                spots.pop(name, None)
+            elif type(n) is int and 1 <= n <= 10:
+                spots[name] = n
+            else:
+                dupes.add(name)  # known to exist, but not where
+        return spots
+    return {}

@@ -26,6 +26,9 @@ over from the live file (`programs/omniwm/keep-workspace-state.py`).
 
 - **Workspace 1 is the user's.** Never move a window into it or out of it,
   and never relabel or re-layout it. Report what is there, but leave it alone.
+  The one exception is a cmux restart, which dumps every window on 1:
+  `restore` puts each back where the last run left it (see
+  [Restart recovery](#restart-recovery)).
 - **The pool is workspaces 2-9.** Projects are allocated from it.
 - **Workspace 10 is `review`.** Anything you're unsure about goes there
   instead of being closed or guessed into a project. That means windows that
@@ -76,6 +79,43 @@ keeping it in place takes a stated `reason` (step 5).
 
 For each workspace it gives its label, layout, tiled count, non-cmux apps,
 and `project_repos`. The inventory also reports `current_workspace`.
+
+It also reports `restart` (top level) and each window's `last_workspace`,
+for [Restart recovery](#restart-recovery). If `restart` is true, recover
+first.
+
+### Restart recovery
+
+cmux restarts often. Afterwards every window is on workspace 1 and has a new
+`id`, so every window reads `new`; names survive. Each run logs where every
+window ended up, by name, and the inventory reads that back:
+
+- `last_workspace`: where the last run left this window. It's `null` when
+  the window's name isn't unique now or the log doesn't know the name.
+- `restart: true`: most windows are on 1, but the last run left most of them
+  elsewhere.
+
+When `restart` is true, offer to put everyone back in **one question**:
+"cmux restarted: restore these N windows to their workspaces?", listing
+each as `a work  1 → 3`. On a yes, each window on 1 with a `last_workspace`
+from 2 to 10 gets `{"id": "<id>", "action": "restore"}`. `restore` takes no
+`to` (or exactly its `last_workspace`) and no `rename`. List the restores
+first in the plan, and in what you show the user.
+
+Everything else gets a normal decision, as in any run:
+
+- a window on 1 with `last_workspace` 1 was the user's before the restart,
+  so it's `skip`;
+- a window on 1 with no `last_workspace` (a new name, or one shared by two
+  windows) is `skip` too. Say so, so the user can move it by hand;
+- windows already off 1 are planned as usual.
+
+`apply.py` refuses a restore unless the inventory reports a restart, the
+window is on 1, uniquely matched and uniquely named, and it goes to its own
+`last_workspace`. It re-checks all of that right before moving it. Undo
+moves restored windows back to 1, so a restore can be retried. A restore
+that fails keeps the window's `last_workspace` in the log, so the next run
+can offer it again.
 
 ### 2. Group windows into projects
 
@@ -132,10 +172,12 @@ Write the plan as JSON: **one entry for every window in the inventory.**
 - **Actions:**
   - `move` needs `to`, a pool workspace from 2 to 9.
   - `review` means workspace 10.
-  - `skip` is for workspace 1. Every window there must be `skip`, and so must
-    any window with `maybe_user_workspace: true`. That's a window whose title
-    collides with another, so it can't be located and might be on
-    workspace 1. Skipped windows can't be renamed.
+  - `restore` is only for [Restart recovery](#restart-recovery).
+  - `skip` is for workspace 1. Every window there must be `skip` unless
+    it's being restored, and so must any window with
+    `maybe_user_workspace: true`. That's a window whose title collides with
+    another, so it can't be located and might be on workspace 1. Skipped
+    windows can't be renamed.
   - `stay` keeps the window where it is. A flagged window can `stay` only
     with a `reason`.
 - **Only matched, tiled windows move.** A window whose `omniwm_match` isn't
@@ -172,8 +214,9 @@ python3 <this skill's directory>/apply.py --dry-run /tmp/triage-plan.json
 If it prints `refused`, fix the plan. Every problem names its window. Then
 show the user:
 
+- **Restores**, after a restart, one line each: `a work  1 → 3`.
 - **Moves**, one line each: `alloc misc  6 → 2  (misplaced: internal-allocations on F1 dotfiles)`.
-  Put these first, so none gets lost in a table.
+  Put these first after any restores, so none gets lost in a table.
 - **Flagged windows that stay**, each with its reason.
 - **Renames, review, labels and layouts.**
 - **Tab hoards** (`cmux_tab_count` > 1): suggest splitting live tabs, but
@@ -225,7 +268,8 @@ python3 <this skill's directory>/apply.py --undo
 ```
 
 It reverses the most recent run that changed something: labels, then layouts,
-then moves, then renames.
+then moves and restores, then renames. Undoing a restore is the one time
+triage moves a window onto workspace 1, and only a window it restored.
 
 - It leaves alone anything the user has changed since, and says so.
 - It refuses log entries that are outside triage's bounds.

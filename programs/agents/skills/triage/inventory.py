@@ -24,6 +24,14 @@ a careful read of the table:
     with the reason spelled out.
   * home: the pool workspace that already holds this repo's windows, if it is
     not the one the window is on.
+
+And it spots a cmux restart, which puts every window on workspace 1 and gives
+each a new id (names survive):
+
+  * last_workspace: where the last triage run left the window, by name; None
+    if its name isn't unique now or the log doesn't know it.
+  * restart (top level): most windows are on workspace 1, but the last run left
+    most of those elsewhere. Only then may apply.py "restore" them.
 """
 
 import json
@@ -40,6 +48,8 @@ MESSAGE_CHARS = 140
 USER_WORKSPACE = 1
 REVIEW_WORKSPACE = 10
 POOL = set(range(2, 10))
+# A restart: at least this many cmux windows, at least this share on 1.
+RESTART_MIN_WINDOWS, RESTART_SHARE = 3, 0.75
 
 
 def run(*cmd):
@@ -192,8 +202,9 @@ def collect():
     } for ws in ow_workspaces]
 
     flag(windows, workspaces)
+    restart = recovery(windows)
     current = next((ws["number"] for ws in ow_workspaces if ws.get("isCurrent")), None)
-    return {"current_workspace": current, "windows": windows, "workspaces": workspaces}
+    return {"current_workspace": current, "restart": restart, "windows": windows, "workspaces": workspaces}
 
 
 def flag(windows, workspaces):
@@ -239,6 +250,22 @@ def flag(windows, workspaces):
         if w["home"]:
             reason += f"; its repo's windows are on workspace {w['home']}"
         w["misplaced"] = reason
+
+
+def recovery(windows):
+    """Add last_workspace to each window; return whether cmux just restarted."""
+    last = state.last_placements()
+    names = Counter(w["name"] for w in windows)
+    for w in windows:
+        unique = bool(w["name"]) and names[w["name"]] == 1
+        w["last_workspace"] = last.get(w["name"]) if unique else None
+    # A title shared by several windows all on 1 still puts each of them on 1.
+    on_one = [w for w in windows if w["omniwm_workspace"] == USER_WORKSPACE
+              or (w["omniwm_workspace"] is None and w.get("omniwm_candidates") == [USER_WORKSPACE])]
+    came_back = [w for w in on_one if w["last_workspace"] not in (None, USER_WORKSPACE)]
+    return (len(windows) >= RESTART_MIN_WINDOWS
+            and len(on_one) >= RESTART_SHARE * len(windows)
+            and 2 * len(came_back) > len(on_one))
 
 
 def main():

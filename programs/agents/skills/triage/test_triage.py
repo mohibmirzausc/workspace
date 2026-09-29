@@ -281,7 +281,13 @@ class FakeDesktop:
                 "maybe_user_workspace": 1 in cands, "floating": False, "scratchpad": False})
         wss = [{"number": n, "label": self.labels.get(n), "layout": self.layouts[n]} for n in range(1, 11)]
         inventory.flag(windows, wss)
-        return {"current_workspace": self.shown[self.current], "windows": windows, "workspaces": wss}
+        restart = inventory.recovery(windows)
+        return {"current_workspace": self.shown[self.current], "restart": restart,
+                "windows": windows, "workspaces": wss}
+
+    def restart(self, prefix="r"):
+        """cmux restarts: every window lands on 1 under a new id, names kept."""
+        self.w = {prefix + i: dict(x, ws=1) for i, x in self.w.items()}
 
     def omniwm(self, *args):
         return {"workspaces": [{"number": n, "display": {"id": self.display(n)},
@@ -575,6 +581,234 @@ class ExecuteTests(unittest.TestCase):
             code, out = apply.apply(plan, dry=False)
             self.assertEqual(code, 1)
             self.assertNotIn("niri", d.layouts.values())
+
+
+class RestartTests(unittest.TestCase):
+    """After a cmux restart every window is on 1 with a new id; restore puts
+    each back on its last workspace, by name, and nothing else leaves 1."""
+
+    def setUp(self):
+        reset_log()
+
+    def settled(self, **extra):
+        """A desktop triaged once (so placements are logged), then restarted."""
+        windows = {"jan": ("jan", 1, "release"), "a": ("a", 3, "x"), "b": ("b", 6, "y"),
+                   "c": ("c", 6, "y"), "t": ("t", 10, "tmp")} | extra
+        d = FakeDesktop(windows)
+        with d:
+            code, out = apply.apply(full_plan(d), dry=False)
+            self.assertEqual(code, 0, out)
+        d.restart()
+        return d
+
+    def restore_all(self, d, **decisions):
+        inv = d.collect()
+        restores = {w["id"]: {"action": "restore"} for w in inv["windows"]
+                    if w["omniwm_workspace"] == 1 and w["last_workspace"] not in (None, 1)}
+        return full_plan(d, **(restores | decisions))
+
+    def test_placements_are_recorded_by_name(self):
+        d = self.settled()
+        self.assertEqual(state.last_placements(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
+        entry = state.read_log()[-1]
+        self.assertIn({"name": "a", "workspace": 3, "repo": "x"}, entry["placements"])
+
+    def test_restart_is_detected(self):
+        with self.settled() as d:
+            inv = d.collect()
+            self.assertIs(inv["restart"], True)
+            last = {w["name"]: w["last_workspace"] for w in inv["windows"]}
+            self.assertEqual(last, {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
+
+    def test_no_restart_without_a_majority_on_one(self):
+        with self.settled() as d:
+            d.w["ra"]["ws"], d.w["rb"]["ws"] = 3, 6  # 3 of 5 on 1: 60%
+            self.assertIs(d.collect()["restart"], False)
+
+    def test_no_restart_when_they_were_on_one_last_time(self):
+        with FakeDesktop({"a": ("a", 1, "x"), "b": ("b", 1, "y"), "c": ("c", 1, "z"), "d": ("d", 3, "z")}) as d:
+            apply.apply(full_plan(d), dry=False)
+            d.restart()
+            self.assertIs(d.collect()["restart"], False)  # they were on 1 before, too
+
+    def test_no_restart_with_too_few_windows_or_no_log(self):
+        with FakeDesktop({"a": ("a", 1, "x"), "b": ("b", 1, "y")}) as d:
+            self.assertIs(d.collect()["restart"], False)  # no log
+            state.append({"kind": "apply", "placements": [{"name": "a", "workspace": 3}, {"name": "b", "workspace": 4}]})
+            self.assertIs(d.collect()["restart"], False)  # only two windows
+
+    def test_restore_then_undo_back_to_one(self):
+        with self.settled() as d:
+            code, out = apply.apply(self.restore_all(d), dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual({x["name"]: x["ws"] for x in d.w.values()}, {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
+            self.assertIs(d.collect()["restart"], False)
+            self.assertEqual(len(state.last_undoable()["restores"]), 4)
+            code, out = apply.undo(dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual({x["ws"] for x in d.w.values()}, {1})
+            # Undoing kept where they belong, so they can be restored again.
+            self.assertEqual(state.last_placements(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
+            self.assertIs(d.collect()["restart"], True)
+            code, out = apply.apply(self.restore_all(d), dry=False)
+            self.assertEqual((code, d.ws_of("ra")), (0, 3), out)
+
+    def test_failed_restore_keeps_where_it_belongs(self):
+        with self.settled() as d:
+            d.fail.add(("window", "move-to-workspace", "ow_ra", "3"))
+            code, out = apply.apply(self.restore_all(d), dry=False)
+            self.assertEqual(code, 1)
+            self.assertEqual((d.ws_of("ra"), d.ws_of("rb")), (1, 6))
+            self.assertEqual(state.last_placements()["a"], 3)
+            placement = next(p for p in state.read_log()[-1]["placements"] if p["name"] == "a")
+            self.assertTrue(placement["carried"])
+            d.fail.clear()
+            self.assertEqual(d.collect()["restart"], False)  # most are back now
+            # ...so 'a' can't be restored any more; it's the user's to move.
+            problems = apply.validate(full_plan(d, ra={"action": "restore"}), d.collect())
+            self.assertTrue(any("restart" in p for p in problems), problems)
+
+    def test_restore_is_refused_without_a_restart(self):
+        with FakeDesktop({"jan": ("jan", 1, "release"), "a": ("a", 1, "x"), "b": ("b", 3, "y")}) as d:
+            state.append({"kind": "apply", "placements": [{"name": "a", "workspace": 3}]})
+            inv = d.collect()
+            self.assertEqual(next(w for w in inv["windows"] if w["id"] == "a")["last_workspace"], 3)
+            problems = apply.validate(full_plan(d, a={"action": "restore"}), inv)
+            self.assertTrue(any("restart" in p for p in problems), problems)
+
+    def test_restore_goes_only_to_its_last_workspace(self):
+        with self.settled() as d:
+            inv = d.collect()
+            for to in (4, 1, 10, "3", 3.0, None):
+                problems = apply.validate(self.restore_all(d, ra={"action": "restore", "to": to}), inv)
+                self.assertTrue(problems, f"to={to!r}")
+            self.assertEqual(apply.validate(self.restore_all(d, ra={"action": "restore", "to": 3}), inv), [])
+
+    def test_restore_is_refused_for_windows_that_belong_on_one(self):
+        with self.settled() as d:
+            problems = apply.validate(self.restore_all(d, rjan={"action": "restore"}), d.collect())
+            self.assertTrue(any("'jan'" in p and "last workspace is 1" in p for p in problems), problems)
+            problems = apply.validate(self.restore_all(d, rjan={"action": "stay"}), d.collect())
+            self.assertTrue(any("'jan'" in p and "must be 'skip'" in p for p in problems), problems)
+
+    def test_other_actions_still_cannot_leave_one(self):
+        with self.settled() as d:
+            for e in ({"action": "move", "to": 3}, {"action": "review"}, {"action": "stay"},
+                      {"action": "restore", "rename": "a2"}):
+                self.assertTrue(apply.validate(self.restore_all(d, ra=e), d.collect()), e)
+
+    def test_restore_only_moves_windows_off_one(self):
+        with self.settled() as d:
+            d.w["rb"]["ws"] = 7
+            problems = apply.validate(self.restore_all(d, rb={"action": "restore"}), d.collect())
+            self.assertTrue(any("only moves windows off workspace 1" in p for p in problems), problems)
+
+    def test_duplicate_names_are_not_restored(self):
+        with self.settled(e=("e", 4, "z"), f=("f", 5, "z")) as d:
+            d.w["rb"]["name"] = "c"  # two windows called 'c' now
+            inv = d.collect()
+            self.assertEqual({w["last_workspace"] for w in inv["windows"] if w["name"] == "c"}, {None})
+            for i in ("rb", "rc"):
+                self.assertTrue(apply.validate(self.restore_all(d, **{i: {"action": "restore"}}), inv), i)
+            code, out = apply.apply(self.restore_all(d), dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual((d.ws_of("rb"), d.ws_of("rc"), d.ws_of("ra")), (1, 1, 3))
+
+    def test_duplicate_name_is_refused_even_if_matched(self):
+        # Belt and braces: a shared name never restores, whatever the join says.
+        with self.settled() as d:
+            inv = d.collect()
+            for w in inv["windows"]:
+                if w["id"] == "rb":
+                    w["name"] = "c"
+            problems = apply.validate(self.restore_all(d, rc={"action": "restore"}), inv)
+            self.assertTrue(any("'c'" in p and "isn't unique" in p for p in problems), problems)
+
+    def test_names_logged_twice_have_no_last_workspace(self):
+        state.append({"kind": "apply", "placements": [{"name": "a", "workspace": 3}, {"name": "a", "workspace": 4},
+                                                       {"name": "b", "workspace": 5}]})
+        self.assertEqual(state.last_placements(), {"b": 5})
+
+    def test_maybe_user_window_is_not_restored(self):
+        with self.settled() as d:
+            inv = d.collect()
+            ra = next(w for w in inv["windows"] if w["id"] == "ra")
+            ra.update(omniwm_match="ambiguous", omniwm_id=None, omniwm_workspace=None,
+                      omniwm_candidates=[1, 3], maybe_user_workspace=True)
+            problems = apply.validate(self.restore_all(d, ra={"action": "restore"}), inv)
+            self.assertTrue(any("'a'" in p and "matched" in p for p in problems), problems)
+
+    def test_restore_is_rechecked_before_it_runs(self):
+        cases = {
+            "left 1": lambda desk: desk.w["ra"].update(ws=5),
+            "renamed to a duplicate": lambda desk: desk.w["rb"].update(name="a"),
+        }
+        for why, act in cases.items():
+            with self.subTest(why), self.settled() as d:
+                d.on_rename = act
+                plan = self.restore_all(d, rt={"action": "restore", "to": 10})
+                # A rename elsewhere forces the fresh inventory the re-check uses.
+                d.w["n"] = dict(name="n", ws=4, repo="z")
+                plan["windows"].append({"id": "n", "action": "stay", "rename": "n2", "reason": "x"})
+                code, out = apply.apply(plan, dry=False)
+                self.assertEqual(code, 1, out)
+                self.assertTrue(any("didn't restore 'a'" in f for f in out["failed"]), out)
+                self.assertNotEqual(d.ws_of("ra"), 3)
+                reset_log()
+
+    def test_restore_refused_if_its_omniwm_window_changed(self):
+        with self.settled() as d:
+            plan = self.restore_all(d)
+            d.w["n"] = dict(name="n", ws=4, repo="z")
+            plan["windows"].append({"id": "n", "action": "stay", "rename": "n2", "reason": "x"})
+            real_collect, renamed = d.collect, []
+            d.on_rename = lambda desk: renamed.append(1)
+            def lagging():
+                inv = real_collect()
+                for w in inv["windows"]:
+                    if renamed and w["id"] == "ra":
+                        w["omniwm_id"] = "ow_other"
+                return inv
+            inventory.collect = lagging
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 1)
+            self.assertEqual(d.ws_of("ra"), 1)
+            self.assertEqual(d.ws_of("rb"), 6)
+
+    def test_undo_moves_into_one_only_for_logged_restores(self):
+        with self.settled() as d:
+            state.append({"kind": "apply", "moves": [{"id": "rb", "from": 1, "to": 6}],
+                          "restores": [{"id": "rc", "from": 2, "to": 6}, {"id": "ra", "from": 1, "to": 1},
+                                       {"id": "rt", "from": True, "to": 10}, "x"]})
+            d.w["rb"]["ws"] = d.w["rc"]["ws"] = 6
+            d.w["rt"]["ws"] = 10
+            code, out = apply.undo(dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual((d.ws_of("rb"), d.ws_of("rc"), d.ws_of("rt")), (6, 6, 10))
+            self.assertEqual(len(out["ignored"]), 5)
+
+    def test_malformed_placements_are_ignored(self):
+        os.makedirs(state.state_dir(), exist_ok=True)
+        state.append({"kind": "apply", "placements": [{"name": "good", "workspace": 3}]})
+        state.append({"kind": "apply", "placements": [
+            {"name": "a", "workspace": "3"}, {"name": "b", "workspace": 11}, {"name": "c", "workspace": True},
+            {"name": 7, "workspace": 3}, {"name": "", "workspace": 3}, "x", None, {"workspace": 2},
+            {"name": "d", "workspace": 4}]})
+        self.assertEqual(state.last_placements(), {"d": 4})
+        state.append({"kind": "apply", "placements": "oops"})
+        state.append({"kind": "note", "placements": [{"name": "z", "workspace": 2}]})
+        self.assertEqual(state.last_placements(), {"d": 4})
+        with FakeDesktop({"a": ("a", 1, "x"), "b": ("b", 1, "x"), "d": ("d", 1, "x")}) as d:
+            inv = d.collect()
+            self.assertEqual({w["name"]: w["last_workspace"] for w in inv["windows"]}, {"a": None, "b": None, "d": 4})
+            self.assertIs(inv["restart"], False)  # only 1 of 3 known to be elsewhere
+
+    def test_undone_apply_placements_do_not_count(self):
+        a = state.append({"kind": "apply", "moves": [{"id": "x"}], "placements": [{"name": "a", "workspace": 3}]})
+        b = state.append({"kind": "apply", "moves": [{"id": "x"}], "placements": [{"name": "a", "workspace": 5}]})
+        state.append({"kind": "undo", "undoes": b["ts"], "complete": True})
+        self.assertEqual(state.last_placements(), {"a": 3})
+        self.assertTrue(a)
 
 
 if __name__ == "__main__":
