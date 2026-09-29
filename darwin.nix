@@ -548,10 +548,25 @@ in
       # no BlackHole, no aggregate device, no rerouting that could disturb
       # KrispAudio.driver, and sound keeps playing normally.
       #
-      # Transcription (whisper) and diarization (pyannote) both run on-device,
-      # which is the point for work calls. Speaker attribution is per-WORD
-      # (owhisper-interface Word2.speaker), so interruptions stay attributed;
-      # voices start as "Speaker 1" until labelled once.
+      # LOCAL IS A CHOICE HERE, NOT A GUARANTEE. The app ships both local and
+      # cloud paths for every stage, and the cloud ones are real services --
+      # managed transcription routes audio to Deepgram/Soniox/AssemblyAI, and
+      # managed Intelligence sends transcripts to Claude via OpenRouter. For
+      # work calls, check Settings -> Transcription and Settings ->
+      # Intelligence and pin both to a local model before recording anything.
+      #
+      # What IS local by default: notes, transcripts and recordings live in
+      # local SQLite plus plain files, and CloudSync is off until enabled.
+      # Cloud reads additionally need `--source cloud` AND a signed-in
+      # session, so they fail closed rather than falling back silently.
+      # CLI telemetry (PostHog) is opt-in: telemetry_enabled() is
+      # unwrap_or(false), on only if ANARLOG_ANALYTICS=1.
+      #
+      # Speaker attribution is per-WORD (owhisper-interface Word2.speaker),
+      # so interruptions stay attributed; voices start as "Speaker 1" until
+      # labelled once. Diarization can run on-device (pyannote-local), but
+      # note there is a pyannote-cloud crate too -- another reason to check
+      # the settings rather than assume.
       #
       # For agent use, `anarlog mcp` serves the LOCAL SQLite over stdio. Do
       # not use the shipped agent-plugins/anarlog/mcp.json -- it points at
