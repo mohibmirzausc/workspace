@@ -1,0 +1,82 @@
+name: Lint agents
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Enforces the trap documented in programs/agents/README.md:
+#   Pi silently skips a SKILL.md without `name` + `description` frontmatter.
+# Claude Code is lenient, so a broken skill can pass local eyeballing and
+# still be invisible under Pi. Catch it in CI instead.
+
+jobs:
+  skill-frontmatter:
+    name: SKILL.md has required frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check every SKILL.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+          shopt -s nullglob
+          for dir in programs/agents/skills/*/; do
+            f="$dir/SKILL.md"
+            name="$(basename "$dir")"
+            if [[ ! -f "$f" ]]; then
+              echo "::error file=$dir::missing SKILL.md in skill '$name'"
+              fail=1
+              continue
+            fi
+            # Frontmatter must open on line 1 with '---', then contain
+            # `name:` and `description:` before the closing '---'.
+            first="$(head -n1 "$f")"
+            if [[ "$first" != "---" ]]; then
+              echo "::error file=$f::skill '$name' has no YAML frontmatter (first line must be '---')"
+              fail=1
+              continue
+            fi
+            fm="$(awk 'NR==1{next} /^---[[:space:]]*$/{exit} {print}' "$f")"
+            if ! grep -qE '^name:[[:space:]]*[^[:space:]]' <<<"$fm"; then
+              echo "::error file=$f::skill '$name' frontmatter missing required 'name:' field"
+              fail=1
+            fi
+            if ! grep -qE '^description:[[:space:]]*[^[:space:]]' <<<"$fm"; then
+              echo "::error file=$f::skill '$name' frontmatter missing required 'description:' field"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+  prompts-parse:
+    name: Prompt templates load
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every prompt is non-empty and closes any {{VAR}} it opens
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+          shopt -s nullglob
+          for f in programs/agents/prompts/*.md; do
+            if [[ ! -s "$f" ]]; then
+              echo "::error file=$f::prompt is empty"
+              fail=1
+              continue
+            fi
+            # A `{{` with no `}}` on the same line is a broken placeholder.
+            # (Stray `}}` is fine -- it is usually closing inline JSON.)
+            bad=$(grep -nE '\{\{' "$f" | grep -vE '\{\{[^}]*\}\}' || true)
+            if [[ -n "$bad" ]]; then
+              echo "::error file=$f::unclosed template placeholder: $bad"
+              fail=1
+            fi
+          done
+          exit "$fail"
