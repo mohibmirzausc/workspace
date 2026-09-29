@@ -24,6 +24,12 @@ local M = {}
 -- leaves the one being looked at. Titles are matched case-insensitively.
 local TARGETS = {
   { app = "Tandem",       titles = { "leave room", "leave call", "leave" } },
+  -- Tuple's titles are speculative and will probably not match. Probed during
+  -- a live call: it exposes zero AX windows, its overlay is absent from the
+  -- CoreGraphics window list too (so it is drawn on a private layer), and its
+  -- menus hold no leave/end-call item or shortcut -- only Quit. Left in so the
+  -- search is harmless if a future version exposes one; until then hangUp()
+  -- falls through to the next target and Tuple must be left by hand.
   { app = "Tuple",        titles = { "leave call", "leave", "hang up", "end call" } },
   { app = "Google Chrome", titles = { "leave call", "end call", "hang up" } },
 }
