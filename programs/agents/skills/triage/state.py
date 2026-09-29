@@ -17,7 +17,8 @@ Entry shape:
    "projects": [{"workspace", "label", "repos"}],   (apply only; not undone)
    "failed":   ["what failed"],
    "snapshot": [window ids the run decided on],
-   "placements": [{"name", "workspace", "repo", "carried"?}]}   (every cmux window after the run)
+   "placements": [{"name", "workspace", "repo",
+                   "carried"?, "unverified"?}]}   (every cmux window after the run)
 
 `projects` records which repos each planned label stands for, on every run,
 whether or not the label changed. That is how later runs learn a workspace's
@@ -27,9 +28,11 @@ project, including for labels set before this log existed.
 because names survive a cmux restart and window ids don't. After a restart
 every window lands on workspace 1; the last placements say where each one
 belongs, so they can be restored. A window still on workspace 1 only because
-of a restart (its restore failed or was declined, or an undo put it back) is
-recorded at the workspace it came from, marked "carried", so one partial run
-doesn't erase where it belongs.
+of a restart (its approved restore failed, or an undo put it back or left it
+there) is recorded at the workspace it belongs on, marked "carried", so one
+partial run doesn't erase it; a restore the user declined is forgotten. A
+window that can't be located when the run ends keeps its previous placement,
+marked "unverified".
 """
 
 import datetime
@@ -47,7 +50,8 @@ def log_path():
 
 def read_log():
     try:
-        with open(log_path(), encoding="utf-8") as f:
+        # A line torn inside a multi-byte character must not break every read.
+        with open(log_path(), encoding="utf-8", errors="replace") as f:
             lines = f.read().splitlines()
     except FileNotFoundError:
         return []
@@ -70,9 +74,34 @@ def append(entry):
     os.makedirs(state_dir(), exist_ok=True)
     entry = dict(entry)
     entry.setdefault("ts", datetime.datetime.now(datetime.timezone.utc).isoformat())
-    with open(log_path(), "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    line = json.dumps(entry, ensure_ascii=False) + "\n"
+    with open(log_path(), "a+b") as f:
+        size = f.seek(0, os.SEEK_END)
+        if size:
+            # After a torn last line, start a fresh one, or this entry is
+            # glued to the torn one and both are lost.
+            f.seek(size - 1)
+            if f.read(1) != b"\n":
+                line = "\n" + line
+        f.write(line.encode("utf-8"))
     return entry
+
+
+def ts_of(entry, key="ts"):
+    """An entry's timestamp (or the one it undoes), if it is a usable string."""
+    value = entry.get(key)
+    return value if isinstance(value, str) else None
+
+
+def reverted(entry):
+    """The ts an undo entry really reverted on screen, or None.
+
+    An abandoned undo only stops trying: nothing changed, so the run it
+    names still stands for what is on screen (snapshot, placements).
+    """
+    if entry.get("kind") == "undo" and entry.get("complete") and not entry.get("abandoned"):
+        return ts_of(entry, "undoes")
+    return None
 
 
 def last_snapshot():
@@ -84,10 +113,9 @@ def last_snapshot():
     undone = set()
     for entry in reversed(read_log()):
         if entry.get("kind") == "undo":
-            if entry.get("complete"):
-                undone.add(entry.get("undoes"))
-        elif entry.get("ts") not in undone and isinstance(entry.get("snapshot"), list):
-            return set(entry["snapshot"])
+            undone.add(reverted(entry) or "")
+        elif ts_of(entry) not in undone and isinstance(entry.get("snapshot"), list):
+            return {i for i in entry["snapshot"] if isinstance(i, str)}
     return None
 
 
@@ -109,9 +137,9 @@ def last_undoable():
     undone = set()
     for entry in reversed(read_log()):
         if entry.get("kind") == "undo":
-            if entry.get("complete") and isinstance(entry.get("undoes"), str):
+            if entry.get("complete") and ts_of(entry, "undoes"):
                 undone.add(entry["undoes"])
-        elif entry.get("kind") == "apply" and entry.get("ts") not in undone and changed(entry):
+        elif entry.get("kind") == "apply" and ts_of(entry) and entry["ts"] not in undone and changed(entry):
             return entry
     return None
 
@@ -144,17 +172,18 @@ def label_repos(current_labels):
 
 
 def last_placements():
-    """{name: workspace} from the most recent standing entry with placements.
+    """{name: {"workspace", "repo", "carried"}} from the most recent standing
+    entry with placements.
 
-    Undone applies don't count (the undo's own placements follow them). A
-    name recorded more than once, or with no workspace, is dropped: it can't
-    say where one window belongs.
+    Undone applies don't count (the undo's own placements follow them), but
+    abandoned ones do: abandoning changes nothing on screen. A name recorded
+    more than once, or with no workspace, is dropped: it can't say where one
+    window belongs.
     """
     undone = set()
     for entry in reversed(read_log()):
-        if entry.get("kind") == "undo" and entry.get("complete") and isinstance(entry.get("undoes"), str):
-            undone.add(entry["undoes"])
-        if entry.get("kind") not in ("apply", "undo") or entry.get("ts") in undone:
+        undone.add(reverted(entry) or "")
+        if entry.get("kind") not in ("apply", "undo") or not ts_of(entry) or entry["ts"] in undone:
             continue
         placements = entry.get("placements")
         if not isinstance(placements, list):
@@ -163,12 +192,13 @@ def last_placements():
         for p in placements:
             if not isinstance(p, dict) or not isinstance(p.get("name"), str) or not p["name"]:
                 continue
-            name, n = p["name"], p.get("workspace")
+            name, n, repo = p["name"], p.get("workspace"), p.get("repo")
             if name in spots or name in dupes:
                 dupes.add(name)
                 spots.pop(name, None)
             elif type(n) is int and 1 <= n <= 10:
-                spots[name] = n
+                spots[name] = {"workspace": n, "repo": repo if isinstance(repo, str) else None,
+                               "carried": p.get("carried") is True}
             else:
                 dupes.add(name)  # known to exist, but not where
         return spots

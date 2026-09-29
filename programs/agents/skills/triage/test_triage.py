@@ -35,6 +35,10 @@ def desktop():
             win("tmp", "tmp", 10), win("jan", "release", 1)]
 
 
+def spots():
+    return {name: p["workspace"] for name, p in state.last_placements().items()}
+
+
 def reset_log():
     shutil.rmtree(state.state_dir(), ignore_errors=True)
 
@@ -609,7 +613,7 @@ class RestartTests(unittest.TestCase):
 
     def test_placements_are_recorded_by_name(self):
         d = self.settled()
-        self.assertEqual(state.last_placements(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
+        self.assertEqual(spots(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
         entry = state.read_log()[-1]
         self.assertIn({"name": "a", "workspace": 3, "repo": "x"}, entry["placements"])
 
@@ -648,7 +652,7 @@ class RestartTests(unittest.TestCase):
             self.assertEqual(code, 0, out)
             self.assertEqual({x["ws"] for x in d.w.values()}, {1})
             # Undoing kept where they belong, so they can be restored again.
-            self.assertEqual(state.last_placements(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
+            self.assertEqual(spots(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
             self.assertIs(d.collect()["restart"], True)
             code, out = apply.apply(self.restore_all(d), dry=False)
             self.assertEqual((code, d.ws_of("ra")), (0, 3), out)
@@ -659,14 +663,165 @@ class RestartTests(unittest.TestCase):
             code, out = apply.apply(self.restore_all(d), dry=False)
             self.assertEqual(code, 1)
             self.assertEqual((d.ws_of("ra"), d.ws_of("rb")), (1, 6))
-            self.assertEqual(state.last_placements()["a"], 3)
+            self.assertEqual(spots()["a"], 3)
             placement = next(p for p in state.read_log()[-1]["placements"] if p["name"] == "a")
             self.assertTrue(placement["carried"])
             d.fail.clear()
-            self.assertEqual(d.collect()["restart"], False)  # most are back now
-            # ...so 'a' can't be restored any more; it's the user's to move.
-            problems = apply.validate(full_plan(d, ra={"action": "restore"}), d.collect())
-            self.assertTrue(any("restart" in p for p in problems), problems)
+            inv = d.collect()
+            self.assertIs(inv["restart"], False)  # most are back now...
+            ra = next(w for w in inv["windows"] if w["id"] == "ra")
+            self.assertEqual(ra["restore_to"], 3)  # ...but the carried one can still go
+            code, out = apply.apply(full_plan(d, ra={"action": "restore"}), dry=False)
+            self.assertEqual((code, d.ws_of("ra")), (0, 3), out)
+
+    def test_declined_restore_is_forgotten(self):
+        with self.settled() as d:
+            apply.apply(full_plan(d), dry=False)  # everything on 1 skipped
+            self.assertEqual(set(spots().values()), {1})
+            self.assertIs(d.collect()["restart"], False)
+
+    def test_windows_dragged_onto_one_are_not_a_restart(self):
+        with FakeDesktop({"jan": ("jan", 1, "r"), "a": ("a", 3, "x"), "b": ("b", 6, "y"), "c": ("c", 6, "y")}) as d:
+            apply.apply(full_plan(d), dry=False)
+            d.w["a"]["ws"] = d.w["b"]["ws"] = 1  # same ids: the user's own drag
+            inv = d.collect()
+            self.assertIs(inv["restart"], False)
+            self.assertEqual({w["restore_to"] for w in inv["windows"]}, {None})
+            problems = apply.validate(full_plan(d, a={"action": "restore"}), inv)
+            self.assertTrue(problems)
+
+    def test_undo_of_a_partial_restore_keeps_every_destination(self):
+        with self.settled() as d:
+            code, out = apply.apply(self.restore_all(d, rt={"action": "skip"}), dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual(spots()["t"], 1)  # declined
+            d.fail.add(("window", "move-to-workspace", "ow_ra", "1"))
+            code, out = apply.undo(dry=False)  # 'a' can't go back yet
+            self.assertEqual(code, 1)
+            d.fail.clear()
+            self.assertEqual(apply.undo(dry=False)[0], 0)
+            self.assertEqual(spots(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 1})
+
+    def test_undo_of_another_run_after_a_restart_keeps_destinations(self):
+        with self.settled() as d:
+            state.append({"kind": "apply", "labels": [{"workspace": 7, "from": "F2", "to": "F2 x"}],
+                          "placements": state.read_log()[-1]["placements"]})
+            d.labels[7] = "F2 x"
+            self.assertEqual(apply.undo(dry=False)[0], 0)
+            self.assertEqual(spots(), {"jan": 1, "a": 3, "b": 6, "c": 6, "t": 10})
+            self.assertIs(d.collect()["restart"], True)
+
+    def test_abandon_keeps_the_placements_it_left(self):
+        with FakeDesktop({"jan": ("jan", 1, "r"), "a": ("a", 3, "x"), "b": ("b", 6, "y"), "c": ("c", 6, "y")}) as d:
+            apply.apply(full_plan(d), dry=False)
+            apply.apply(full_plan(d, a={"action": "move", "to": 7}), dry=False)
+            apply.abandon(dry=False)
+            self.assertEqual(spots()["a"], 7)
+            d.restart()
+            ra = next(w for w in d.collect()["windows"] if w["id"] == "ra")
+            self.assertEqual(ra["restore_to"], 7)
+
+    def test_reused_name_in_another_repo_has_no_last_workspace(self):
+        with self.settled() as d:
+            d.w["ra"]["repo"] = "other"
+            ra = next(w for w in d.collect()["windows"] if w["id"] == "ra")
+            self.assertEqual((ra["last_workspace"], ra["restore_to"]), (None, None))
+
+    def test_restore_is_rechecked_without_renames(self):
+        with self.settled() as d:
+            plan = self.restore_all(d)
+            real = inventory.collect
+            calls = []
+            def moved_after_validation():
+                calls.append(1)
+                if len(calls) == 2:  # the re-check, after validation
+                    d.w["ra"]["ws"] = 5
+                return real()
+            inventory.collect = moved_after_validation
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 1, out)
+            self.assertEqual(d.ws_of("ra"), 5)
+            self.assertTrue(any("didn't restore 'a'" in f for f in out["failed"]), out)
+
+    def test_no_restore_once_the_restart_has_passed(self):
+        with self.settled() as d:
+            for i in ("rb", "rc", "rt"):  # the user put most back by hand
+                d.w[i]["ws"] = {"rb": 6, "rc": 6, "rt": 10}[i]
+            inv = d.collect()
+            self.assertIs(inv["restart"], False)
+            ra = next(w for w in inv["windows"] if w["id"] == "ra")
+            self.assertEqual((ra["last_workspace"], ra["restore_to"]), (3, None))
+            self.assertTrue(apply.validate(full_plan(d, ra={"action": "restore"}), inv))
+
+    def test_restore_refused_if_the_restart_passes_mid_run(self):
+        with self.settled() as d:
+            plan = self.restore_all(d)
+            real, calls = inventory.collect, []
+            def user_restores_the_rest():
+                calls.append(1)
+                if len(calls) == 2:
+                    d.w["rb"]["ws"], d.w["rc"]["ws"], d.w["rt"]["ws"] = 6, 6, 10
+                return real()
+            inventory.collect = user_restores_the_rest
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 1, out)
+            self.assertEqual(d.ws_of("ra"), 1)
+            self.assertTrue(any("isn't restorable" in f for f in out["failed"]), out)
+
+    def test_reapplied_restore_is_harmless(self):
+        with self.settled() as d:
+            plan = self.restore_all(d)
+            apply.apply(plan, dry=False)
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertIn("'a' already on 3", out["report"])
+
+    def test_dry_run_restore_logs_nothing(self):
+        with self.settled() as d:
+            before = len(state.read_log())
+            code, out = apply.apply(self.restore_all(d), dry=True)
+            self.assertEqual(code, 0, out)
+            self.assertIn("would restore 'a' 1 -> 3", out["would"])
+            self.assertEqual((d.ws_of("ra"), len(state.read_log())), (1, before))
+
+    def test_undo_restore_needs_the_same_name(self):
+        with self.settled() as d:
+            d.w["rb"]["ws"] = 6
+            state.append({"kind": "apply", "restores": [{"id": "rb", "name": "someone-else", "from": 1, "to": 6}]})
+            apply.undo(dry=False)
+            self.assertEqual(d.ws_of("rb"), 6)
+
+    def test_unlocatable_window_keeps_its_placement(self):
+        with FakeDesktop({"jan": ("jan", 1, "r"), "a": ("a", 3, "x"), "b": ("b", 6, "y")}) as d:
+            apply.apply(full_plan(d), dry=False)
+            real = d.collect
+            def unmatched():
+                inv = real()
+                for w in inv["windows"]:
+                    if w["id"] == "a":
+                        w.update(omniwm_match="none", omniwm_id=None, omniwm_workspace=None,
+                                 omniwm_candidates=[], maybe_user_workspace=True)
+                return inv
+            inventory.collect = unmatched
+            apply.apply(full_plan(d, a={"action": "skip"}), dry=False)
+            placement = next(p for p in state.read_log()[-1]["placements"] if p["name"] == "a")
+            self.assertEqual((placement["workspace"], placement["unverified"]), (3, True))
+            self.assertEqual(spots()["a"], 3)
+
+    def test_torn_line_does_not_swallow_the_next_entry(self):
+        os.makedirs(state.state_dir(), exist_ok=True)
+        with open(state.log_path(), "ab") as f:
+            f.write('{"kind": "apply", "placements": [{"name": "✳'.encode()[:-1])  # torn mid-character
+        state.append({"kind": "apply", "placements": [{"name": "a", "workspace": 3}]})
+        self.assertEqual(spots(), {"a": 3})
+
+    def test_odd_timestamps_do_not_crash(self):
+        state.append({"kind": "apply", "ts": ["x"], "moves": [{"id": "x"}], "snapshot": [["y"], "z"],
+                      "placements": [{"name": "a", "workspace": 3}]})
+        state.append({"kind": "undo", "undoes": ["x"], "complete": True})
+        self.assertIsNone(state.last_undoable())
+        self.assertEqual(state.last_snapshot(), {"z"})
+        self.assertEqual(spots(), {})
 
     def test_restore_is_refused_without_a_restart(self):
         with FakeDesktop({"jan": ("jan", 1, "release"), "a": ("a", 1, "x"), "b": ("b", 3, "y")}) as d:
@@ -727,7 +882,7 @@ class RestartTests(unittest.TestCase):
     def test_names_logged_twice_have_no_last_workspace(self):
         state.append({"kind": "apply", "placements": [{"name": "a", "workspace": 3}, {"name": "a", "workspace": 4},
                                                        {"name": "b", "workspace": 5}]})
-        self.assertEqual(state.last_placements(), {"b": 5})
+        self.assertEqual(spots(), {"b": 5})
 
     def test_maybe_user_window_is_not_restored(self):
         with self.settled() as d:
@@ -794,10 +949,10 @@ class RestartTests(unittest.TestCase):
             {"name": "a", "workspace": "3"}, {"name": "b", "workspace": 11}, {"name": "c", "workspace": True},
             {"name": 7, "workspace": 3}, {"name": "", "workspace": 3}, "x", None, {"workspace": 2},
             {"name": "d", "workspace": 4}]})
-        self.assertEqual(state.last_placements(), {"d": 4})
+        self.assertEqual(spots(), {"d": 4})
         state.append({"kind": "apply", "placements": "oops"})
         state.append({"kind": "note", "placements": [{"name": "z", "workspace": 2}]})
-        self.assertEqual(state.last_placements(), {"d": 4})
+        self.assertEqual(spots(), {"d": 4})
         with FakeDesktop({"a": ("a", 1, "x"), "b": ("b", 1, "x"), "d": ("d", 1, "x")}) as d:
             inv = d.collect()
             self.assertEqual({w["name"]: w["last_workspace"] for w in inv["windows"]}, {"a": None, "b": None, "d": 4})
@@ -807,7 +962,7 @@ class RestartTests(unittest.TestCase):
         a = state.append({"kind": "apply", "moves": [{"id": "x"}], "placements": [{"name": "a", "workspace": 3}]})
         b = state.append({"kind": "apply", "moves": [{"id": "x"}], "placements": [{"name": "a", "workspace": 5}]})
         state.append({"kind": "undo", "undoes": b["ts"], "complete": True})
-        self.assertEqual(state.last_placements(), {"a": 3})
+        self.assertEqual(spots(), {"a": 3})
         self.assertTrue(a)
 
 

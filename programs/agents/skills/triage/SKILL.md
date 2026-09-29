@@ -80,9 +80,9 @@ keeping it in place takes a stated `reason` (step 5).
 For each workspace it gives its label, layout, tiled count, non-cmux apps,
 and `project_repos`. The inventory also reports `current_workspace`.
 
-It also reports `restart` (top level) and each window's `last_workspace`,
-for [Restart recovery](#restart-recovery). If `restart` is true, recover
-first.
+It also reports `restart` (top level) and each window's `last_workspace` and
+`restore_to`, for [Restart recovery](#restart-recovery). If `restart` is true,
+or any window has a `restore_to`, recover first.
 
 ### Restart recovery
 
@@ -91,31 +91,41 @@ cmux restarts often. Afterwards every window is on workspace 1 and has a new
 window ended up, by name, and the inventory reads that back:
 
 - `last_workspace`: where the last run left this window. It's `null` when
-  the window's name isn't unique now or the log doesn't know the name.
-- `restart: true`: most windows are on 1, but the last run left most of them
-  elsewhere.
+  the window's name isn't unique now, the log doesn't know the name, or the
+  log says the name was another repo's.
+- `restart: true`: most windows are on 1 with new ids, but the last run left
+  most of them elsewhere.
+- `restore_to`: the workspace `restore` would put this window on, or `null`.
+  It's set for a window on 1 with a new id whose `last_workspace` is 2-10,
+  during a restart. It's also set for a window whose approved restore failed
+  last time, even if `restart` is now false.
 
-When `restart` is true, offer to put everyone back in **one question**:
-"cmux restarted: restore these N windows to their workspaces?", listing
-each as `a work  1 → 3`. On a yes, each window on 1 with a `last_workspace`
-from 2 to 10 gets `{"id": "<id>", "action": "restore"}`. `restore` takes no
-`to` (or exactly its `last_workspace`) and no `rename`. List the restores
-first in the plan, and in what you show the user.
+Restores are part of the plan, so they share the one go-ahead in step 5.
+Show them first, one line each (`a work  1 → 3`), and ask as part of that
+go-ahead: "cmux restarted: restore these N windows to their workspaces?" On
+a yes, each window with a `restore_to` gets
+`{"id": "<id>", "action": "restore"}`. `restore` takes no `to` (or exactly
+its `restore_to`) and no `rename`. Put the restores first in the plan too.
 
 Everything else gets a normal decision, as in any run:
 
-- a window on 1 with `last_workspace` 1 was the user's before the restart,
-  so it's `skip`;
-- a window on 1 with no `last_workspace` (a new name, or one shared by two
-  windows) is `skip` too. Say so, so the user can move it by hand;
+- a window on 1 with no `restore_to` is `skip`. That covers windows that were
+  on 1 before the restart (`last_workspace` 1), windows with no usable
+  `last_workspace` (a new name, or one shared by two windows), and windows
+  the user dragged onto 1 (same id as last run). Say which ones, so the user
+  can move them by hand;
+- if the user says no to the restores, every window on 1 is `skip`. A
+  declined restore is forgotten: the next run won't offer it again;
 - windows already off 1 are planned as usual.
 
-`apply.py` refuses a restore unless the inventory reports a restart, the
-window is on 1, uniquely matched and uniquely named, and it goes to its own
-`last_workspace`. It re-checks all of that right before moving it. Undo
-moves restored windows back to 1, so a restore can be retried. A restore
-that fails keeps the window's `last_workspace` in the log, so the next run
-can offer it again.
+`apply.py` refuses a restore unless the window has a `restore_to` and is on
+1, uniquely matched and uniquely named, and goes to that workspace. Floating
+and scratchpad windows are refused too, so `skip` them. It re-checks all of
+this against a fresh inventory right before moving each window. Undo moves
+restored windows back to 1, and they can be restored again afterwards. An
+approved restore that fails keeps its `restore_to`, so the next run can
+offer it again. Re-applying a restore plan after it ran reports `already on
+N`.
 
 ### 2. Group windows into projects
 

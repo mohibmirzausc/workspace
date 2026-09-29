@@ -25,10 +25,10 @@ Validation (refusals name the window):
   * moves go to 2-9 and "review" means 10; only tiled, non-scratchpad windows
     matched to their own OmniWM window move. An unmatched window can only stay
     (rename it now so it matches, and move it next run);
-  * the one way off workspace 1 is "restore", after a cmux restart: only when
-    the inventory reports restart, only a window on 1 that is uniquely
-    matched and uniquely named, only to its last_workspace (2-10), and never
-    with a rename. Anything else on 1 is still "skip";
+  * the one way off workspace 1 is "restore", after a cmux restart: only a
+    window the inventory gives a restore_to (see inventory.py), uniquely
+    matched and uniquely named, only to that workspace (2-10), and never with
+    a rename. Anything else on 1 is still "skip";
   * renames are unique across the resulting set of names;
   * a window flagged new or misplaced may stay, but only with a "reason".
 
@@ -216,19 +216,29 @@ def validate(plan, inv):
     return problems
 
 
+def restore_dest(w):
+    """Where a restore of this window goes: its restore_to, or, for a window
+    already back on its last workspace (a re-applied plan), that workspace."""
+    if w["omniwm_workspace"] == USER_WORKSPACE:
+        return w.get("restore_to")
+    return w.get("last_workspace")
+
+
 def unrestorable(w, e, inv, names_now):
     """Why this window can't be restored off workspace 1 (validation)."""
-    last = w.get("last_workspace")
-    if inv.get("restart") is not True:
-        return ["'restore' is only for after a cmux restart, and the inventory doesn't report one"]
+    last, dest = w.get("last_workspace"), restore_dest(w)
     if w["omniwm_match"] != "ok" or not w.get("omniwm_id"):
         return [f"isn't matched to one OmniWM window ({w['omniwm_match']}), so it can't be restored"]
-    if w["omniwm_workspace"] != USER_WORKSPACE:
-        return [f"'restore' only moves windows off workspace 1; this one is on {w['omniwm_workspace']}"]
     if not w["name"] or names_now.get(w["name"], 0) != 1:
         return ["its name isn't unique, so its last workspace is unknown: must be 'skip'"]
     if not (is_int(last) and last in LABELLED):
         return [f"its last workspace is {last!r}, not 2-10: must be 'skip'"]
+    if w["omniwm_workspace"] == USER_WORKSPACE and not (is_int(dest) and dest == last):
+        if inv.get("restart") is not True:
+            return ["'restore' is only for after a cmux restart, and the inventory doesn't report one"]
+        return ["it kept its id since the last run, so it was put on 1 by hand, not by a restart: must be 'skip'"]
+    if w["omniwm_workspace"] != USER_WORKSPACE and w["omniwm_workspace"] != last:
+        return [f"'restore' only moves windows off workspace 1; this one is on {w['omniwm_workspace']}"]
     if "to" in e and not (is_int(e["to"]) and e["to"] == last):
         return [f"'restore' goes back to its last workspace {last}, not {e['to']!r} (leave 'to' out)"]
     return []
@@ -329,7 +339,7 @@ def set_label(n, label, run):
 
 def move(w, dest, run, verb="moved"):
     if run.dry:
-        run.say(f"would move {w['name']!r} {w['omniwm_workspace']} -> {dest}")
+        run.say(f"would {'restore' if verb == 'restored' else 'move'} {w['name']!r} {w['omniwm_workspace']} -> {dest}")
         return False
     ok, status = omni("window", "move-to-workspace", w["omniwm_id"], dest)
     if not ok:
@@ -370,8 +380,8 @@ def unsafe_to_restore(w, validated, dest, fresh_windows):
         return "another window has its name now"
     if sum(x["omniwm_id"] == w["omniwm_id"] for x in fresh_windows) > 1:
         return "another cmux window resolves to the same OmniWM window"
-    if w.get("last_workspace") != dest:
-        return f"its last workspace is {w.get('last_workspace')!r} now, not {dest}"
+    if w.get("restore_to") != dest:
+        return f"it isn't restorable to {dest} now (restore_to {w.get('restore_to')!r})"
     if w.get("floating") or w.get("scratchpad"):
         return "it is floating or in a scratchpad now"
     return None
@@ -379,11 +389,20 @@ def unsafe_to_restore(w, validated, dest, fresh_windows):
 
 def placements(run):
     """Every cmux window's workspace after the run, for restart recovery."""
+    before = state.last_placements()
+    windows = inventory.collect()["windows"]
+    names = [w["name"] for w in windows]
     out = []
-    for w in inventory.collect()["windows"]:
+    for w in windows:
         p = {"name": w["name"], "workspace": w["omniwm_workspace"], "repo": w.get("repo")}
-        if w["omniwm_workspace"] == USER_WORKSPACE and w["name"] in run.carry:
+        unique = names.count(w["name"]) == 1
+        if w["omniwm_workspace"] == USER_WORKSPACE and unique and w["name"] in run.carry:
             p.update(workspace=run.carry[w["name"]], carried=True)
+        elif w["omniwm_workspace"] is None and unique and w["name"] in before:
+            # Can't be located right now (e.g. its title lags): keep what the
+            # log knew rather than forget it.
+            old = before[w["name"]]
+            p.update(workspace=old["workspace"], unverified=True, **({"carried": True} if old["carried"] else {}))
         out.append(p)
     return out
 
@@ -444,14 +463,11 @@ def apply(plan, dry):
         for ws in plan.get("workspaces", []) if "label" in ws
     ]
     validated = {w["id"]: w for w in inv["windows"]}
-    if inv.get("restart") is True:
-        # A restore that fails or is declined must not forget where it goes.
-        names = [w["name"] for w in inv["windows"]]
-        run.carry = {
-            w["name"]: w["last_workspace"] for w in inv["windows"]
-            if w["omniwm_workspace"] == USER_WORKSPACE and names.count(w["name"]) == 1
-            and is_int(w.get("last_workspace")) and w["last_workspace"] in LABELLED
-        }
+    # An approved restore that doesn't happen must not forget where the window
+    # goes (see state.py). A declined one (the window was skipped) is forgotten.
+    run.carry = {validated[e["id"]]["name"]: validated[e["id"]]["restore_to"]
+                 for e in plan["windows"] if e["action"] == "restore"
+                 and validated[e["id"]]["omniwm_workspace"] == USER_WORKSPACE}
     view = displays_now()
     try:
         guarded(execute, run, plan, validated)
@@ -477,6 +493,7 @@ def execute(plan, validated, run):
 
     # Renames changed titles, and titles are the join to OmniWM. Window titles
     # can lag a cmux rename briefly, so poll until the renamed windows match.
+    # Moves are re-checked against a fresh inventory, renames or not.
     fresh = list(validated.values())
     if run.log["renames"]:
         renamed = {r["id"] for r in run.log["renames"]}
@@ -485,10 +502,12 @@ def execute(plan, validated, run):
             if all(w["omniwm_match"] == "ok" for w in fresh if w["id"] in renamed):
                 break
             time.sleep(SETTLE_SECONDS)
+    elif any(e["action"] in ("move", "review", "restore") for e in entries.values()):
+        fresh = inventory.collect()["windows"]
     now = {w["id"]: w for w in fresh}
     for wid, e in entries.items():
         if e["action"] == "restore":
-            dest = validated[wid]["last_workspace"]
+            dest = restore_dest(validated[wid])
             w = now.get(wid)
             if w is None:
                 run.fail(f"{validated[wid]['name']!r} closed during the run; not restored")
@@ -587,6 +606,9 @@ def reverse(entry, inv, run):
     names_now = {}
     for x in inv["windows"]:
         names_now.setdefault(x["name"], []).append(x["id"])
+    # Windows still on 1 from a restart: undoing something else mustn't
+    # forget where they belong.
+    run.carry = {x["name"]: x["restore_to"] for x in inv["windows"] if x.get("restore_to")}
 
     for lab in reversed(items("labels")):
         n, frm, to = lab.get("workspace"), lab.get("from"), lab.get("to")
@@ -643,6 +665,10 @@ def reverse(entry, inv, run):
             run.reject(f"out-of-bounds restore entry: {rs!r}")
             continue
         w = by_id.get(wid)
+        if w is not None and w["name"] != rs.get("name"):
+            # The one move into 1: the id must still be the window it restored.
+            run.say(f"left {rs.get('name', wid)!r}: its id is now {w['name']!r}")
+            continue
         if w is not None and names_now.get(w["name"]) == [wid]:
             run.carry[w["name"]] = to  # counts only if it ends up on 1
         if w is None:
