@@ -10,7 +10,14 @@
 -- AXGroup four levels up. Both now resolve; pressing either left the call
 -- with Tandem still running.
 --
--- Three things that look like details but are not:
+-- Four things that look like details but are not:
+--
+--   * Chrome hands back buttons that cannot be pressed. Meet's "Leave call"
+--     is a real AXButton with a real frame, but its only actions are
+--     AXShowMenu and AXScrollToVisible -- and so are every ancestor's, all
+--     the way to the window. AXPress simply is not offered for web content.
+--     So a found-but-unpressable element falls back to a synthetic click at
+--     its centre, which is why hs.eventtap is used at all.
 --
 --   * Tuple builds NO accessibility tree until its app is activated. Probed
 --     in the background during a live call it shows zero AX windows, is
@@ -90,13 +97,19 @@ local function findLeaveButton(axApp, titles)
     if type(label) == "string" then
       label = label:lower():gsub("^%s*(.-)%s*$", "%1")
       if want[label] then
-        if pressable(el) then return el end
+        if pressable(el) then return el, "press" end
         -- Nearest pressable ancestor, closest first. Bounded at 6: the
         -- observed depth is 4 and an unbounded walk would eventually hit the
         -- window itself, which is pressable and would do the wrong thing.
         for i = #chain, math.max(1, #chain - 5), -1 do
-          if pressable(chain[i]) then return chain[i] end
+          if pressable(chain[i]) then return chain[i], "press" end
         end
+        -- Nothing in the chain takes AXPress. Chrome is like this: Meet's
+        -- "Leave call" is a real AXButton but exposes only AXShowMenu and
+        -- AXScrollToVisible, and so does every ancestor up to the window.
+        -- It does carry usable geometry, so hand it back for a synthetic
+        -- click rather than treating it as not found.
+        return el, "click"
       end
     end
 
@@ -152,9 +165,33 @@ function M.hangUp()
       if axApp then
         -- Chromium only populates its AX tree once an assistive client asks.
         axApp:setAttributeValue("AXManualAccessibility", true)
-        local button = findLeaveButton(axApp, target.titles)
+        local button, how = findLeaveButton(axApp, target.titles)
         if button then
-          button:performAction("AXPress")
+          if how == "press" then
+            button:performAction("AXPress")
+          else
+            -- Synthetic click at the element's centre. The frame is in screen
+            -- coordinates and can land on any display, so it is used as-is.
+            -- The window has to be in front for the click to reach it, and
+            -- the cursor is put back so this is not felt as a pointer jump.
+            -- AXFrame is not universally present; AXPosition and AXSize
+            -- were both confirmed on this element, so fall back to them.
+            local f = button:attributeValue("AXFrame")
+            if not f then
+              local p = button:attributeValue("AXPosition")
+              local sz = button:attributeValue("AXSize")
+              if not (p and sz) then return end
+              f = { x = p.x, y = p.y, w = sz.w, h = sz.h }
+            end
+            if not app:isFrontmost() then
+              restoreTo = restoreTo or frontmost
+              app:activate()
+            end
+            local where = hs.geometry.point(f.x + f.w / 2, f.y + f.h / 2)
+            local origin = hs.mouse.absolutePosition()
+            hs.eventtap.leftClick(where)
+            hs.mouse.absolutePosition(origin)
+          end
           hs.alert.show("Left " .. target.app .. " call", 0.8)
           return
         end
