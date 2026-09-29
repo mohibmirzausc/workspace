@@ -27,23 +27,40 @@ let
         ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
       '';
     }
+    # ── Shortcut: no MCP server ──
+    # Replaced by the `sc` CLI (programs/agents/tools/sc.sh) plus the
+    # `shortcut` skill. The MCP server registered ~45 tool definitions, which
+    # are sent to the model on every request whether or not Shortcut is
+    # touched -- roughly 11k-29k tokens each time. The CLI costs a few hundred
+    # tokens and is read only when relevant.
+    #
+    # It also stopped writing the API token in plaintext into
+    # ~/.claude.json: `sc` decrypts it from sops at call time instead.
+    #
+    # The patch below removes any `shortcut` entry left in an existing
+    # ~/.claude.json by a previous activation -- both top level and
+    # project-level -- since nothing prunes it otherwise. No sopsKey: there is
+    # no secret to inject any more.
     {
-      sopsKey = "shortcut_api_token";
-      description = "Shortcut MCP API token";
+      sopsKey = null;
+      description = "Remove the Shortcut MCP server (superseded by the sc CLI)";
       script = ''
-        ${pkgs.jq}/bin/jq --arg val "$VAL" '
-          .mcpServers["shortcut"] = {
-            command: "npx",
-            args: ["-y", "@shortcut/mcp@0.19.0"],
-            env: { SHORTCUT_API_TOKEN: $val }
-          }
-          # Remove redundant project-level shortcut configs
-          | if .projects then
-              .projects |= with_entries(
-                .value.mcpServers |= (if . then del(.shortcut) else . end)
-              )
-            else . end
-        ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
+        if [ -f "$HOME/.claude.json" ] && [ ! -L "$HOME/.claude.json" ]; then
+          # `has` rather than a truthiness test: `.value.mcpServers |= ...`
+          # would *create* a null mcpServers key on projects that never had
+          # one.
+          ${pkgs.jq}/bin/jq '
+            (if has("mcpServers") then .mcpServers |= del(.shortcut) else . end)
+            | if has("projects") then
+                .projects |= with_entries(
+                  if (.value | type) == "object" and (.value | has("mcpServers"))
+                  then .value.mcpServers |= del(.shortcut)
+                  else . end
+                )
+              else . end
+          ' "$HOME/.claude.json" > "$HOME/.claude.json.tmp" \
+            && mv "$HOME/.claude.json.tmp" "$HOME/.claude.json"
+        fi
       '';
     }
 
@@ -266,6 +283,23 @@ in
       else
         echo "Warning: could not decrypt secrets"
       fi
+    fi
+
+    # The patches above write live credentials into ~/.claude.json -- the
+    # shortcut API token and the agent-mail bearer, both in plaintext. Claude
+    # creates that file world-readable (-rw-r--r--), so tighten it every time
+    # we touch it. Claude rewrites the file itself during normal use, which
+    # can restore the loose mode, so this is re-applied on each activation
+    # rather than being a one-time fix.
+    # -f alone would follow a symlink and chmod whatever it points at, so
+    # check for a symlink first and refuse rather than changing the mode of
+    # some other file. Low risk (only this user can write to $HOME) but the
+    # guard is one line.
+    if [ -L "$HOME/.claude.json" ]; then
+      echo "  Skipping ~/.claude.json: it is a symlink, refusing to chmod its target"
+    elif [ -f "$HOME/.claude.json" ]; then
+      chmod 600 "$HOME/.claude.json"
+      echo "  Restricted ~/.claude.json to 0600"
     fi
   '';
 }

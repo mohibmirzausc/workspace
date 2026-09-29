@@ -91,24 +91,27 @@ sub-agent via the Task tool. The rest of it is harness-neutral, so it is kept
 as-is; under Pi the model should review serially instead of fanning out.
 
 **The second class is easier to miss: MCP tools.** Pi has no MCP at all, so
-any `mcp__*` reference is dead there:
+any `mcp__*` reference is dead there.
 
-| File | Needs | Under Pi |
-|---|---|---|
-| `skills/interrupt/SKILL.md` | `mcp__shortcut__*`, `mcp__plugin_slack_slack__*` | **broken** — those calls are the whole skill |
-| `prompts/review-pr` | `mcp__shortcut__stories-get-by-id` | degrades — skips story context |
+As of 2026-09-23 there are **none left** in this directory: `skills/interrupt`
+was deleted as obsolete, and `prompts/review-pr` now fetches stories with the
+`sc` CLI instead of `mcp__shortcut__stories-get-by-id`. Everything here runs
+under both harnesses.
 
-`interrupt` is the sharp case: filing the Shortcut story and posting to Slack
-*is* the skill, so under Pi it cannot run at all. Both are shipped as-is here
-— giving Pi a non-MCP path to these services is separate work and does not
-belong in a move commit.
-
-Audit for both classes:
+Keep it that way. Audit for both classes:
 
 ```bash
-grep -rln 'TeammateTool\|Task tool\|subagent_type\|EnterPlanMode' programs/agents/
-grep -rln 'mcp__' programs/agents/
+grep -rln 'TeammateTool\|Task tool\|subagent_type\|EnterPlanMode' programs/agents/ --exclude=README.md
+grep -rln 'mcp__' programs/agents/ --exclude=README.md
 ```
+
+Both should print nothing. `--exclude=README.md` keeps this file's own examples
+from matching — without it the audit looks dirty forever and you learn to
+ignore it.
+
+Prefer a CLI plus a skill over an MCP tool for anything with a plain HTTP API:
+it works in both harnesses and costs context only when relevant. See
+`docs/pi/mcp-porting.md`.
 
 ## Pi-specific notes
 
