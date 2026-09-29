@@ -9,3 +9,4 @@ result
 
 # Scratch output from the intake-form skill.
 intake-form.png
+__pycache__/
