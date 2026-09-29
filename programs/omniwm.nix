@@ -18,18 +18,21 @@
 # un-media-keys the top row while Caps Lock is held), and F5 -> 10 goes
 # through Karabiner + omniwmctl because OmniWM has no hotkey slot past 9
 # (see the rule in programs/karabiner.nix).
+# The displayNames of 6-10 default to "F1"-"F5" because OmniWM's workspace bar
+# shows the label INSTEAD of the number, so the bar names the key to press. The
+# triage skill keeps that prefix when it labels a workspace ("F1 dotfiles").
 #
 # The split uses OmniWM's monitor ROLES, not display ids: 1-5 are
 # monitorAssignment "secondary", 6-10 "main", and [[monitors.ranking]] pins
-# the built-in display (by name, so it holds on any MacBook) as Main. So any
-# external monitor is Secondary, whichever display macOS calls main. With no
+# the built-in display as Main. The row matches by name (no displayUUID), so
+# it is not tied to this one machine; a Mac whose built-in screen reports a
+# different name just skips it and falls back to macOS's main display. So a
+# single external monitor is Secondary, whichever display macOS calls main
+# (a second external would be Tertiary, which no workspace uses). With no
 # external attached Secondary resolves to nothing, and OmniWM falls back to the
 # nearest connected display (WorkspaceManager.effectiveMonitor), so 1-5 join
 # 6-10 on the laptop rather than vanishing. In clamshell mode the ranking row
 # is skipped and all ten land on the external.
-# Their displayNames default to "F1"-"F5" because OmniWM's workspace bar shows
-# the label INSTEAD of the number, so the bar names the key to press. The
-# triage skill keeps that prefix when it labels a workspace ("F1 dotfiles").
 #
 # The settings live in ./omniwm/settings.toml rather than as a Nix attrset
 # because OmniWM owns this file's schema (schemaVersion = 3) and writes ~1000
@@ -63,7 +66,7 @@
 # ("F1 dotfiles"), not config.
 #
 # The file is tracked in FULL, including the sections that look machine-written.
-# Do not be tempted to "clean up" the two array-of-table sections:
+# Do not be tempted to "clean up" the array-of-table sections:
 #
 #   [[workspaces]]  Looks like runtime state (UUID `id` per entry) but carries
 #                   real configuration: the custom workspace displayNames and,
@@ -76,6 +79,10 @@
 #                   losing settings. Intentional rules (float/tile/
 #                   assign-to-workspace) can be added alongside them -- see
 #                   `omniwmctl rule add`.
+#   [[monitors.ranking]]  Hand-written, not machine state: pins the built-in
+#                   display as Main, which the monitor split above depends on.
+#                   Reordering monitors in OmniWM's Settings rewrites it with
+#                   this machine's displayUUID; drop that before copying back.
 #
 # In short: OmniWM mixes config and derived state in one file with no marker
 # distinguishing them, so the safe default is to track everything verbatim.

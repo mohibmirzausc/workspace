@@ -15,7 +15,7 @@ Plan shape (unknown keys are refused, so a typo can't be silently ignored):
                 "rename": "name",    # optional; not on skip
                 "reason": "why"}],   # required to keep a flagged window
    "workspaces": [{"number": N, "label": "F1 dotfiles",
-                   "repos": ["workspace"], "layout": "dwindle"}]}
+                   "repos": ["workspace"]}]}   # no "layout": all niri
 
 Validation (refusals name the window):
   * coverage: every window in a fresh inventory gets exactly one decision;

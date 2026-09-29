@@ -232,8 +232,8 @@ Ask for one go-ahead covering all of it.
 python3 <this skill's directory>/apply.py /tmp/triage-plan.json
 ```
 
-It applies the plan in order: renames, then a fresh inventory, then moves,
-layouts and labels. Each move is re-checked against the fresh inventory right
+It applies the plan in order: renames, then a fresh inventory, then moves
+and labels. Each move is re-checked against the fresh inventory right
 before it happens. It then puts every display back on the workspace it showed
 and logs the run to `~/.local/state/triage/log.jsonl`. If a move reports
 `already on N`, the change was already made, for example by an earlier run in
@@ -271,6 +271,8 @@ python3 <this skill's directory>/apply.py --undo
 It reverses the most recent run that changed something: labels, then layouts,
 then moves and restores, then renames. Undoing a restore is the one time
 triage moves a window onto workspace 1, and only a window it restored.
+Only runs from before every workspace was niri logged layouts. If the dry
+run would set one to dwindle, ask the user first.
 
 - It leaves alone anything the user has changed since, and says so.
 - It refuses log entries that are outside triage's bounds.

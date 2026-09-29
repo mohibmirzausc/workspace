@@ -43,7 +43,9 @@ def main(seed_path, live_path):
             continue
         for key in KEPT:
             value = live_by_name[name].get(key)
-            if value is not None:
+            # OmniWM rejects the whole file over a non-string label, and a
+            # clean exit here would skip the plain-seed fallback.
+            if isinstance(value, str):
                 ws[key] = value
 
     sys.stdout.write(tomlkit.dumps(seed))
