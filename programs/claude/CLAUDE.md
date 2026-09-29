@@ -27,3 +27,10 @@ cmux workspace-action --action rename --title "<task>"
   environment, so the command would rename the parent's workspace.
 - Never pass `--workspace`. With no flag, cmux targets `$CMUX_WORKSPACE_ID`,
   which is this session's workspace even while I am focused on another window.
+
+## Search with ripgrep, not grep
+
+Use `rg` instead of `grep -r` when searching files. It is faster and skips
+`.gitignore`d paths by default, so it does not return duplicate hits from
+`.worktrees/` or `node_modules/`. Add `--no-ignore` when you need to search
+ignored files. `rg` is installed via `home.nix`.
