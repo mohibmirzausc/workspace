@@ -166,6 +166,31 @@
                 ];
               }
               {
+                description = "Caps Lock+H → hang up (quit Tandem and Tuple)";
+                # Neither app can be asked to leave a call: both are
+                # unscriptable, neither has a leave/end-call menu item, and both
+                # are opaque to the Accessibility API (Tandem's window reports
+                # zero AXChildren even after AXManualAccessibility is forced on;
+                # Tuple exposes no AX window). Quitting is the only lever, and
+                # both reconnect fine afterwards.
+                #
+                # H is unbound in this file and in all 188 OmniWM hotkeys.
+                # Absolute path because shell_command runs with a minimal PATH.
+                manipulators = [
+                  {
+                    type = "basic";
+                    from = {
+                      key_code = "h";
+                      modifiers = {
+                        mandatory = [ "control" "option" "command" ];
+                        optional = [ "fn" ];
+                      };
+                    };
+                    to = [{ shell_command = "${config.home.homeDirectory}/.config/karabiner/end-call.sh"; }];
+                  }
+                ];
+              }
+              {
                 description = "Caps Lock+- = [ ] → OmniWM resize in both niri and dwindle";
                 # OmniWM's niri resize (set*Span) and dwindle resize
                 # (resizeGrow/Shrink.*) are separate actions, and it refuses to
@@ -338,6 +363,12 @@
   # startup. Only the user-level agent is touched; the root Core-Service and the
   # DriverKit extension are left alone, so this does not disturb the virtual HID
   # device or require any privilege.
+  # The hang-up script driven by Caps Lock+H above.
+  home.file.".config/karabiner/end-call.sh" = lib.mkIf pkgs.stdenv.isDarwin {
+    source = ./karabiner/end-call.sh;
+    executable = true;
+  };
+
   home.activation.reloadKarabiner = lib.mkIf pkgs.stdenv.isDarwin
     (lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       KB_AGENT="gui/$(id -u)/org.pqrs.service.agent.Karabiner-Console-User-Server"
