@@ -389,11 +389,11 @@ binding = "Right Control+Right Option+Shift+Right Command+4"
 id = "moveToWorkspace.3"
 
 [[hotkeys]]
-binding = "Control+Option+Command+5"
+binding = "Right Control+Right Option+Right Command+5"
 id = "switchWorkspace.4"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Right Control+Right Option+Shift+Right Command+5"
 id = "moveToWorkspace.4"
 
 [[hotkeys]]
