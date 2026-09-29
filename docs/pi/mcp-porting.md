@@ -29,7 +29,7 @@ versus 225 tokens for an equivalent CLI + README.
 
 | Service | Auth | Approach | Status |
 |---|---|---|---|
-| `shortcut` | API token in sops | `sc` CLI + skill | ✅ **done** |
+| `shortcut` | API token in sops | `sc` CLI + skill | ✅ **done, MCP removed** |
 | `MCP_DOCKER` → obsidian | none (local files) | nothing needed | ✅ **no work** |
 | `playwright` | none | **deferred** — keep MCP for now | ⏸️ parked |
 | `agent-mail` | bearer in sops | `curl` wrapper + skill | ⬜ todo |
@@ -49,6 +49,26 @@ Verified: every read subcommand against the live API; the nix-built binary
 under `env -i` (proving `runtimeInputs`); and Pi, given only the skill,
 correctly answering "how many stories do I have open" by discovering and
 running `sc`.
+
+### The saving is now actually realized
+
+Adding `sc` did not by itself reduce anything: the cost of an MCP server is
+its *tool definitions*, sent every request whether or not the service is
+used. While `mcpServers["shortcut"]` remained in `~/.claude.json`, Claude
+paid the full ~11k–29k tokens **and** had the CLI — two paths to the same
+service, no saving.
+
+`programs/sops/default.nix` no longer writes that entry, and its activation
+patch removes any left behind by an earlier run (top level and project
+level). Verified idempotent against fixtures with: no `mcpServers` key, no
+`shortcut` entry, an empty object, and a null project value.
+
+Side effect worth naming: the Shortcut API token is no longer written in
+plaintext into `~/.claude.json` at all. `sc` decrypts it from sops at call
+time.
+
+The `shortcut_api_token` secret **stays in the sops store** — `sc` reads it.
+Only the MCP registration is gone.
 
 ### MCP_DOCKER → nothing needed ✅
 
