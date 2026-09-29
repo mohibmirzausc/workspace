@@ -14,6 +14,7 @@ in
     ./programs/cmux.nix
     ./programs/omniwm.nix
     ./programs/borders.nix
+    ./programs/hammerspoon.nix
     ./programs/sketchybar.nix
     ./programs/wallspace.nix
     ./programs/voiceink.nix
