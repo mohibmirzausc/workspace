@@ -37,7 +37,9 @@ token() {
   fi
   local f
   f=$(secrets_file) || die "no sops secrets file found and SHORTCUT_API_TOKEN unset (set SC_SECRETS to point at one)"
-  TOKEN=$(SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" \
+  # Honour a caller-supplied SOPS_AGE_KEY_FILE; default to the usual location.
+  # Hardcoding $HOME broke any invocation with a non-standard HOME.
+  TOKEN=$(SOPS_AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}" \
     sops --decrypt --output-type json "$f" 2>/dev/null \
     | jq -er '.shortcut_api_token' 2>/dev/null) \
     || die "could not read shortcut_api_token from $f"
