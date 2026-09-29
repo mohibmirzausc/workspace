@@ -538,6 +538,27 @@ in
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
       "ticktick"
       "finetune"
+      # Meeting transcription, for feeding call context to an agent. MIT,
+      # formerly Hyprnote -- the cask is `anarlog`, NOT `hyprnote`, though the
+      # bundle id is still com.hyprnote.stable.
+      #
+      # Records both sides of a call with a Core Audio PROCESS TAP, not
+      # ScreenCaptureKit, so it needs only NSAudioCapture + NSMicrophone and
+      # never asks for Screen Recording. A tap reads a copy of the audio, so
+      # no BlackHole, no aggregate device, no rerouting that could disturb
+      # KrispAudio.driver, and sound keeps playing normally.
+      #
+      # Transcription (whisper) and diarization (pyannote) both run on-device,
+      # which is the point for work calls. Speaker attribution is per-WORD
+      # (owhisper-interface Word2.speaker), so interruptions stay attributed;
+      # voices start as "Speaker 1" until labelled once.
+      #
+      # For agent use, `anarlog mcp` serves the LOCAL SQLite over stdio. Do
+      # not use the shipped agent-plugins/anarlog/mcp.json -- it points at
+      # https://api.anarlog.so/mcp, which is cloud.
+      #
+      # auto_updates, so this cask does not pin the version.
+      "anarlog"
       # Official Mojang launcher (downloads from launcher.mojang.com). The
       # cask is a thin wrapper: the launcher self-updates and pulls game
       # versions itself, so the cask version (2.1.3,1) tracks the LAUNCHER,
