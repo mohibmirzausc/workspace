@@ -24,6 +24,18 @@ a careful read of the table:
     with the reason spelled out.
   * home: the pool workspace that already holds this repo's windows, if it is
     not the one the window is on.
+
+And it spots a cmux restart, which puts every window on workspace 1 and gives
+each a new id (names survive):
+
+  * last_workspace: where the last triage run left the window, by name; None
+    if its name isn't unique now, the log doesn't know it, or the log says
+    it was another repo.
+  * restart (top level): most windows are on workspace 1 with new ids, but
+    the last run left most of those elsewhere.
+  * restore_to: the workspace apply.py may "restore" this window to, or None.
+    Set for a window on 1 with a new id (or one the log carried) whose
+    last_workspace is 2-10, during a restart, or if the log carried it.
 """
 
 import json
@@ -40,6 +52,8 @@ MESSAGE_CHARS = 140
 USER_WORKSPACE = 1
 REVIEW_WORKSPACE = 10
 POOL = set(range(2, 10))
+# A restart: at least this many cmux windows, at least this share on 1.
+RESTART_MIN_WINDOWS, RESTART_SHARE = 3, 0.75
 
 
 def run(*cmd):
@@ -192,8 +206,9 @@ def collect():
     } for ws in ow_workspaces]
 
     flag(windows, workspaces)
+    restart = recovery(windows)
     current = next((ws["number"] for ws in ow_workspaces if ws.get("isCurrent")), None)
-    return {"current_workspace": current, "windows": windows, "workspaces": workspaces}
+    return {"current_workspace": current, "restart": restart, "windows": windows, "workspaces": workspaces}
 
 
 def flag(windows, workspaces):
@@ -239,6 +254,36 @@ def flag(windows, workspaces):
         if w["home"]:
             reason += f"; its repo's windows are on workspace {w['home']}"
         w["misplaced"] = reason
+
+
+def recovery(windows):
+    """Add last_workspace and restore_to to each window; return whether cmux
+    just restarted. Call after flag(), which sets "new"."""
+    last = state.last_placements()
+    names = Counter(w["name"] for w in windows)
+    for w in windows:
+        p = last.get(w["name"]) if w["name"] and names[w["name"]] == 1 else None
+        if p and p["repo"] and w.get("repo") and p["repo"] != w["repo"]:
+            p = None  # the name was reused for other work
+        w["last_workspace"] = p["workspace"] if p else None
+        w["_carried"] = bool(p and p["carried"])
+    # A title shared by several windows all on 1 still puts each of them on 1.
+    on_one = [w for w in windows if w["omniwm_workspace"] == USER_WORKSPACE
+              or (w["omniwm_workspace"] is None and w.get("omniwm_candidates") == [USER_WORKSPACE])]
+    # A restart gives every window a new id. A window the user dragged onto 1
+    # keeps its id, so it doesn't count (unless the log carried it: it was on
+    # 1 only because of a restart when the last run ended).
+    came_back = [w for w in on_one if w["last_workspace"] not in (None, USER_WORKSPACE)
+                 and (w.get("new") is True or w["_carried"])]
+    restart = (len(windows) >= RESTART_MIN_WINDOWS
+               and len(on_one) >= RESTART_SHARE * len(windows)
+               and 2 * len(came_back) > len(on_one))
+    for w in windows:
+        ok = (w in came_back and w["omniwm_workspace"] == USER_WORKSPACE and w["omniwm_match"] == "ok"
+              and (restart or w["_carried"]))
+        w["restore_to"] = w["last_workspace"] if ok else None
+        del w["_carried"]
+    return restart
 
 
 def main():
