@@ -10,7 +10,14 @@
 -- AXGroup four levels up. Both now resolve; pressing either left the call
 -- with Tandem still running.
 --
--- Two things that look like details but are not:
+-- Three things that look like details but are not:
+--
+--   * Tuple builds NO accessibility tree until its app is activated. Probed
+--     in the background during a live call it shows zero AX windows, is
+--     absent from the CoreGraphics window list, and a hit-test at the Leave
+--     button's own coordinates returns the desktop behind it -- all of which
+--     reads as "this app cannot be automated". Activate it and a perfectly
+--     ordinary tree appears, Leave button included.
 --
 --   * The search is breadth-first. Tandem's leave button sits at depth 16 of a
 --     1310-element tree; depth-first finds it in 79ms, breadth-first in 12ms
@@ -28,13 +35,18 @@ local TARGETS = {
   -- "leave room" is a room; bare "leave" is the in-call control (it renders
   -- as "LEAVE" but matching is case-insensitive). Both confirmed live.
   { app = "Tandem",       titles = { "leave room", "leave call", "leave" } },
-  -- Tuple's titles are speculative and will probably not match. Probed during
-  -- a live call: it exposes zero AX windows, its overlay is absent from the
-  -- CoreGraphics window list too (so it is drawn on a private layer), and its
-  -- menus hold no leave/end-call item or shortcut -- only Quit. Left in so the
-  -- search is harmless if a future version exposes one; until then hangUp()
-  -- falls through to the next target and Tuple must be left by hand.
-  { app = "Tuple",        titles = { "leave call", "leave", "hang up", "end call" } },
+  -- Tuple only builds its AX tree once the app is ACTIVATED. While it is in
+  -- the background the call panel is a menu-bar popover that exposes nothing:
+  -- zero AX windows, absent from the CoreGraphics window list, and a hit-test
+  -- at the Leave button's own screen coordinates returns the desktop behind
+  -- it. Activate it first and a normal tree appears, with a real AXButton
+  -- titled "Leave" carrying AXPress. Confirmed live: pressed it, the call
+  -- ended and Tuple stayed running.
+  --
+  -- Tuple's own shortcut for this is Cmd-Esc, which its AX tree advertises
+  -- next to the button. Pressing the button is preferred anyway: it needs no
+  -- keystroke synthesis and cannot be swallowed by whatever has focus.
+  { app = "Tuple",        titles = { "leave", "leave call" }, activate = true },
   { app = "Google Chrome", titles = { "leave call", "end call", "hang up" } },
 }
 
@@ -111,9 +123,31 @@ function M.hangUp()
     if t.app == frontName then table.insert(ordered, 1, t) else ordered[#ordered + 1] = t end
   end
 
+  local restoreTo = nil
+
   for _, target in ipairs(ordered) do
     local app = hs.application.get(target.app)
     if app then
+      -- Tuple builds no AX tree at all until it is activated, so for it the
+      -- search would otherwise always come up empty. Remember what was in
+      -- front so focus can be handed back if this target turns out not to be
+      -- in a call.
+      if target.activate and not app:isFrontmost() then
+        restoreTo = restoreTo or frontmost
+        app:activate()
+        -- Activation is asynchronous and the tree is not there immediately.
+        -- Poll rather than sleeping a fixed amount, and cap it: this blocks
+        -- Hammerspoon's main thread, so the cap is the worst case the hotkey
+        -- can ever hang for. Observed activation is well under 300ms.
+        local deadline = hs.timer.absoluteTime() + 800 * 1e6
+        repeat
+          local probe = hs.axuielement.applicationElement(app)
+          local windows = probe and probe:attributeValue("AXWindows")
+          if windows and #windows > 0 then break end
+          hs.timer.usleep(50000)
+        until hs.timer.absoluteTime() > deadline
+      end
+
       local axApp = hs.axuielement.applicationElement(app)
       if axApp then
         -- Chromium only populates its AX tree once an assistive client asks.
@@ -127,6 +161,9 @@ function M.hangUp()
       end
     end
   end
+
+  -- Nothing was in a call, so undo any activation done while looking.
+  if restoreTo then restoreTo:activate() end
 
   hs.alert.show("No call to leave", 0.8)
 end
