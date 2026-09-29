@@ -47,8 +47,12 @@
 
 local M = {}
 
--- Ordered: whichever app is frontmost wins, so being in two calls at once
--- leaves the one being looked at. Titles are matched case-insensitively.
+-- EVERY target in a call is left, not just the first one found. Being in a
+-- Tandem and a Tuple call at the same time is the case this hotkey exists
+-- for, and stopping at the first match left the other one running with
+-- nothing to say it had been missed. The frontmost app is still tried first,
+-- but only so an app already in front is not activated out from under the
+-- cursor. Titles are matched case-insensitively.
 local TARGETS = {
   -- "leave room" is a room; bare "leave" is the in-call control (it renders
   -- as "LEAVE" but matching is case-insensitive). Both confirmed live.
@@ -134,13 +138,16 @@ function M.hangUp()
   local frontmost = hs.application.frontmostApplication()
   local frontName = frontmost and frontmost:name()
 
-  -- Try the frontmost app first so the visible call is the one that ends.
+  -- Try the frontmost app first. It does not decide WHICH call ends any more
+  -- -- every call found is left -- but it keeps the app being looked at from
+  -- being activated out from under the cursor when it is already in front.
   local ordered = {}
   for _, t in ipairs(TARGETS) do
     if t.app == frontName then table.insert(ordered, 1, t) else ordered[#ordered + 1] = t end
   end
 
   local restoreTo = nil
+  local left = {}
 
   for _, target in ipairs(ordered) do
     local app = hs.application.get(target.app)
@@ -172,17 +179,24 @@ function M.hangUp()
         local button = findLeaveButton(axApp, target.titles)
         if button then
           button:performAction("AXPress")
-          hs.alert.show("Left " .. target.app .. " call", 0.8)
-          return
+          left[#left + 1] = target.app
+          -- Deliberately NOT returning: being in a Tandem and a Tuple call at
+          -- once is the case this hotkey is for, and stopping at the first
+          -- one left the other running with no indication it had been missed.
         end
       end
     end
   end
 
-  -- Nothing was in a call, so undo any activation done while looking.
+  -- Hand focus back either way: a call was left from a hotkey, so whatever
+  -- was in front is still what should be in front.
   if restoreTo then restoreTo:activate() end
 
-  hs.alert.show("No call to leave", 0.8)
+  if #left == 0 then
+    hs.alert.show("No call to leave", 0.8)
+  else
+    hs.alert.show("Left " .. table.concat(left, " + ") .. " call", 0.8)
+  end
 end
 
 -- Caps Lock is remapped to ctrl+alt+cmd in programs/karabiner.nix, so this is
