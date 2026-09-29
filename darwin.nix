@@ -538,6 +538,42 @@ in
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
       "ticktick"
       "finetune"
+      # Meeting transcription, for feeding call context to an agent. MIT,
+      # formerly Hyprnote -- the cask is `anarlog`, NOT `hyprnote`, though the
+      # bundle id is still com.hyprnote.stable.
+      #
+      # Records both sides of a call with a Core Audio PROCESS TAP, not
+      # ScreenCaptureKit, so it needs only NSAudioCapture + NSMicrophone and
+      # never asks for Screen Recording. A tap reads a copy of the audio, so
+      # no BlackHole, no aggregate device, no rerouting that could disturb
+      # KrispAudio.driver, and sound keeps playing normally.
+      #
+      # LOCAL IS A CHOICE HERE, NOT A GUARANTEE. The app ships both local and
+      # cloud paths for every stage, and the cloud ones are real services --
+      # managed transcription routes audio to Deepgram/Soniox/AssemblyAI, and
+      # managed Intelligence sends transcripts to Claude via OpenRouter. For
+      # work calls, check Settings -> Transcription and Settings ->
+      # Intelligence and pin both to a local model before recording anything.
+      #
+      # What IS local by default: notes, transcripts and recordings live in
+      # local SQLite plus plain files, and CloudSync is off until enabled.
+      # Cloud reads additionally need `--source cloud` AND a signed-in
+      # session, so they fail closed rather than falling back silently.
+      # CLI telemetry (PostHog) is opt-in: telemetry_enabled() is
+      # unwrap_or(false), on only if ANARLOG_ANALYTICS=1.
+      #
+      # Speaker attribution is per-WORD (owhisper-interface Word2.speaker),
+      # so interruptions stay attributed; voices start as "Speaker 1" until
+      # labelled once. Diarization can run on-device (pyannote-local), but
+      # note there is a pyannote-cloud crate too -- another reason to check
+      # the settings rather than assume.
+      #
+      # For agent use, `anarlog mcp` serves the LOCAL SQLite over stdio. Do
+      # not use the shipped agent-plugins/anarlog/mcp.json -- it points at
+      # https://api.anarlog.so/mcp, which is cloud.
+      #
+      # auto_updates, so this cask does not pin the version.
+      "anarlog"
       # Official Mojang launcher (downloads from launcher.mojang.com). The
       # cask is a thin wrapper: the launcher self-updates and pulls game
       # versions itself, so the cask version (2.1.3,1) tracks the LAUNCHER,
