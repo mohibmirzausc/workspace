@@ -101,10 +101,14 @@ keep windows together: one project too many is worse than one too few.
 Count the windows that will be tiled on the workspace, including other apps
 already there:
 
-- **4 or fewer: dwindle.** Everything stays visible.
-- **5 or more: niri.** Windows keep their size and scroll.
-- **Hysteresis:** only switch a niri workspace back to dwindle at 3 or fewer.
-  That stops it flipping every run when a project hovers around 4-5.
+- **1-2 windows: dwindle.** Both stay visible at a usable size.
+- **3 or more: niri.** Windows keep their size and scroll. Three dwindle tiles
+  get too small to work in, especially on the laptop screen, where the user
+  often works alone.
+- **Hysteresis:** only switch a niri workspace back to dwindle at 1 window.
+  With 2 windows niri already shows both side by side
+  (`niri.visibleContainerCount = 2`), so switching back gains nothing, and
+  it would flip every run for a project hovering around 2-3.
 
 OmniWM can only set the layout of the **active** workspace, so `apply.py`
 briefly switches to each workspace whose layout changes, then returns the
