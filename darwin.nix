@@ -552,6 +552,9 @@ in
       "soundsource"
       "superwhisper"
       "raycast"
+      # Drives Caps Lock+H to leave a call -- see programs/hammerspoon.nix.
+      # auto_updates, so this cask does not pin the version.
+      "hammerspoon"
       "thaw"          # Menu bar manager (Ice fork) for macOS 26+
       "ticktick"
       "finetune"
