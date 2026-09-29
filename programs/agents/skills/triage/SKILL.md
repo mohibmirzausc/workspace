@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Use when the user says "/triage", "triage my windows", "organize my terminals", "clean up my workspaces", or complains they cannot find a session. Groups open cmux windows into projects, gives each project its own OmniWM workspace (2-9, dwindle for small projects, niri for large ones), labels the workspaces, fixes junk window names, and parks anything it is unsure about on workspace 10 ("review"). It never closes windows.
+description: Use when the user says "/triage", "triage my windows", "organize my terminals", "clean up my workspaces", or complains they cannot find a session. Groups open cmux windows into projects, gives each project its own OmniWM workspace (2-9), labels the workspaces, fixes junk window names, and parks anything it is unsure about on workspace 10 ("review"). It never closes windows.
 ---
 
 # Triage
@@ -15,17 +15,18 @@ There is no registry file. The state lives in OmniWM itself: a workspace's
 bar label says which project owns it, and the windows on it are the project.
 Each run reads that state fresh and changes as little as it can.
 
-OmniWM persists labels and layouts into `~/.config/omniwm/settings.toml`, so
-the live file drifts from the repo seed while projects are allocated. That is
-expected. These are runtime state, so don't copy them back into
+OmniWM persists labels into `~/.config/omniwm/settings.toml`, so the live
+file drifts from the repo seed while projects are allocated. That is
+expected. Labels are runtime state, so don't copy them back into
 `programs/omniwm/settings.toml`. Rebuilds keep them: when the seed is
-re-installed, the pool workspaces' `displayName` and `layoutType` are carried
-over from the live file (`programs/omniwm/keep-workspace-state.py`).
+re-installed, the pool workspaces' `displayName` is carried over from the
+live file (`programs/omniwm/keep-workspace-state.py`). Layouts are not
+triage's: every workspace is niri, set in the seed.
 
 ## Rules
 
 - **Workspace 1 is the user's.** Never move a window into it or out of it,
-  and never relabel or re-layout it. Report what is there, but leave it alone.
+  and never relabel it. Report what is there, but leave it alone.
   The one exception is a cmux restart, which dumps every window on 1:
   `restore` puts each back where the last run left it (see
   [Restart recovery](#restart-recovery)).
@@ -40,8 +41,8 @@ over from the live file (`programs/omniwm/keep-workspace-state.py`).
 - **Never close a window.** Closing is the only step that can lose work, and
   the user closes windows themselves. Park doubtful windows on `review`
   instead.
-- **All changes go through `apply.py`.** Don't run the rename, move, layout
-  or label commands by hand. `apply.py` refuses a plan that leaves any
+- **All changes go through `apply.py`.** Don't run the rename, move or
+  label commands by hand. `apply.py` refuses a plan that leaves any
   window without a decision. It moves windows by their own OmniWM ID, never
   the focused window. It skips windows already in place, returns the user to
   their workspace, and logs every change so `--undo` can reverse it.
@@ -146,23 +147,13 @@ keep windows together: one project too many is worse than one too few.
 4. **Out of workspaces?** Merge the two smallest idle projects onto one
    workspace, and say so in the plan. Never overflow a project onto 10.
 
-### 4. Pick the layout from the project's size
+### 4. Leave layouts alone
 
-Count the windows that will be tiled on the workspace, including other apps
-already there:
-
-- **1-2 windows: dwindle.** Both stay visible at a usable size.
-- **3 or more: niri.** Windows keep their size and scroll. Three dwindle tiles
-  get too small to work in, especially on the laptop screen, where the user
-  often works alone.
-- **Hysteresis:** only switch a niri workspace back to dwindle at 1 window.
-  With 2 windows niri already shows both side by side
-  (`niri.visibleContainerCount = 2`), so switching back gains nothing, and
-  it would flip every run for a project hovering around 2-3.
-
-OmniWM can only set the layout of the **active** workspace, so `apply.py`
-briefly switches to each workspace whose layout changes, then returns the
-user to where they were.
+Every workspace is niri, from the OmniWM seed, whatever the project's size.
+Niri columns resize the way the user wants; dwindle's split tiles annoyed
+them. So never put `layout` in a plan. If the inventory shows a workspace
+that isn't niri, it was toggled live (Opt+Shift+L) or the machine predates
+the seed change. Leave it, and mention it to the user.
 
 ### 5. Plan, then ask once
 
@@ -176,7 +167,7 @@ Write the plan as JSON: **one entry for every window in the inventory.**
    {"id": "<id>", "action": "skip"},
    {"id": "<id>", "action": "stay", "rename": "dotfiles PRs"}],
  "workspaces": [
-   {"number": 2, "label": "2 alloc", "repos": ["internal-allocations"], "layout": "niri"}]}
+   {"number": 2, "label": "2 alloc", "repos": ["internal-allocations"]}]}
 ```
 
 - **Actions:**
@@ -228,7 +219,7 @@ show the user:
 - **Moves**, one line each: `alloc misc  6 → 2  (misplaced: internal-allocations on F1 dotfiles)`.
   Put these first after any restores, so none gets lost in a table.
 - **Flagged windows that stay**, each with its reason.
-- **Renames, review, labels and layouts.**
+- **Renames, review and labels.**
 - **Tab hoards** (`cmux_tab_count` > 1): suggest splitting live tabs, but
   don't do it.
 - **Coverage**: `12 / 12 windows`.
@@ -241,8 +232,8 @@ Ask for one go-ahead covering all of it.
 python3 <this skill's directory>/apply.py /tmp/triage-plan.json
 ```
 
-It applies the plan in order: renames, then a fresh inventory, then moves,
-layouts and labels. Each move is re-checked against the fresh inventory right
+It applies the plan in order: renames, then a fresh inventory, then moves
+and labels. Each move is re-checked against the fresh inventory right
 before it happens. It then puts every display back on the workspace it showed
 and logs the run to `~/.local/state/triage/log.jsonl`. If a move reports
 `already on N`, the change was already made, for example by an earlier run in
@@ -280,6 +271,8 @@ python3 <this skill's directory>/apply.py --undo
 It reverses the most recent run that changed something: labels, then layouts,
 then moves and restores, then renames. Undoing a restore is the one time
 triage moves a window onto workspace 1, and only a window it restored.
+Only runs from before every workspace was niri logged layouts. If the dry
+run would set one to dwindle, ask the user first.
 
 - It leaves alone anything the user has changed since, and says so.
 - It refuses log entries that are outside triage's bounds.

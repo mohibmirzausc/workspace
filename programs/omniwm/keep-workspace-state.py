@@ -2,10 +2,9 @@
 
 Usage: keep-workspace-state.py SEED LIVE  (merged TOML on stdout)
 
-The seed wins for everything except two keys on the pool workspaces (2-10):
-`displayName` (the bar label, e.g. "F1 dotfiles") and `layoutType`. The triage
-skill manages those at runtime, and a rebuild that re-installs the seed must
-not wipe them. Workspace 1 is the user's hand-set workspace, so it always comes
+The seed wins for everything except one key on the pool workspaces (2-10):
+`displayName` (the bar label, e.g. "F1 dotfiles"). The triage skill manages it
+at runtime, and a rebuild that re-installs the seed must not wipe it. Workspace 1 is the user's hand-set workspace, so it always comes
 from the seed, as do workspaces the live file does not know about.
 
 A live workspace with no displayName keeps the seed's default, if the seed
@@ -15,9 +14,11 @@ rather than a deliberate clear. So a cleared label comes back as the seed
 default on the next seed change. OmniWM never writes an empty displayName (it
 stores "" as no key), so there is no way to tell a clear from "never set".
 
-layoutType has no such gap: OmniWM always writes it, so on an existing machine
-the live value always wins and the seed's layoutType only matters on a fresh
-install. To change a pool workspace's layout, change it live.
+layoutType is deliberately NOT kept: every workspace is niri, set in the seed,
+and triage no longer changes layouts. So a seed change resets any layout
+toggled live (Opt+Shift+L) back to the seed's. It used to be kept, when triage
+picked dwindle or niri per project; dropping it is also what moves this
+machine's old dwindle workspaces to niri on the next rebuild.
 """
 
 import sys
@@ -26,7 +27,7 @@ import tomllib
 import tomlkit
 
 POOL = {str(n) for n in range(2, 11)}
-KEPT = ("displayName", "layoutType")
+KEPT = ("displayName",)
 
 
 def main(seed_path, live_path):
@@ -42,7 +43,9 @@ def main(seed_path, live_path):
             continue
         for key in KEPT:
             value = live_by_name[name].get(key)
-            if value is not None:
+            # OmniWM rejects the whole file over a non-string label, and a
+            # clean exit here would skip the plain-seed fallback.
+            if isinstance(value, str):
                 ws[key] = value
 
     sys.stdout.write(tomlkit.dumps(seed))

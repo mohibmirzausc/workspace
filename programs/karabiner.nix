@@ -178,6 +178,11 @@
                 # isLayoutCompatible) and ignores the other one as
                 # layout_mismatch, so exactly one resize happens either way.
                 #
+                # Every workspace is niri now (programs/omniwm.nix), so the
+                # dwindle chord is normally a layout_mismatch no-op. It stays
+                # because it costs nothing and keeps resize working on a
+                # workspace toggled to dwindle live with Opt+Shift+L.
+                #
                 # Nothing is lost on hold: OmniWM already ignores autorepeat
                 # for side-pinned bindings, so these resize once per press
                 # before and after this rule.
