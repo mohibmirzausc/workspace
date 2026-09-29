@@ -28,6 +28,20 @@
 # end of its startup instead. Tradeoff: no KeepAlive, so a crash stays dead
 # until the bar restarts.
 #
+# hidpi is OFF (sketchybarrc), and it is the difference between ~330MB and
+# ~740MB resident. JankyBorders' memory is almost entirely CoreAnimation layer
+# backing store -- `footprint` attributed 286MB of a 457MB total to it -- and
+# hidpi doubles the backing resolution on each of the two large displays here
+# (3024x1964 XDR plus a 4K). Measured twice, after forcing 30 redraws each way:
+#   hidpi=off  336MB / 332MB
+#   hidpi=on   755MB / 726MB
+# The border is a flat 4pt rounded stroke, so the extra sample density buys
+# very little; if it ever looks soft, this is the knob.
+#
+# NOT a memory leak, though it reads as one: RSS swings between roughly 270MB
+# and 880MB and comes back down on its own (a 30s idle sample DROPPED 269MB).
+# Sampling it once while it is spiking will convince you otherwise.
+#
 # Width and colours live in sketchybarEnv (darwin.nix), not here: both
 # consumers -- the spawn and the recolour hook -- run under the sketchybar
 # agent and read only that environment.
