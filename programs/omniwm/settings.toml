@@ -1116,3 +1116,12 @@ name = "10"
 
 [workspaces.monitorAssignment]
 type = "main"
+
+[[workspaces]]
+displayName = "6"
+id = "D3A9F367-EEEA-4CEF-BAF8-1EF4A630661A"
+layoutType = "niri"
+name = "11"
+
+[workspaces.monitorAssignment]
+type = "secondary"

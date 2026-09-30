@@ -128,8 +128,36 @@
                 }) [ "f1" "f2" "f3" "f4" ];
               }
               {
+                description = "Caps Lock+6 → OmniWM workspace 11 (+Shift moves the window)";
+                # Workspace 11 is the sixth on the external monitor (1-5 are
+                # Caps Lock+1-5), so it takes the next digit. Like 10 it has no
+                # OmniWM hotkey slot (slots stop at 9, and switchWorkspace.5 is
+                # already workspace 6 on Caps Lock+F1), so it goes over IPC the
+                # same way as the F5 rule below. Caps Lock+6 is not bound in
+                # OmniWM, Hammerspoon or elsewhere in this file; OmniWM's
+                # Control+Option+6 (focusColumn.5) is a different chord.
+                manipulators = [
+                  {
+                    type = "basic";
+                    from = {
+                      key_code = "6";
+                      modifiers.mandatory = [ "control" "option" "command" "shift" ];
+                    };
+                    to = [{ shell_command = "/opt/homebrew/bin/omniwmctl command move-to-workspace 11"; }];
+                  }
+                  {
+                    type = "basic";
+                    from = {
+                      key_code = "6";
+                      modifiers.mandatory = [ "control" "option" "command" ];
+                    };
+                    to = [{ shell_command = "/opt/homebrew/bin/omniwmctl command switch-workspace 11"; }];
+                  }
+                ];
+              }
+              {
                 description = "Caps Lock+F5 → OmniWM workspace 10 (+Shift moves the window)";
-                # 6-9 are native OmniWM hotkeys (rule above plus
+                # 6-9 are native OmniWM hotkeys (the F1-F4 rule plus
                 # programs/omniwm/settings.toml). 10 cannot be: OmniWM builds
                 # its switchWorkspace.N / moveToWorkspace.N hotkey slots from
                 # the digit keys 1-9 only (ActionCatalog.digitCodes), so an id

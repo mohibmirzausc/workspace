@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Use when the user says "/triage", "triage my windows", "organize my terminals", "clean up my workspaces", or complains they cannot find a session. Groups open cmux windows into projects, gives each project its own OmniWM workspace (2-9), labels the workspaces, fixes junk window names, and parks anything it is unsure about on workspace 10 ("review"). It never closes windows.
+description: Use when the user says "/triage", "triage my windows", "organize my terminals", "clean up my workspaces", or complains they cannot find a session. Groups open cmux windows into projects, gives each project its own OmniWM workspace (2-9 or 11), labels the workspaces, fixes junk window names, and parks anything it is unsure about on workspace 10 ("review"). It never closes windows.
 ---
 
 # Triage
@@ -30,7 +30,9 @@ triage's: every workspace is niri, set in the seed.
   The one exception is a cmux restart, which dumps every window on 1:
   `restore` puts each back where the last run left it (see
   [Restart recovery](#restart-recovery)).
-- **The pool is workspaces 2-9.** Projects are allocated from it.
+- **The pool is workspaces 2-9 and 11.** Projects are allocated from it.
+  11 is numbered after review but sits with 1-5 on the external monitor
+  (key Caps+6).
 - **Workspace 10 is `review`.** Anything you're unsure about goes there
   instead of being closed or guessed into a project. That means windows that
   look finished or abandoned, and windows you can't place. The user clears it
@@ -97,7 +99,7 @@ window ended up, by name, and the inventory reads that back:
 - `restart: true`: most windows are on 1 with new ids, but the last run left
   most of them elsewhere.
 - `restore_to`: the workspace `restore` would put this window on, or `null`.
-  It's set for a window on 1 with a new id whose `last_workspace` is 2-10,
+  It's set for a window on 1 with a new id whose `last_workspace` is 2-11,
   during a restart. It's also set for a window whose approved restore failed
   last time, even if `restart` is now false.
 
@@ -143,7 +145,8 @@ keep windows together: one project too many is worse than one too few.
 2. **Mostly in one place?** If most of the project's windows already sit on
    one pool workspace that no other project dominates, use that one.
 3. **Otherwise** take the lowest-numbered **free** pool workspace. Free means
-   no tiled windows and no label.
+   no tiled windows and no project label: no label at all, or just the bare
+   key (`"3"`, `"F2"`, `"6"` on 11).
 4. **Out of workspaces?** Merge the two smallest idle projects onto one
    workspace, and say so in the plan. Never overflow a project onto 10.
 
@@ -171,7 +174,7 @@ Write the plan as JSON: **one entry for every window in the inventory.**
 ```
 
 - **Actions:**
-  - `move` needs `to`, a pool workspace from 2 to 9.
+  - `move` needs `to`, a pool workspace: 2 to 9, or 11.
   - `review` means workspace 10.
   - `restore` is only for [Restart recovery](#restart-recovery).
   - `skip` is for workspace 1. Every window there must be `skip` unless
@@ -190,15 +193,18 @@ Write the plan as JSON: **one entry for every window in the inventory.**
   unique across all windows once the plan has run.
 - **Workspaces:**
   - `label` is `<key> <project>`, where the key is the one the user presses:
-    the digit for 2-5, F1-F5 for 6-10. Examples: `2 alloc`, `F1 dotfiles`,
-    `F5 review`. The whole label is at most 12 characters. OmniWM's bar shows
-    the label *instead of* the number, so the key must be in it.
+    the digit for 2-5, F1-F5 for 6-10, and `6` for 11. Examples: `2 alloc`,
+    `F1 dotfiles`, `6 alloc`, `F5 review`. The whole label is at most 12
+    characters. OmniWM's bar shows the label *instead of* the number, so the
+    key must be in it.
   - `repos` records which repos the label stands for, which is how later
     runs know a workspace's project. It's recorded on every run, even when
     the label doesn't change. So list every project workspace with its label
     and `repos` each time, including ones that are already right.
   - When a pool workspace empties, set its label to the bare key: `"3"` for
-    2-5, `"F2"` for 6-10.
+    2-5, `"F2"` for 6-10, `"6"` for 11. (For 2-5 the bare key is the number
+    itself; 6-11 need theirs written out, or the bar would show the number,
+    `7` or `11`, instead of the key.)
   - Label workspace 10 `F5 review` while it holds anything, and `F5` when
     it's empty.
 - **Review** is for windows idle for a day or more with nothing pending, plain
@@ -255,7 +261,7 @@ Re-run the inventory and check that every window is where the plan put it.
 Report in a few lines:
 
 - which projects are on which workspaces, with their Caps Lock key: 2-5 are
-  Caps+2-5, 6-9 are Caps+F1-F4, review is Caps+F5
+  Caps+2-5, 6-9 are Caps+F1-F4, 11 is Caps+6, review is Caps+F5
 - what was renamed, and what went to review
 - anything skipped, with the reason
 

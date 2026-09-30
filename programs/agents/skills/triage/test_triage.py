@@ -135,10 +135,11 @@ class ValidateTests(unittest.TestCase):
         self.assertTrue(apply.validate(self.plan(omni={"action": "skip"}), self.inv))
 
     def test_moves_stay_in_the_pool(self):
-        for to in (1, 10, 11, None, "2"):
+        for to in (1, 10, 12, None, "2", "11"):
             problems = apply.validate(self.plan(allocmisc={"action": "move", "to": to}), self.inv)
             self.assertTrue(problems, f"to={to!r} should be refused")
-        self.assertEqual(apply.validate(self.plan(allocmisc={"action": "move", "to": 2}), self.inv), [])
+        for to in (2, 9, 11):  # 11 is in the pool, past review
+            self.assertEqual(apply.validate(self.plan(allocmisc={"action": "move", "to": to}), self.inv), [])
 
     def test_unmatched_window_can_only_stay(self):
         pi = next(w for w in self.inv["windows"] if w["id"] == "pi")
@@ -199,7 +200,9 @@ class ValidateTests(unittest.TestCase):
     def test_labels_carry_their_key(self):
         for n, label, ok in [(2, "2 alloc", True), (6, "F1 dotfiles", True), (10, "F5 review", True),
                              (6, "dotfiles", False), (6, "6 dotfiles", False), (2, "F1 alloc", False),
-                             (7, "F2 a-very-long-name", False), (1, "1 mine", False)]:
+                             (7, "F2 a-very-long-name", False), (1, "1 mine", False),
+                             (11, "6 alloc", True), (11, "6", True), (11, "11 alloc", False),
+                             (11, "F6 alloc", False), (11, "alloc", False), (12, "7 x", False)]:
             plan = self.plan()
             plan["workspaces"] = [{"number": n, "label": label, "repos": ["x"]}]
             self.assertEqual(apply.validate(plan, self.inv) == [], ok, f"{n} {label!r}")
@@ -243,8 +246,8 @@ class LogTests(unittest.TestCase):
         self.assertEqual(state.last_snapshot(), {"x"})
 
     def test_key_for(self):
-        self.assertEqual([apply.key_for(n) for n in range(2, 11)],
-                         ["2", "3", "4", "5", "F1", "F2", "F3", "F4", "F5"])
+        self.assertEqual([apply.key_for(n) for n in range(2, 12)],
+                         ["2", "3", "4", "5", "F1", "F2", "F3", "F4", "F5", "6"])
 
 
 class FakeDesktop:
@@ -256,12 +259,13 @@ class FakeDesktop:
     that runs after a cmux rename (to simulate the user acting mid-run).
     """
 
-    DISPLAY = {1: "A", 2: "A", 5: "A"}
+    DISPLAY = {1: "A", 2: "A", 5: "A", 11: "A"}
+    NUMBERS = range(1, 12)
 
     def __init__(self, windows, labels=None, layouts=None, shown=None, current="B"):
         self.w = {i: dict(name=n, ws=ws, repo=repo) for i, (n, ws, repo) in windows.items()}
         self.labels = dict(labels or {})
-        self.layouts = {n: "dwindle" for n in range(1, 11)} | dict(layouts or {})
+        self.layouts = {n: "dwindle" for n in self.NUMBERS} | dict(layouts or {})
         self.shown = dict(shown or {"A": 2, "B": 6})
         self.current = current
         self.fail, self.on_rename, self.calls = set(), None, []
@@ -283,7 +287,7 @@ class FakeDesktop:
                 "omniwm_match": "ok" if ok else "ambiguous", "omniwm_id": f"ow_{i}" if ok else None,
                 "omniwm_workspace": x["ws"] if ok else None, "omniwm_candidates": cands,
                 "maybe_user_workspace": 1 in cands, "floating": False, "scratchpad": False})
-        wss = [{"number": n, "label": self.labels.get(n), "layout": self.layouts[n]} for n in range(1, 11)]
+        wss = [{"number": n, "label": self.labels.get(n), "layout": self.layouts[n]} for n in self.NUMBERS]
         inventory.flag(windows, wss)
         restart = inventory.recovery(windows)
         return {"current_workspace": self.shown[self.current], "restart": restart,
@@ -296,7 +300,7 @@ class FakeDesktop:
     def omniwm(self, *args):
         return {"workspaces": [{"number": n, "display": {"id": self.display(n)},
                                 "isVisible": self.shown[self.display(n)] == n,
-                                "isCurrent": self.shown[self.current] == n} for n in range(1, 11)]}
+                                "isCurrent": self.shown[self.current] == n} for n in self.NUMBERS]}
 
     def omni(self, *args):
         args = tuple(map(str, args))
@@ -371,6 +375,31 @@ class ExecuteTests(unittest.TestCase):
             self.assertEqual((d.ws_of("a"), d.w["a"]["name"], d.labels.get(7), d.layouts[7]), (3, "a", None, "dwindle"))
             self.assertEqual(d.shown, {"A": 2, "B": 6})
             self.assertEqual(apply.undo(dry=False), (0, {"undo": "nothing to undo"}))
+
+    def test_workspace_eleven_is_a_pool_workspace_keyed_6(self):
+        # 11 sits on the external display (A) and its key is Caps+6, so its
+        # bare label is a literal "6", never "" (which would show "11").
+        with self.desk(labels={11: "6"}) as d:
+            plan = full_plan(d, a={"action": "move", "to": 11})
+            plan["workspaces"] = [{"number": 11, "label": "6 x", "repos": ["x"]}]
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual((d.ws_of("a"), d.labels[11]), (11, "6 x"))
+            self.assertEqual(d.shown, {"A": 2, "B": 6})
+            self.assertEqual(state.label_repos({11: "6 x"}), {11: {"x"}})
+            code, out = apply.undo(dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual((d.ws_of("a"), d.labels[11]), (3, "6"))
+            self.assertIn(("workspace", "rename", "11", "6"), d.calls)
+
+    def test_emptied_workspace_eleven_goes_back_to_its_key(self):
+        with FakeDesktop({"a": ("a", 3, "x")}, labels={11: "6 x"}) as d:
+            plan = full_plan(d)
+            plan["workspaces"] = [{"number": 11, "label": "6"}]
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual(d.labels[11], "6")
+            self.assertIn(("workspace", "rename", "11", "6"), d.calls)
 
     def test_reapplying_is_harmless(self):
         with self.desk() as d:
@@ -656,6 +685,19 @@ class RestartTests(unittest.TestCase):
             self.assertIs(d.collect()["restart"], True)
             code, out = apply.apply(self.restore_all(d), dry=False)
             self.assertEqual((code, d.ws_of("ra")), (0, 3), out)
+
+    def test_restore_to_workspace_eleven(self):
+        d = self.settled(e=("e", 11, "z"))
+        self.assertEqual(spots()["e"], 11)
+        with d:
+            inv = d.collect()
+            self.assertIs(inv["restart"], True)
+            self.assertEqual(next(w for w in inv["windows"] if w["id"] == "re")["restore_to"], 11)
+            code, out = apply.apply(self.restore_all(d), dry=False)
+            self.assertEqual(code, 0, out)
+            self.assertEqual(d.ws_of("re"), 11)
+            code, out = apply.undo(dry=False)
+            self.assertEqual((code, d.ws_of("re")), (0, 1), out)
 
     def test_failed_restore_keeps_where_it_belongs(self):
         with self.settled() as d:
@@ -946,7 +988,7 @@ class RestartTests(unittest.TestCase):
         os.makedirs(state.state_dir(), exist_ok=True)
         state.append({"kind": "apply", "placements": [{"name": "good", "workspace": 3}]})
         state.append({"kind": "apply", "placements": [
-            {"name": "a", "workspace": "3"}, {"name": "b", "workspace": 11}, {"name": "c", "workspace": True},
+            {"name": "a", "workspace": "3"}, {"name": "b", "workspace": 12}, {"name": "c", "workspace": True},
             {"name": 7, "workspace": 3}, {"name": "", "workspace": 3}, "x", None, {"workspace": 2},
             {"name": "d", "workspace": 4}]})
         self.assertEqual(spots(), {"d": 4})
