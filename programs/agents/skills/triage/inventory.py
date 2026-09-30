@@ -35,7 +35,7 @@ each a new id (names survive):
     the last run left most of those elsewhere.
   * restore_to: the workspace apply.py may "restore" this window to, or None.
     Set for a window on 1 with a new id (or one the log carried) whose
-    last_workspace is 2-10, during a restart, or if the log carried it.
+    last_workspace is 2-11, during a restart, or if the log carried it.
 """
 
 import json
@@ -51,7 +51,8 @@ SPINNER = set("◐◑◒◓") | {chr(c) for c in range(0x2800, 0x2900)}
 MESSAGE_CHARS = 140
 USER_WORKSPACE = 1
 REVIEW_WORKSPACE = 10
-POOL = set(range(2, 10))
+# 2-9 and 11: 11 was added after 10 (review), on the external monitor.
+POOL = set(range(2, 10)) | {11}
 # A restart: at least this many cmux windows, at least this share on 1.
 RESTART_MIN_WINDOWS, RESTART_SHARE = 3, 0.75
 

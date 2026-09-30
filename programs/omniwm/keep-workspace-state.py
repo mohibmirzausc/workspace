@@ -2,7 +2,7 @@
 
 Usage: keep-workspace-state.py SEED LIVE  (merged TOML on stdout)
 
-The seed wins for everything except one key on the pool workspaces (2-10):
+The seed wins for everything except one key on the pool workspaces (2-11):
 `displayName` (the bar label, e.g. "F1 dotfiles"). The triage skill manages it
 at runtime, and a rebuild that re-installs the seed must not wipe it. Workspace 1 is the user's hand-set workspace, so it always comes
 from the seed, as do workspaces the live file does not know about.
@@ -26,7 +26,7 @@ import tomllib
 
 import tomlkit
 
-POOL = {str(n) for n in range(2, 11)}
+POOL = {str(n) for n in range(2, 12)}
 KEPT = ("displayName",)
 
 

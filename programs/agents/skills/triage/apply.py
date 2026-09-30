@@ -10,7 +10,7 @@ Exit status: 0 done, 1 done but something failed (see "failed"), 2 refused.
 Plan shape (unknown keys are refused, so a typo can't be silently ignored):
   {"windows": [{"id": "<inventory id>",
                 "action": "stay" | "move" | "review" | "skip" | "restore",
-                "to": N,             # move: a pool workspace, 2-9;
+                "to": N,             # move: a pool workspace, 2-9 or 11;
                                      # restore: optional, its last_workspace
                 "rename": "name",    # optional; not on skip
                 "reason": "why"}],   # required to keep a flagged window
@@ -22,12 +22,12 @@ Validation (refusals name the window):
   * workspace 1 is untouchable: its windows must be "skip", and so must any
     window that MIGHT be on it (an unmatched window's workspace is unknown);
     skipped windows can't be renamed;
-  * moves go to 2-9 and "review" means 10; only tiled, non-scratchpad windows
-    matched to their own OmniWM window move. An unmatched window can only stay
-    (rename it now so it matches, and move it next run);
+  * moves go to 2-9 or 11 and "review" means 10; only tiled, non-scratchpad
+    windows matched to their own OmniWM window move. An unmatched window can
+    only stay (rename it now so it matches, and move it next run);
   * the one way off workspace 1 is "restore", after a cmux restart: only a
     window the inventory gives a restore_to (see inventory.py), uniquely
-    matched and uniquely named, only to that workspace (2-10), and never with
+    matched and uniquely named, only to that workspace (2-11), and never with
     a rename. Anything else on 1 is still "skip";
   * renames are unique across the resulting set of names;
   * a window flagged new or misplaced may stay, but only with a "reason".
@@ -63,7 +63,10 @@ SETTLE_TRIES, SETTLE_SECONDS = 6, 0.25
 
 
 def key_for(n):
-    """The key that reaches workspace n: the digit for 2-5, F1-F5 for 6-10."""
+    """The key that reaches workspace n: the digit for 2-5, F1-F5 for 6-10,
+    and 6 for 11 (the sixth workspace on the external monitor)."""
+    if n == 11:
+        return "6"
     return str(n) if n <= 5 else f"F{n - 5}"
 
 
@@ -157,7 +160,7 @@ def validate(plan, inv):
         if "to" in e and action not in ("move", "restore"):
             problems.append(f"{name!r}: 'to' only goes with 'move' or 'restore'")
         if action == "move" and not (is_int(e.get("to")) and e["to"] in POOL):
-            problems.append(f"{name!r}: move needs 'to' as a whole number 2-9 (review is its own action), got {e.get('to')!r}")
+            problems.append(f"{name!r}: move needs 'to' as a whole number 2-9 or 11 (review is its own action), got {e.get('to')!r}")
         if action in ("move", "review", "restore"):
             if w.get("floating") or w.get("scratchpad"):
                 problems.append(f"{name!r} is a floating or scratchpad window; triage doesn't move those")
@@ -191,7 +194,7 @@ def validate(plan, inv):
         problems += [f"workspace entry has unknown key {k!r}" for k in ws if k not in WORKSPACE_KEYS]
         n = ws.get("number")
         if not is_int(n) or n not in LABELLED:
-            problems.append(f"workspace {n!r}: only whole numbers 2-10 can be labelled or re-laid-out")
+            problems.append(f"workspace {n!r}: only whole numbers 2-11 can be labelled or re-laid-out")
             continue
         if n in numbers:
             problems.append(f"workspace {n} appears twice")
@@ -232,7 +235,7 @@ def unrestorable(w, e, inv, names_now):
     if not w["name"] or names_now.get(w["name"], 0) != 1:
         return ["its name isn't unique, so its last workspace is unknown: must be 'skip'"]
     if not (is_int(last) and last in LABELLED):
-        return [f"its last workspace is {last!r}, not 2-10: must be 'skip'"]
+        return [f"its last workspace is {last!r}, not 2-11: must be 'skip'"]
     if w["omniwm_workspace"] == USER_WORKSPACE and not (is_int(dest) and dest == last):
         if inv.get("restart") is not True:
             return ["'restore' is only for after a cmux restart, and the inventory doesn't report one"]
@@ -328,7 +331,8 @@ def set_label(n, label, run):
     if run.dry:
         run.say(f"would label workspace {n} {label!r}")
         return False
-    # "" falls back to the digit on 2-5; a bare F-key is written literally.
+    # "" falls back to the digit on 2-5; a bare F-key, or "6" on 11, is
+    # written literally.
     ok, status = omni("workspace", "rename", n, "" if label == str(n) else label)
     if not ok:
         run.fail(f"label {n} -> {label!r}: {status}")

@@ -196,7 +196,7 @@ def last_placements():
             if name in spots or name in dupes:
                 dupes.add(name)
                 spots.pop(name, None)
-            elif type(n) is int and 1 <= n <= 10:
+            elif type(n) is int and 1 <= n <= 11:
                 spots[name] = {"workspace": n, "repo": repo if isinstance(repo, str) else None,
                                "carried": p.get("carried") is True}
             else:

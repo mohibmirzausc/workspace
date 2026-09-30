@@ -13,16 +13,22 @@
 # can, and a live toggle is reset to niri by the next seed change.
 #
 # Workspaces are split by monitor, and by the key that reaches them:
-# Caps Lock+1-5 -> workspaces 1-5 on the external monitor, Caps Lock+F1-F5 ->
-# 6-10 on the laptop screen. Caps Lock+F1-F4 reach 6-9 natively (Karabiner
-# un-media-keys the top row while Caps Lock is held), and F5 -> 10 goes
-# through Karabiner + omniwmctl because OmniWM has no hotkey slot past 9
-# (see the rule in programs/karabiner.nix).
-# The displayNames of 6-10 default to "F1"-"F5" because OmniWM's workspace bar
-# shows the label INSTEAD of the number, so the bar names the key to press. The
-# triage skill keeps that prefix when it labels a workspace ("F1 dotfiles").
+# Caps Lock+1-6 -> workspaces 1-5 and 11 on the external monitor, Caps
+# Lock+F1-F5 -> 6-10 on the laptop screen. Caps Lock+1-5 and F1-F4 reach 1-9
+# through OmniWM's own hotkeys (for F1-F4, Karabiner un-media-keys the top row
+# while Caps Lock is held), and F5 -> 10 and 6 -> 11 go through Karabiner +
+# omniwmctl because OmniWM has no hotkey slot past 9 (see the rules in
+# programs/karabiner.nix). 11 is numbered past 10 rather than renumbering
+# 6-10, so existing windows, labels and keys stay put.
+# The displayNames of 6-11 default to their key ("F1"-"F5", and "6" for 11)
+# because OmniWM's workspace bar shows the label INSTEAD of the number, so the
+# bar names the key to press. The triage skill keeps that prefix when it
+# labels a workspace ("F1 dotfiles", "6 alloc"). 11's label "6" is only a
+# label: commands given a number (switch-workspace 6) always mean the workspace
+# NUMBER, but `omniwmctl query ... --workspace 6` matches display names too, so
+# it would return both 6 and 11.
 #
-# The split uses OmniWM's monitor ROLES, not display ids: 1-5 are
+# The split uses OmniWM's monitor ROLES, not display ids: 1-5 and 11 are
 # monitorAssignment "secondary", 6-10 "main", and [[monitors.ranking]] pins
 # the built-in display as Main. The row matches by name (no displayUUID), so
 # it is not tied to this one machine; a Mac whose built-in screen reports a
@@ -30,9 +36,9 @@
 # single external monitor is Secondary, whichever display macOS calls main
 # (a second external would be Tertiary, which no workspace uses). With no
 # external attached Secondary resolves to nothing, and OmniWM falls back to the
-# nearest connected display (WorkspaceManager.effectiveMonitor), so 1-5 join
-# 6-10 on the laptop rather than vanishing. In clamshell mode the ranking row
-# is skipped and all ten land on the external.
+# nearest connected display (WorkspaceManager.effectiveMonitor), so 1-5 and 11
+# join 6-10 on the laptop rather than vanishing. In clamshell mode the ranking
+# row is skipped and all eleven land on the external.
 #
 # The settings live in ./omniwm/settings.toml rather than as a Nix attrset
 # because OmniWM owns this file's schema (schemaVersion = 3) and writes ~1000
@@ -61,7 +67,7 @@
 #
 # and commit. Editing the tracked seed directly also works -- the hash change
 # is what triggers the re-copy on the next rebuild -- EXCEPT for the
-# displayName of workspaces 2-10 (carve-out below). When copying the live file
+# displayName of workspaces 2-11 (carve-out below). When copying the live file
 # back, drop the changes to that key first: they are triage's runtime labels
 # ("F1 dotfiles"), not config.
 #
@@ -87,7 +93,7 @@
 # In short: OmniWM mixes config and derived state in one file with no marker
 # distinguishing them, so the safe default is to track everything verbatim.
 #
-# One carve-out: the displayName of workspaces 2-10 is runtime state owned by
+# One carve-out: the displayName of workspaces 2-11 is runtime state owned by
 # the triage skill (project labels like "F1 dotfiles"). When the seed is
 # re-installed, it is carried over from the live file instead of reset, so a
 # rebuild never undoes a triage run. To change it, edit the live file or re-run
@@ -127,7 +133,7 @@ in
       # Only overwrite when the tracked seed itself changed, so settings saved
       # from OmniWM's UI survive unrelated rebuilds.
       #
-      # Even then, the pool workspaces (2-10) keep their live displayName:
+      # Even then, the pool workspaces (2-11) keep their live displayName:
       # those are the triage skill's runtime project labels, and a seed change
       # elsewhere must not reset them. If the merge
       # fails for any reason, fall back to the plain seed. Losing labels is
@@ -136,7 +142,7 @@ in
         OW_NEW="$OW_SEED"
         OW_MERGED=""
         if [ -n "$DRY_RUN_CMD" ]; then
-          echo "would install $OW_SEED to $OW_FILE, keeping workspace 2-10 labels"
+          echo "would install $OW_SEED to $OW_FILE, keeping workspace 2-11 labels"
         else
           if [ -f "$OW_FILE" ]; then
             OW_MERGED="$(${pkgs.coreutils}/bin/mktemp)"

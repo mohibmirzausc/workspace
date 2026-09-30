@@ -122,8 +122,8 @@ sketchybar \
 #
 # Keyed by WM number (the bridge emits WM_WORKSPACE as the active workspace's
 # raw name/number); workspace.sh highlights the active one. Monitor pinning
-# lives in OmniWM's config, not here: ws1-5 -> the external display if
-# attached, ws6-10 -> the laptop (see programs/omniwm.nix).
+# lives in OmniWM's config, not here: ws1-5 and ws11 -> the external display
+# if attached, ws6-10 -> the laptop (see programs/omniwm.nix).
 # Plain digits by CHOICE, not by limitation. PUA glyphs do render correctly
 # here now (confirmed on screen after the move to DepartureMono Nerd Font);
 # the long-standing "\uf0b1 renders as literal text" problem is resolved, and
