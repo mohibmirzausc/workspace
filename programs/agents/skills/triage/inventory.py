@@ -110,7 +110,7 @@ def live_titles():
     titles = {}
     if os.access(CG_TITLES, os.X_OK):
         try:
-            out = subprocess.run([CG_TITLES], capture_output=True, text=True, timeout=5)
+            out = subprocess.run([CG_TITLES], capture_output=True, text=True, errors="replace", timeout=5)
         except (OSError, subprocess.TimeoutExpired):
             return titles  # OmniWM's own (stale) titles are the fallback
         for line in out.stdout.splitlines():

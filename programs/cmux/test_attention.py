@@ -131,22 +131,22 @@ def sessions(*rows, active=None):
 class Waiting(unittest.TestCase):
     def test_needs_input(self):
         doc = sessions(("s1", "A", "needsInput", 1), ("s2", "B", "running", 2), ("s3", "C", "idle", 3))
-        self.assertEqual(a.waiting_workspaces(doc, {"A", "B", "C"}, alive=lambda p: True), {"A"})
+        self.assertEqual(a.waiting_workspaces(doc, {"A", "B", "C"}, alive=lambda p, st: True), {"A"})
 
     def test_closed_workspace_does_not_count(self):
         doc = sessions(("s1", "A", "needsInput", 1))
-        self.assertEqual(a.waiting_workspaces(doc, {"B"}, alive=lambda p: True), set())
+        self.assertEqual(a.waiting_workspaces(doc, {"B"}, alive=lambda p, st: True), set())
 
     def test_superseded_session_does_not_count(self):
         # The store keeps an old session that asked a question, then a new
         # session took over the workspace (the case seen live).
         doc = sessions(("old", "A", "needsInput", 1), ("new", "A", "running", 2),
                        active={"A": {"sessionId": "new"}})
-        self.assertEqual(a.waiting_workspaces(doc, {"A"}, alive=lambda p: True), set())
+        self.assertEqual(a.waiting_workspaces(doc, {"A"}, alive=lambda p, st: True), set())
 
     def test_dead_process_does_not_count(self):
         doc = sessions(("s1", "A", "needsInput", 1))
-        self.assertEqual(a.waiting_workspaces(doc, {"A"}, alive=lambda p: False), set())
+        self.assertEqual(a.waiting_workspaces(doc, {"A"}, alive=lambda p, st: False), set())
 
     def test_malformed_store(self):
         for doc in (None, [], {"sessions": []}, {"sessions": {"x": None}},
@@ -156,6 +156,16 @@ class Waiting(unittest.TestCase):
     def test_alive_real_pid(self):
         self.assertTrue(a._alive(os.getpid()))
         self.assertTrue(a._alive(None))
+        me = a._started(os.getpid())
+        self.assertIsNotNone(me)
+        self.assertTrue(a._alive(os.getpid(), me))
+
+    def test_reused_pid_is_not_alive(self):
+        # Same pid, different start time: another process took the pid.
+        self.assertFalse(a._alive(os.getpid(), 1000.0, started=lambda p: 5000.0))
+        self.assertTrue(a._alive(os.getpid(), 5001.0, started=lambda p: 5000.0))
+        # Start time unknown: fall back to the bare pid check.
+        self.assertTrue(a._alive(os.getpid(), 1000.0, started=lambda p: None))
 
 
 class Unread(unittest.TestCase):
@@ -225,6 +235,20 @@ class Hook(unittest.TestCase):
         out = json.loads(a.rewrite(raw, self.state(), None, None))
         self.assertEqual(out["notification"]["subtitle"], 'Caps+F1 dotfiles · "quoted"\nline two ✳ 日本')
 
+    def test_output_is_ascii_even_with_lone_surrogate(self):
+        raw = '{"notification": {"workspaceId": "A", "subtitle": "s", "body": "cut \\ud83d here"}}'
+        out = a.rewrite(raw, self.state(), None, None)
+        out.encode("ascii")  # would raise if a surrogate leaked through unescaped
+        self.assertEqual(json.loads(out)["notification"]["body"], "cut \ud83d here")
+
+    def test_hook_process_passes_bad_bytes_through(self):
+        import subprocess
+        import sys
+        for data in (b'{"notification": {"subtitle": "\xff"}}', b"", b"not json"):
+            out = subprocess.run([sys.executable, a.__file__, "hook"], input=data,
+                                 capture_output=True, timeout=10)
+            self.assertEqual((out.returncode, out.stdout), (0, data))
+
     def test_odd_shapes_are_unchanged(self):
         for raw in ("[]", "{}", '{"notification": 3}', "null"):
             self.assertEqual(a.rewrite(raw, self.state(), None, None), raw)
@@ -244,6 +268,16 @@ class Jump(unittest.TestCase):
         self.assertIsNone(a.pick_notification(notes, {"C"}))
         self.assertIsNone(a.pick_notification(None, {"A"}))
         self.assertIsNone(a.pick_notification([{"workspace_id": "A", "is_read": False}], {"A"}))
+
+
+    def test_waiting_without_unread_goes_to_its_window(self):
+        state = {"workspaces": {"A": {"window": "W1", "ws": 8}, "B": {"window": "W2", "ws": 3},
+                                "C": {"window": None, "ws": 1}},
+                 "need": {"workspaces": ["A", "B", "C", "gone"]}}
+        self.assertEqual(a.pick_waiting(state), ("W2", "B"))
+        self.assertIsNone(a.pick_waiting({"need": {"workspaces": []}}))
+        self.assertIsNone(a.pick_waiting(None))
+        self.assertIsNone(a.pick_waiting({"need": [], "workspaces": []}))
 
 
 class Debounce(unittest.TestCase):

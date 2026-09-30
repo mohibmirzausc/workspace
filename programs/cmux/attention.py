@@ -183,7 +183,8 @@ def map_workspaces(tree, ow_windows, ow_workspaces, cg):
     ambiguous or finds nothing, or inventory.py is not installed.
     """
     labels = workspace_labels(ow_workspaces)
-    by_title = inventory.cmux_by_title(ow_windows or [], cg or {}) if inventory else {}
+    ow_windows = [w for w in ow_windows if isinstance(w, dict)] if isinstance(ow_windows, list) else []
+    by_title = inventory.cmux_by_title(ow_windows, cg if isinstance(cg, dict) else {}) if inventory else {}
     out = {}
     for win in (tree or {}).get("windows") or []:
         if not isinstance(win, dict):
@@ -200,7 +201,25 @@ def map_workspaces(tree, ow_windows, ow_workspaces, cg):
     return out
 
 
-def _alive(pid):
+def _started(pid):
+    """Epoch seconds the process `pid` started, or None if unknown."""
+    try:
+        out = subprocess.run(["/bin/ps", "-o", "lstart=", "-p", str(pid)],
+                             capture_output=True, text=True, timeout=2,
+                             env=dict(os.environ, LC_ALL="C", LANG="C"))
+        return time.mktime(time.strptime(out.stdout.strip(), "%a %b %d %H:%M:%S %Y"))
+    except (OSError, ValueError, OverflowError, subprocess.SubprocessError):
+        return None
+
+
+def _alive(pid, started_at=None, started=_started):
+    """Is the process that recorded this session still running?
+
+    A bare pid check is not enough: pids get reused, and a session whose
+    Claude exited would keep counting as waiting for as long as some other
+    process held its old pid. cmux records the start time (pidStartSeconds),
+    so a process with that pid but another start time is a different one.
+    """
     if type(pid) is not int or pid <= 0:
         return True  # no pid recorded: nothing says it is dead
     try:
@@ -208,8 +227,12 @@ def _alive(pid):
     except ProcessLookupError:
         return False
     except OSError:
-        return True  # EPERM: exists, owned by someone else
-    return True
+        pass  # EPERM: exists, owned by someone else
+    if type(started_at) not in (int, float):
+        return True
+    actual = started(pid)
+    # ps prints whole seconds; allow for that and a DST-edge wobble.
+    return actual is None or abs(actual - started_at) <= 2
 
 
 def waiting_workspaces(sessions_doc, live, alive=_alive):
@@ -222,10 +245,12 @@ def waiting_workspaces(sessions_doc, live, alive=_alive):
         if not isinstance(s, dict) or s.get("agentLifecycle") != "needsInput":
             continue
         ws = s.get("workspaceId")
+        if not isinstance(ws, str):
+            continue
         cur = active.get(ws)
         if ws not in live or not isinstance(cur, dict) or cur.get("sessionId") != sid:
             continue
-        if alive(s.get("pid")):
+        if alive(s.get("pid"), s.get("pidStartSeconds")):
             out.add(ws)
     return out
 
@@ -234,7 +259,8 @@ def unread_workspaces(notifications, live):
     """cmux workspace ids with at least one unread notification."""
     out = set()
     for n in notifications if isinstance(notifications, list) else []:
-        if isinstance(n, dict) and n.get("is_read") is False and n.get("workspace_id") in live:
+        if (isinstance(n, dict) and n.get("is_read") is False and isinstance(n.get("workspace_id"), str)
+                and n["workspace_id"] in live):
             out.add(n["workspace_id"])
     return out
 
@@ -291,8 +317,10 @@ def omniwm(what, timeout, *args):
     doc = run_json([OMNIWMCTL, "query", what, *args, "--json"], timeout)
     if not isinstance(doc, dict) or not doc.get("ok"):
         return None
-    payload = (doc.get("result") or {}).get("payload") or {}
-    return payload.get(what) if isinstance(payload, dict) else None
+    result = doc.get("result")
+    payload = result.get("payload") if isinstance(result, dict) else None
+    got = payload.get(what) if isinstance(payload, dict) else None
+    return got if isinstance(got, list) else None
 
 
 def read_json(path):
@@ -360,39 +388,56 @@ def rewrite(raw, state, ow_windows, ow_workspaces):
     if not where:
         return raw
     note["subtitle"] = prefix_subtitle(note.get("subtitle"), where)
-    return json.dumps(doc, ensure_ascii=False)
+    return json.dumps(doc)  # ASCII-escaped; see hook()
+
+
+def _emit(data):
+    """Write bytes to stdout, ignoring a pipe cmux already closed."""
+    try:
+        view = memoryview(data)
+        while view:
+            view = view[os.write(1, view):]
+    except OSError:
+        pass
 
 
 def hook():
-    raw = ""
-    done = [False]
+    """Print the policy back, with the location if one can be found.
+
+    Bytes in, bytes out: the fallback is always the ORIGINAL bytes, so
+    input that is not UTF-8 or not JSON passes through untouched rather
+    than becoming an empty or re-encoded reply. stdin is read in full
+    before the watchdog starts; cmux writes it and closes, and if it ever
+    did not, its own timeout is the only thing that can end that wait. The
+    rewrite is ASCII-escaped JSON, which survives lone surrogates that a
+    UTF-8 encode would choke on.
+    """
+    try:
+        raw = sys.stdin.buffer.read()
+    except Exception:
+        raw = b""
 
     def give_up(*_):
-        if not done[0]:
-            done[0] = True
-            sys.stdout.write(raw)
-            sys.stdout.flush()
+        _emit(raw)
         os._exit(0)
 
     signal.signal(signal.SIGALRM, give_up)
     signal.alarm(HOOK_BUDGET)
-    try:
-        raw = sys.stdin.read()
-    except Exception:
-        give_up()
     out = raw
     try:
+        text = raw.decode("utf-8")
         state = read_json(STATE_FILE)
         if state:
-            out = rewrite(raw, state,
+            new = rewrite(text, state,
                           omniwm("windows", 0.4, "--fields", "id,workspace"),
                           omniwm("workspaces", 0.4))
+            if new is not text:
+                out = new.encode("ascii")
     except Exception:
         out = raw
     signal.alarm(0)
-    done[0] = True
-    sys.stdout.write(out)
-    sys.stdout.flush()
+    _emit(out)
+    os._exit(0)
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +504,13 @@ def drawn(state):
 
 
 def refresh(previous):
-    state = compute(previous)
+    try:
+        state = compute(previous)
+    except Exception as exc:
+        # Malformed output from cmux or OmniWM must not kill the daemon
+        # (launchd would restart it, but the bar would sit stale meanwhile).
+        log("refresh failed:", repr(exc))
+        return previous
     if state is None:
         # cmux is down or refusing us: say nothing rather than leave a stale
         # "needs you" on the bar.
@@ -517,10 +568,10 @@ def daemon():
                 if not chunk:
                     code = proc.wait()
                     proc = None
-                    # --reconnect rides out a cmux restart itself; the CLI
-                    # only exits when it cannot connect at all (not running,
-                    # or "Access denied" under socketControlMode cmuxOnly).
-                    # A stream that died at once backs off.
+                    # --reconnect rides out cmux quitting and restarting by
+                    # itself; the CLI does exit when the socket refuses it
+                    # ("Access denied" under socketControlMode cmuxOnly). A
+                    # stream that died at once backs off.
                     backoff = 1.0 if time.monotonic() - started > 60 else min(backoff * 2, 60)
                     log(f"cmux events exited ({code}); retrying in {backoff:.0f}s")
                     previous = refresh(previous)
@@ -555,25 +606,50 @@ def pick_notification(notifications, need):
     return best["id"] if best else None
 
 
+def pick_waiting(state):
+    """(cmux window, workspace) of a waiting session, lowest OmniWM workspace
+    first, for when none of the waiting sessions has an unread notification
+    (you glanced at it but did not answer)."""
+    st = state if isinstance(state, dict) else {}
+    spots = st.get("workspaces") if isinstance(st.get("workspaces"), dict) else {}
+    need = ((st.get("need") or {}).get("workspaces") or []) if isinstance(st.get("need"), dict) else []
+    found = [(spots[w].get("ws") or 99, w, spots[w].get("window")) for w in need
+             if isinstance(w, str) and isinstance(spots.get(w), dict)
+             and isinstance(spots[w].get("window"), str)]
+    if not found:
+        return None
+    _, ws, win = min(found)
+    return win, ws
+
+
 def jump():
     """Go to a session that is waiting for me, else to the latest unread one.
 
     `cmux jump-to-unread` alone takes the NEWEST unread notification, which
     is often a session that merely finished while another sits blocked on a
-    question. So a waiting session's notification is opened first; both
-    commands focus the cmux window, and OmniWM follows focus to its
-    workspace. Any failure falls back to plain jump-to-unread.
+    question. So a waiting session's unread notification is opened first; if
+    it has none (already read, not answered), its window and workspace are
+    selected directly. All of these focus the cmux window, and OmniWM follows
+    focus to its workspace. Any failure falls back to plain jump-to-unread.
     """
+    def ok(*args):
+        return subprocess.run([CMUX, *args], capture_output=True, timeout=5).returncode == 0
+
     try:
-        need = set(((read_json(STATE_FILE) or {}).get("need") or {}).get("workspaces") or [])
-        nid = pick_notification(run_json([CMUX, "--json", "list-notifications"], 3), need) if need else None
-        if nid and subprocess.run([CMUX, "open-notification", "--id", nid],
-                                  capture_output=True, timeout=5).returncode == 0:
-            return 0
+        state = read_json(STATE_FILE) or {}
+        need = set(((state.get("need") or {}).get("workspaces")) or [])
+        if need:
+            nid = pick_notification(run_json([CMUX, "--json", "list-notifications"], 3), need)
+            if nid and ok("open-notification", "--id", nid):
+                return 0
+            spot = pick_waiting(state)
+            if spot and ok("focus-window", "--window", spot[0]) \
+                    and ok("select-workspace", "--workspace", spot[1], "--window", spot[0]):
+                return 0
     except Exception:
         pass
     try:
-        return subprocess.run([CMUX, "jump-to-unread"], capture_output=True, timeout=5).returncode
+        return 0 if ok("jump-to-unread") else 1
     except (OSError, subprocess.SubprocessError):
         return 1
 
