@@ -115,7 +115,8 @@ sketchybar \
   --add event wm_workspace_changed \
   --add event wm_windows_changed \
   --add event wm_focus_changed \
-  --add event meeting_refreshed
+  --add event meeting_refreshed \
+  --add event cmux_attention_changed
 
 # ---------------------------------------------------------------------------
 # Left: workspaces as glyph-only pills (no text label).
@@ -233,7 +234,8 @@ sketchybar --add bracket window_group win.lell $WIN_ITEMS win.rell \
 sketchybar --add item win.driver left \
   --set win.driver drawing=off updates=on \
   script="$PLUGINS/wm_window_list.sh" \
-  --subscribe win.driver wm_windows_changed wm_focus_changed wm_workspace_changed
+  --subscribe win.driver wm_windows_changed wm_focus_changed wm_workspace_changed \
+    cmux_attention_changed
 
 # Recolour the JankyBorders focus border when the focused window is a
 # scratchpad. Invisible driver item, same pattern as win.driver above: this
@@ -350,6 +352,47 @@ sketchybar --add item meeting right \
   click_script="$PLUGINS/meeting.sh click" \
   --subscribe meeting meeting_refreshed system_woke
 
+# Claude sessions that need you. attn.need is a red bell with the number of
+# sessions waiting for input and the Caps keys of the workspaces they are on
+# ("2 F1 4" = two waiting, reach them with Caps+F1 and Caps+4); attn.done is
+# the same for sessions that finished with an unread notification. Both hide
+# at zero. Fed by the cmux-attention agent (programs/cmux/attention.py) via
+# cmux_attention_changed; cmux_attention.sh renders both from attn.need.
+#
+# On the RIGHT, innermost, rather than beside the window island: the left
+# side's notch budget has ~80pt to spare with three full pills (see the
+# WIDTH BUDGET note above), and this can reach ~100pt. The right island has
+# a few hundred points free.
+#
+# updates=on because an item with drawing=off is "not shown", and the
+# when_shown default would then never run the script that turns it back on.
+#
+# Click: jump to a waiting session (else the newest unread one); Caps+U does
+# the same from any app (programs/karabiner.nix). Falls back to plain
+# `cmux jump-to-unread` when WM_ATTENTION_CMD is unset (a hand-run bar).
+ATTN_JUMP="${WM_ATTENTION_CMD:+$WM_ATTENTION_CMD jump}"
+ATTN_JUMP="${ATTN_JUMP:-cmux jump-to-unread}"
+ATTN_NEED_ICON=$'\xef\x83\xb3'   # nf-fa-bell U+F0F3 (raw bytes: see APPS_ICON)
+ATTN_DONE_ICON=$'\xef\x80\x8c'   # nf-fa-check U+F00C
+sketchybar --add item attn.done right \
+  --set attn.done \
+  drawing=off \
+  icon="$ATTN_DONE_ICON" \
+  icon.padding_right=4 \
+  label.padding_left=0 \
+  click_script="cmux jump-to-unread"
+sketchybar --add item attn.need right \
+  --set attn.need \
+  drawing=off \
+  updates=on \
+  update_freq=60 \
+  icon="$ATTN_NEED_ICON" \
+  icon.padding_right=4 \
+  label.padding_left=0 \
+  script="$PLUGINS/cmux_attention.sh" \
+  click_script="$ATTN_JUMP" \
+  --subscribe attn.need cmux_attention_changed system_woke
+
 # ---------------------------------------------------------------------------
 # Split the bar into two rounded islands. Brackets draw a background spanning
 # their member items; the bar itself is transparent, so this yields a left
@@ -362,7 +405,7 @@ sketchybar --add bracket left_group space.1 space.2 space.3 space.4 \
   background.corner_radius=9 \
   background.height=30
 
-sketchybar --add bracket right_group apps battery time meeting \
+sketchybar --add bracket right_group apps battery time meeting attn.done attn.need \
   --set right_group \
   background.drawing=on \
   background.color="$COLOR_BG" \

@@ -21,6 +21,12 @@
 #   wm_windows_changed     WM_BACKEND WM_WORKSPACE WM_WINDOW_COUNT
 #   wm_focus_changed       WM_BACKEND WM_WORKSPACE WM_APP WM_TITLE
 #
+# A fourth event, cmux_attention_changed, comes from a second feed: the
+# cmux-attention agent (programs/cmux/attention.py, launchd agent in
+# darwin.nix) announces Claude sessions that need input or finished unread.
+# It drives the attn.need / attn.done items and the pill colours in
+# plugins/wm_window_list.sh, both read from ~/.cache/cmux-attention/state.json.
+#
 # REQUIRES OMNIWM IPC. bridge.sh runs `omniwmctl subscribe workspace-bar`,
 # which needs the socket at ~/Library/Caches/com.barut.OmniWM/ipc.sock. On
 # OmniWM 0.6.10 `general.ipcEnabled = true` in settings.toml is NOT sufficient
