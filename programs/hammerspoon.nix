@@ -35,4 +35,12 @@
   home.file.".hammerspoon/init.lua" = lib.mkIf pkgs.stdenv.isDarwin {
     source = ./hammerspoon/init.lua;
   };
+
+  # Diagnostic, expected to be removed once the culprit is known: HUDs every
+  # microphone input-volume change. Something lowers it over time (seen at 36%
+  # then 10% in one session) and darwin.nix already notes that Krisp, Zoom,
+  # Tandem and Tuple all do it without restoring.
+  home.file.".hammerspoon/mic-volume-hud.lua" = lib.mkIf pkgs.stdenv.isDarwin {
+    source = ./hammerspoon/mic-volume-hud.lua;
+  };
 }
