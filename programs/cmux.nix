@@ -17,6 +17,12 @@
 # and stable across cmux default changes.
 
 let
+  # Where a waiting session is: see programs/cmux/attention.py. The same file
+  # is the notification hook below and the cmux-attention launchd agent in
+  # darwin.nix, which feeds the sketchybar indicator.
+  attention = "${config.home.homeDirectory}/.config/cmux/attention.py";
+  python = "${pkgs.python3}/bin/python3";
+
   cmuxConfig = {
     "$schema" = "https://raw.githubusercontent.com/manaflow-ai/cmux/main/web/data/cmux.schema.json";
     schemaVersion = 1;
@@ -51,6 +57,22 @@ let
     notifications = {
       dockBadge = true;
       sound = "Funk";
+
+      # Put the OmniWM location in front of every notification's subtitle:
+      #   "Completed in dotfiles" -> "Caps+F1 dotfiles · Completed in dotfiles"
+      # so a banner says which Caps chord reaches the session. The hook gets
+      # the policy JSON on stdin and prints it back. A hook that fails, times
+      # out or prints bad JSON makes cmux fall back to the default AND post a
+      # failure alert, so attention.py echoes its input unchanged on every
+      # error and gives up by itself after 1s -- well inside this timeout. It
+      # typically takes ~70ms (a state-file read plus two OmniWM queries).
+      hooks = [
+        {
+          id = "omniwm-location";
+          command = "${python} ${attention} hook";
+          timeoutSeconds = 3;
+        }
+      ];
     };
 
     sidebar = {
@@ -68,7 +90,27 @@ let
     # #1e1e2e) instead of the system window color, so the two don't clash.
     sidebarAppearance.matchTerminalBackground = true;
 
-    automation.workspaceAutoNaming = true;
+    automation = {
+      workspaceAutoNaming = true;
+
+      # Let processes that cmux did not start use its socket. The default,
+      # cmuxOnly, admits only cmux's own descendants; run from a launchd job
+      # every command fails with "Access denied - only processes started
+      # inside cmux can connect" (checked with `launchctl submit`). Three
+      # things live outside cmux and need it: the cmux-attention agent
+      # (`cmux events`, `tree`, `list-notifications`), the sketchybar
+      # indicator's click, and the Caps+U chord in Karabiner (both
+      # `cmux jump-to-unread`).
+      #
+      # "automation" is cmux's mode for this: "Allow external local
+      # automation clients from this macOS user (no ancestry check)". Other
+      # users still cannot connect. What it gives up is ancestry as a gate
+      # between this user's own processes, and anything running as me can
+      # already type into my terminals, so that gate protected little. The
+      # stricter "password" mode would need the password on disk, where the
+      # same processes could read it.
+      socketControlMode = "automation";
+    };
 
     canvas.paneGap = 20;
 
@@ -87,4 +129,9 @@ in
 {
   home.file.".config/cmux/cmux.json".text =
     builtins.toJSON cmuxConfig;
+
+  home.file.".config/cmux/attention.py" = {
+    source = ./cmux/attention.py;
+    executable = true;
+  };
 }

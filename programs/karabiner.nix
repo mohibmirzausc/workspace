@@ -194,6 +194,35 @@
                 ];
               }
               {
+                description = "Caps Lock+U → jump to the Claude session that needs you";
+                # Runs programs/cmux/attention.py's `jump`: the newest unread
+                # notification of a session waiting for input, else plain
+                # `cmux jump-to-unread` (the newest unread of any kind). cmux
+                # focuses that window and OmniWM follows focus to its
+                # workspace, so this crosses workspaces and monitors.
+                #
+                # Here rather than in OmniWM because OmniWM hotkeys run only
+                # its own actions, not a shell command. Caps+U was free:
+                # nothing in omniwm/settings.toml, this file or hammerspoon's
+                # init.lua (whose ctrl+alt+cmd binds ARE Caps chords) uses U.
+                # An OmniWM binding added for Caps+U later would never fire:
+                # this rule consumes the key before OmniWM sees it.
+                #
+                # Needs cmux's socketControlMode = "automation" (see
+                # programs/cmux.nix): Karabiner is not a cmux descendant.
+                # Absolute paths because shell_command runs with a minimal PATH.
+                manipulators = [
+                  {
+                    type = "basic";
+                    from = {
+                      key_code = "u";
+                      modifiers.mandatory = [ "control" "option" "command" ];
+                    };
+                    to = [{ shell_command = "${pkgs.python3}/bin/python3 ${config.home.homeDirectory}/.config/cmux/attention.py jump"; }];
+                  }
+                ];
+              }
+              {
                 description = "Caps Lock+- = [ ] → OmniWM resize in both niri and dwindle";
                 # OmniWM's niri resize (set*Span) and dwindle resize
                 # (resizeGrow/Shrink.*) are separate actions, and it refuses to

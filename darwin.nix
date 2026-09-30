@@ -99,6 +99,10 @@ let
     WM_BORDER_WIDTH = bordersWidth;
     WM_BORDER_COLOR = bordersActive;
     WM_BORDER_COLOR_SCRATCH = bordersScratch;
+    # The attention script (programs/cmux/attention.py) as a command, for the
+    # attn.need item's click in sketchybarrc. Nix python by absolute path for
+    # the same reason as WM_BORDERS_BIN.
+    WM_ATTENTION_CMD = "${pkgs.python3}/bin/python3 ${home}/.config/cmux/attention.py";
 
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
@@ -696,6 +700,33 @@ in
       KeepAlive = true;
       StandardOutPath = "${home}/Library/Logs/sketchybar-bridge.log";
       StandardErrorPath = "${home}/Library/Logs/sketchybar-bridge.log";
+    };
+  };
+
+  # cmux -> SketchyBar attention feed. Follows `cmux events` and keeps
+  # ~/.cache/cmux-attention/state.json current (which sessions need input,
+  # which finished unread, and on which OmniWM workspace), then triggers
+  # cmux_attention_changed for the bar. See programs/cmux/attention.py.
+  #
+  # Needs cmux's socketControlMode = "automation" (programs/cmux.nix): a
+  # launchd job is not a cmux descendant, so the default mode refuses it.
+  #
+  # KeepAlive only on a non-zero exit: the daemon exits 0 when cmux or
+  # sketchybar is not installed, and launchd should leave it stopped then
+  # rather than respawn it every 10s. Everything else (cmux quitting, the
+  # event stream dropping) is retried inside the daemon, which never exits.
+  launchd.user.agents.cmux-attention = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.python3}/bin/python3"
+        "${home}/.config/cmux/attention.py"
+        "daemon"
+      ];
+      EnvironmentVariables = sketchybarEnv;
+      RunAtLoad = true;
+      KeepAlive = { SuccessfulExit = false; };
+      StandardOutPath = "${home}/Library/Logs/cmux-attention.log";
+      StandardErrorPath = "${home}/Library/Logs/cmux-attention.log";
     };
   };
 

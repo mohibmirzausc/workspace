@@ -46,16 +46,20 @@ _bar_q=$(sketchybar --query bar 2>/dev/null || true)
 SLOTS=$(printf '%s' "$_bar_q" | grep -c '"win\.[0-9]*"' 2>/dev/null || echo "$MAXW")
 unset _bar_q
 case "$SLOTS" in (*[!0-9]*|''|0) SLOTS="$MAXW" ;; esac
-# No FG here: pills are either focused (ONACC on an ACC background) or
-# unfocused (DIM), so the normal foreground colour is never used. Nor
-# APPFONT -- the app-icon glyph was dropped when the pill started showing
-# the session name, so the pills set icon.drawing=off and the label font
-# comes from sketchybarrc's --default.
-DIM="${COLOR_DIM:-0xff7f849c}"
+# Pills are focused (ONACC on an ACC background) or unfocused (DIM). FG and
+# RED only mark an unfocused pill whose window has a Claude session that
+# finished unread / needs input (see ATTN_STATE). No APPFONT -- the app-icon
+# glyph was dropped when the pill started showing the session name, so the
+# pills set icon.drawing=off and the label font comes from sketchybarrc's
+# --default.
+DIM="${COLOR_DIM:-0xff7f849c}"; FG="${COLOR_FG:-0xffcdd6f4}"; RED="${COLOR_RED:-0xfff38ba8}"
 ACC="${COLOR_ACCENT:-0xffcba6f7}"; ONACC="${COLOR_ON_ACCENT:-0xff1e1e2e}"
 BG="${COLOR_BG:-0xee1e1e2e}"; FONT="${WM_BAR_FONT:-Menlo}"
 # Built from helpers/window-titles.swift by a home-manager activation script.
 CGTITLES="${CGTITLES_BIN:-$HOME/.config/sketchybar/helpers/window-titles}"
+# Written by the cmux-attention agent (programs/cmux/attention.py). Missing
+# or stale is fine: every pill just renders as before.
+ATTN_STATE="${CMUX_ATTENTION_DIR:-$HOME/.cache/cmux-attention}/state.json"
 
 # ---- single-flight with coalescing ----
 # Clear anything at $LOCK that is not a live lock. Tested against -e AND -L so
@@ -137,7 +141,7 @@ render() {
   # file or the new one.
   local pyf tmpf; pyf="$CACHE/win_parse.py"; tmpf="$pyf.$$"
   cat > "$tmpf" <<'PY'
-import sys, json, re, os
+import sys, json, re, os, time
 
 try:
     d = json.load(sys.stdin)
@@ -249,23 +253,44 @@ def clean(title, app):
         return ''
     return t
 
+# ---- sessions that need you ----------------------------------------------
+# OmniWM window id -> "need" (a Claude session in it waits for input) or
+# "unread" (one finished and nobody has looked), from the cmux-attention
+# agent's state file (programs/cmux/attention.py). Ignored once older than
+# 120s: the agent rewrites it every 30s, so an old file means it is dead and
+# its colours would be lies.
+ATTN = {}
+try:
+    p = os.environ.get('ATTN_STATE', '')
+    if p and time.time() - os.path.getmtime(p) < 120:
+        with open(p, 'r') as fh:
+            got = json.load(fh).get('windows')
+        if isinstance(got, dict):
+            ATTN = got
+except Exception:
+    pass
+
 for w in cw:
     a = w.get('app') or {}
     an = (a.get('name') if isinstance(a, dict) else a) or '?'
     raw = LIVE.get(w.get('windowId')) or w.get('title')
     t = clean(raw, an)
+    # Never empty ("-"): tab is IFS whitespace, so an empty middle field
+    # would collapse and shift the title into this column.
+    at = ATTN.get(str(w.get('id', '')))
+    at = at if at in ('need', 'unread') else '-'
     print('\t'.join([str(w.get('id', '')), an,
-                     ('1' if w.get('isFocused') else '0'), t]))
+                     ('1' if w.get('isFocused') else '0'), at, t]))
 PY
   mv -f "$tmpf" "$pyf" 2>/dev/null || { rm -f "$tmpf"; return; }
 
   rows=$(omniwmctl query windows --format json 2>/dev/null \
-    | CG_TITLES="$titlemap" python3 "$pyf")
+    | CG_TITLES="$titlemap" ATTN_STATE="$ATTN_STATE" python3 "$pyf")
 
-  local ids=() apps=() focs=() titles=() fidx=0 i=0
-  while IFS=$'\t' read -r id app foc title; do
+  local ids=() apps=() focs=() attns=() titles=() fidx=0 i=0
+  while IFS=$'\t' read -r id app foc attn title; do
     [ -n "$id" ] || continue
-    ids+=("$id"); apps+=("$app"); focs+=("$foc"); titles+=("$title")
+    ids+=("$id"); apps+=("$app"); focs+=("$foc"); attns+=("$attn"); titles+=("$title")
     [ "$foc" = "1" ] && fidx=$i
     i=$((i+1))
   done <<< "$rows"
@@ -331,8 +356,17 @@ PY
           background.drawing=on background.color="$ACC"
           click_script="omniwmctl window focus ${ids[$j]}")
       else
+        # Unfocused pills are DIM, except a window holding a Claude session
+        # that needs you (red) or finished unread (full foreground), the same
+        # colours as the attn.need / attn.done items on the right. The
+        # focused pill keeps its accent: you are already there.
+        case "${attns[$j]}" in
+          (need) pc="$RED" ;;
+          (unread) pc="$FG" ;;
+          (*) pc="$DIM" ;;
+        esac
         args+=(--set "win.$k" drawing=on icon.drawing=off
-          label="$pill" label.color="$DIM" label.font="$FONT:Regular:13.0"
+          label="$pill" label.color="$pc" label.font="$FONT:Regular:13.0"
           background.drawing=off
           click_script="omniwmctl window focus ${ids[$j]}")
       fi

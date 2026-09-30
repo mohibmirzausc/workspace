@@ -109,7 +109,10 @@ def app_name(w):
 def live_titles():
     titles = {}
     if os.access(CG_TITLES, os.X_OK):
-        out = subprocess.run([CG_TITLES], capture_output=True, text=True)
+        try:
+            out = subprocess.run([CG_TITLES], capture_output=True, text=True, errors="replace", timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            return titles  # OmniWM's own (stale) titles are the fallback
         for line in out.stdout.splitlines():
             num, _, title = line.partition("\t")
             if num.isdigit():
@@ -119,6 +122,37 @@ def live_titles():
 
 def ws_number(ow_window):
     return (ow_window.get("workspace") or {}).get("number")
+
+
+def cmux_by_title(ow_windows, cg):
+    """title -> OmniWM cmux windows carrying it (live title, else OmniWM's).
+
+    Shared with ~/.config/cmux/attention.py (programs/cmux/attention.py), which
+    uses the same join to say which workspace a waiting session is on.
+    """
+    by_title = {}
+    for w in ow_windows:
+        if app_name(w) != "cmux":
+            continue
+        title = cg.get(w.get("windowId"), w.get("title") or "")
+        by_title.setdefault(title, []).append(w)
+    return by_title
+
+
+def match_title(name, by_title):
+    """(match, omniwm window or None, candidate workspaces, maybe on 1) for
+    the cmux window titled `name`. match is "ok", "ambiguous" or "none"."""
+    # An empty name is no identity: it would pair with any untitled window.
+    matches = by_title.get(name, []) if name else []
+    match = "ok" if len(matches) == 1 else ("ambiguous" if matches else "none")
+    ow = matches[0] if match == "ok" else None
+    # Every workspace this window could be on. For an unmatched window the
+    # answer is "unknown", which must be treated as "maybe workspace 1".
+    spots = {ws_number(m) for m in matches}
+    candidates = sorted(spots - {None})
+    # A candidate with no workspace could be anywhere, including 1.
+    maybe_user = (not candidates) or USER_WORKSPACE in candidates or None in spots
+    return match, ow, candidates, maybe_user
 
 
 def collect():
@@ -139,13 +173,7 @@ def collect():
     ow_workspaces = omniwm("workspaces")["workspaces"]
     cg = live_titles()
 
-    # title -> OmniWM cmux windows carrying it (live title, else OmniWM's).
-    by_title = {}
-    for w in ow_windows:
-        if app_name(w) != "cmux":
-            continue
-        title = cg.get(w.get("windowId"), w.get("title") or "")
-        by_title.setdefault(title, []).append(w)
+    by_title = cmux_by_title(ow_windows, cg)
 
     windows = []
     for win in tree["windows"]:
@@ -157,16 +185,7 @@ def collect():
         focused = next((s for s in surfaces if s.get("selected")), surfaces[0] if surfaces else {})
 
         name = sel.get("title") or ""
-        # An empty name is no identity: it would pair with any untitled window.
-        matches = by_title.get(name, []) if name else []
-        match = "ok" if len(matches) == 1 else ("ambiguous" if matches else "none")
-        ow = matches[0] if match == "ok" else None
-        # Every workspace this window could be on. For an unmatched window the
-        # answer is "unknown", which must be treated as "maybe workspace 1".
-        spots = {ws_number(m) for m in matches}
-        candidates = sorted(spots - {None})
-        # A candidate with no workspace could be anywhere, including 1.
-        maybe_user = (not candidates) or USER_WORKSPACE in candidates or None in spots
+        match, ow, candidates, maybe_user = match_title(name, by_title)
 
         msg = sel.get("latest_submitted_message") or ""
         windows.append({
