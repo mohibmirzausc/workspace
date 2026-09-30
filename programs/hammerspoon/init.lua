@@ -204,4 +204,9 @@ end
 -- nowhere in karabiner.nix nor in any of OmniWM's 188 hotkeys.
 hs.hotkey.bind({ "ctrl", "alt", "cmd" }, "h", M.hangUp)
 
+-- Diagnostic: HUD on every microphone input-volume change. Temporary, to find
+-- what keeps lowering it. See mic-volume-hud.lua.
+M.micVolumeHud = require("mic-volume-hud")
+M.micVolumeHud.start()
+
 return M
