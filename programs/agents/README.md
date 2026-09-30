@@ -113,6 +113,34 @@ Prefer a CLI plus a skill over an MCP tool for anything with a plain HTTP API:
 it works in both harnesses and costs context only when relevant. See
 `docs/pi/mcp-porting.md`.
 
+## Claude plugins in Pi
+
+Pi has no plugin system, but a Claude plugin that is *only skills* ports
+fine — Pi implements the same Agent Skills standard.
+
+**Momentum** is the worked example. Its plugin is a skill plus a
+`momentum-api` script over the HTTP API (no MCP), and its credentials live in
+`~/.momentum/credentials`, which is harness-independent. Both agents use the
+same login.
+
+It needs two steps rather than one:
+
+```bash
+pi install git:github.com/mechanical-orchard/momentum-tracker
+homeswitch   # links the skill into ~/.pi/agent/skills
+```
+
+The second step exists because that repo keeps the skill at
+`plugins/momentum/skills/momentum` rather than a top-level `skills/`, and
+ships no `pi` manifest — so Pi's package auto-discovery misses it. Verified:
+without the link the skill is absent from `pi`'s skill list; with it,
+`momentum` appears and works against the live API.
+
+`home.activation.linkMomentumSkillForPi` creates that link. Do **not** point
+it at Claude's plugin cache instead: that path embeds the plugin version
+(`.../momentum/0.23.1/`) and old versions are orphaned on upgrade, so it
+would break silently on the next bump.
+
 ## Pi-specific notes
 
 Pi's binary comes from the `pi-coding-agent` brew in `darwin.nix`

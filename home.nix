@@ -273,6 +273,41 @@ in
     $DRY_RUN_CMD mkdir -p "${htmlPagesDir}"
   '';
 
+  # Momentum for Pi.
+  #
+  # Momentum is a Claude *plugin* (declared in programs/claude/settings.json),
+  # but the plugin is only a skill plus a `momentum-api` script over the HTTP
+  # API -- no MCP -- so Pi can use it unchanged. Credentials live in
+  # ~/.momentum/credentials, which is harness-independent and shared.
+  #
+  # Two things stop it working out of the box:
+  #
+  #   * Claude's copy lives in ~/.claude/plugins/cache/.../momentum/0.23.1/,
+  #     a path that changes on every plugin upgrade and whose old versions are
+  #     orphaned -- so linking to it would break silently on the next bump.
+  #     Instead the repo is installed as a pi package:
+  #         pi install git:github.com/mechanical-orchard/momentum-tracker
+  #
+  #   * That repo keeps the skill at plugins/momentum/skills/momentum rather
+  #     than a top-level skills/, and ships no `pi` manifest, so Pi's package
+  #     auto-discovery does not find it. Verified: without this link the skill
+  #     is absent from `pi`'s skill list; with it, `momentum` appears.
+  #
+  # The link is created here rather than by hand so it is declared and
+  # reproducible. ~/.pi/agent/skills is a real directory whose entries are
+  # individually symlinked by home-manager, so an extra sibling survives
+  # activation. Skipped quietly when the package is not installed.
+  home.activation.linkMomentumSkillForPi = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    MOMENTUM_SKILL="$HOME/.pi/agent/git/github.com/mechanical-orchard/momentum-tracker/plugins/momentum/skills/momentum"
+    if [ -d "$MOMENTUM_SKILL" ]; then
+      $DRY_RUN_CMD mkdir -p "$HOME/.pi/agent/skills"
+      $DRY_RUN_CMD ln -sfn "$MOMENTUM_SKILL" "$HOME/.pi/agent/skills/momentum"
+    else
+      echo "note: momentum pi package not installed; skipping Pi skill link"
+      echo "      pi install git:github.com/mechanical-orchard/momentum-tracker"
+    fi
+  '';
+
   # Clone agentic practice logs repository if it doesn't exist
   home.activation.cloneLogsRepo = lib.hm.dag.entryAfter ["writeBoundary"] ''
     LOGS_DIR="$HOME/.claude/claude_accessible/agentic-practice-logs"
