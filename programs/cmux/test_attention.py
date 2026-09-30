@@ -33,11 +33,12 @@ def tree(*windows):
 
 class Keys(unittest.TestCase):
     def test_digits_then_function_keys(self):
-        self.assertEqual([a.key_for(n) for n in range(1, 11)],
-                         ["1", "2", "3", "4", "5", "F1", "F2", "F3", "F4", "F5"])
+        self.assertEqual([a.key_for(n) for n in range(1, 12)],
+                         ["1", "2", "3", "4", "5", "F1", "F2", "F3", "F4", "F5",
+                          "6"])
 
     def test_out_of_range_is_none(self):
-        for n in (0, 11, None, "6", 6.0, True):
+        for n in (0, 12, None, "6", 6.0, True):
             self.assertIsNone(a.key_for(n))
 
     def test_location(self):

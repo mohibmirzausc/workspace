@@ -113,13 +113,15 @@ def log(*parts):
 
 def key_for(n):
     """The Caps chord's key for OmniWM workspace n: 1-5 are digits, 6-10 are
-    F1-F5 (programs/karabiner.nix)."""
+    F1-F5, and 11 is 6 (programs/karabiner.nix)."""
     if type(n) is not int:
         return None
     if 1 <= n <= 5:
         return str(n)
     if 6 <= n <= 10:
         return f"F{n - 5}"
+    if n == 11:
+        return "6"
     return None
 
 
