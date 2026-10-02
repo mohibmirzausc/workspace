@@ -36,6 +36,12 @@
     ]
   },
   "extraKnownMarketplaces": {
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    },
     "momentum-tracker": {
       "source": {
         "source": "github",
