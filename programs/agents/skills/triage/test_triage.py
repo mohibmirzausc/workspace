@@ -1756,6 +1756,42 @@ class OmniwmRestartTests(unittest.TestCase):
         state.append({"kind": "undo", "undoes": b["ts"], "complete": True})
         self.assertEqual((state.last_omniwm(), spots()), (x, {"a": 3}))
 
+    def test_a_plan_from_before_the_restart_is_refused(self):
+        # OmniWM keeps every id, so a plan drafted before it restarted still
+        # names every window; it must not log the pile as their home.
+        with self.settled() as d:
+            stale = full_plan(d)
+            d.omniwm_restart(on=6)
+            code, out = apply.apply(stale, dry=False)
+            self.assertEqual(code, 2, out)
+            self.assertTrue(any("restorable to" in p for p in out["refused"]), out)
+            self.assertEqual(self.verdict(d), (True, 6, "omniwm"))
+            # Declining one is still possible, with a reason.
+            plan = self.restores(d, a={"action": "stay", "reason": "the user keeps it here"})
+            self.assertEqual(apply.apply(plan, dry=False)[0], 0)
+            self.assertEqual(d.ws_of("a"), 6)
+
+    def test_omniwm_instance_reads_this_users_process_in_utc(self):
+        calls = []
+
+        def fake(cmd, **kw):
+            calls.append((cmd, kw["env"]))
+            if pgrep_out is None:  # undecodable output
+                raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+            out = {"pgrep": pgrep_out, "ps": "Fri Oct  2 18:59:02 2026  \n"}[cmd[0]]
+            return type("R", (), {"stdout": out})()
+        real = inventory.subprocess.run
+        inventory.subprocess.run = fake
+        try:
+            for pgrep_out, want in (("88009\n", {"pid": 88009, "started": "Fri Oct  2 18:59:02 2026"}),
+                                    ("", None), ("1\n2\n", None), ("x\n", None), ("\u00b2\n", None), (None, None)):
+                calls.clear()
+                self.assertEqual(inventory.omniwm_instance(), want, pgrep_out)
+            self.assertEqual(calls[0][0][:4], ["pgrep", "-x", "-U", str(os.getuid())])
+            self.assertEqual((calls[0][1]["TZ"], calls[0][1]["LC_ALL"]), ("UTC0", "C"))
+        finally:
+            inventory.subprocess.run = real
+
     def test_cmux_restart_is_still_cmux(self):
         with self.settled() as d:
             d.restart(on=6)
@@ -1769,7 +1805,7 @@ class OmniwmRestartTests(unittest.TestCase):
     def test_no_logged_instance_says_nothing(self):
         # Entries from before the instance was logged, a malformed one, or
         # OmniWM not found now: no OmniWM evidence either way.
-        for logged in (None, "100", {"pid": "100", "started": "x"}, {"pid": 100}, {"pid": 0, "started": "x"},
+        for logged in (None, "100", {"pid": "100", "started": "x"}, {"pid": 100}, {"pid": 0, "started": "x"}, {"pid": 2**40, "started": "x"},
                        {"pid": 100, "started": ""}, {"pid": True, "started": "x"},
                        {"pid": 100, "started": "x", "extra": 1}):
             with self.subTest(logged=logged), self.settled() as d:
@@ -1849,8 +1885,9 @@ class OmniwmRestartTests(unittest.TestCase):
             self.assertEqual(apply.apply(self.restores(d), dry=False)[0], 0)
             self.assertEqual(apply.undo(dry=False)[0], 0)
             self.assertEqual(set(self.where(d).values()), {6})
-            # The undone run's OmniWM doesn't count; the one before it does,
-            # and the undo's placements carry every window it put back.
+            # The undo logged the OmniWM it ran under (the current one), so
+            # the restart is over; its placements carry every window it put
+            # back, which is what offers them again.
             inv = d.collect()
             self.assertEqual({w["name"]: w["restore_to"] for w in inv["windows"] if w["restore_to"]},
                              {n: ws for n, ws in self.HOME.items() if ws != 6})

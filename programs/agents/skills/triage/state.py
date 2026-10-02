@@ -152,7 +152,7 @@ def last_omniwm():
     at = _placements_at(log)
     ow = log[at].get("omniwm") if at is not None else None
     if (isinstance(ow, dict) and set(ow) == {"pid", "started"} and type(ow["pid"]) is int
-            and ow["pid"] > 0 and isinstance(ow["started"], str) and ow["started"]):
+            and 0 < ow["pid"] < 2**31 and isinstance(ow["started"], str) and ow["started"]):
         return {"pid": ow["pid"], "started": ow["started"]}
     return None
 

@@ -120,12 +120,16 @@ that back:
   name. Runs from before OmniWM was logged can't show an OmniWM restart.
   After an OmniWM restart, a window the user dragged onto N by hand since
   the last run can't be told from a piled one, so it may be offered back
-  too; that's one more reason each restore is listed. Windows bound for 1 don't count toward the two, so a pile elsewhere
-  never moves a window onto 1 on their say-so alone. The price: a restart
+  too; that's one more reason each restore is listed. The OmniWM signal
+  also holds until the next run logs the new OmniWM, so if OmniWM restarted
+  without piling and the user later crowded one workspace, that reads as a
+  pile too. Windows bound for 1 don't count toward the two, so a pile
+  elsewhere never moves a window onto 1 on their say-so alone. The price: a restart
   that brings back only one window, or that follows a run with many
   windows opened since, isn't detected; the user moves those by hand. With
   no restart, `restart_workspace` and `restart_kind` are `null`. If the
-  windows look piled (most on one workspace) but `restart` is false, say so and
+  windows look piled (most on one workspace, and most `new` or the user
+  says OmniWM just restarted) but `restart` is false, say so and
   ask before applying anything: every run logs each window where it is, so
   after one more run the log no longer knows where the piled ones belonged.
 - `restore_to` / `restore_from`: the workspace `restore` would put this
@@ -139,8 +143,14 @@ that back:
 Restores are part of the plan, so they share the one go-ahead in step 5.
 Show them first, one line each, from the pile to the workspace
 (`a work  7 → 3`), and ask as part of that go-ahead: "cmux restarted and
-piled N windows on workspace 7: restore them to their workspaces?" (say
-"OmniWM restarted" when `restart_kind` is `"omniwm"`) On a yes,
+piled N windows on workspace 7: restore them to their workspaces?" Say
+"OmniWM restarted" when `restart_kind` is `"omniwm"`. When `restart` is
+false, or `restart_kind` is `"cmux"` but none of the windows with a
+`restore_to` reads `new`, they are left over from an earlier restart (a
+restore that failed, or an undo that put them back): say "an earlier
+restart left N windows on workspace 7" instead, and don't name cmux or
+OmniWM. Word it as an offer, not a certainty: the evidence is
+circumstantial. On a yes,
 each window with a `restore_to` gets `{"id": "<id>", "action": "restore"}`.
 `restore` takes no `to` (or exactly its `restore_to`) and no `rename`. Put
 the restores first in the plan too.
@@ -164,7 +174,9 @@ off it (`a  1 → 3 (your workspace)`, a pile on 1) or onto it
 onto 1 last, apart from the rest, and ask about them separately: "and put
 `jan` back on your workspace 1?" To
 decline one, plan it like any window on the pile (it isn't on 1, so not
-`skip`; `stay` needs a reason, since it reads `new`). The log knows only
+`skip`; `stay` needs a reason: `apply.py` refuses a `stay` without one for
+any window with a `restore_to`, so a plan drafted before an OmniWM restart,
+which keeps every id, can't log the pile as home). The log knows only
 where a window was, not why: after a pile on 1, windows left there
 (declined restores, or a restart that wasn't detected) are recorded on 1
 too, so a later pile elsewhere offers them onto 1. That's why each one is
@@ -176,9 +188,10 @@ Everything else gets a normal decision, as in any run:
   there. If the pile is 1, that means `skip`. That covers windows that were
   on the pile before the restart (`last_workspace` is the pile), windows
   with no usable `last_workspace` (a new name, or one shared by two
-  windows), and windows the user dragged onto the pile (same id as last
-  run). If the pile is a pool workspace or review, they `stay`, `move` or go
-  to `review` as usual (they read `new`, so `stay` needs a reason). Say
+  windows), and, after a cmux restart, windows the user dragged onto the
+  pile (same id as last run). If the pile is a pool workspace or review,
+  they `stay`, `move` or go to `review` as usual (after a cmux restart they
+  read `new`, so `stay` needs a reason). Say
   which ones, so the user can move them by hand if they want;
 - if the user says no to the restores, every window on the pile gets the
   same normal decision. A declined restore is forgotten: the next run won't
@@ -255,8 +268,8 @@ Write the plan as JSON: **one entry for every window in the inventory.**
     `maybe_user_workspace: true`. That's a window whose title collides with
     another, so it can't be located and might be on workspace 1. Skipped
     windows can't be renamed.
-  - `stay` keeps the window where it is. A flagged window can `stay` only
-    with a `reason`.
+  - `stay` keeps the window where it is. A flagged window (`new`,
+    `misplaced`, or with a `restore_to`) can `stay` only with a `reason`.
 - **Only matched, tiled windows move.** A window whose `omniwm_match` isn't
   `ok` can only `stay`. Give it a unique `rename` so it matches, and it can
   move on the next run. `floating` and `scratchpad` windows never move.

@@ -32,7 +32,9 @@ Validation (refusals name the window):
     on 1) and the one way onto it (for a window the log last saw on 1, when
     the pile is elsewhere). Anything else on 1 is still "skip";
   * renames are unique across the resulting set of names;
-  * a window flagged new or misplaced may stay, but only with a "reason".
+  * a window flagged new or misplaced, or one with a restore_to, may stay,
+    but only with a "reason" (a plan drafted before an OmniWM restart, which
+    keeps every id, is refused rather than logging the pile as home).
 
 Execution: renames, a fresh inventory, then every move is re-checked against
 it (still not on workspace 1, still uniquely matched; a restore: still on the
@@ -176,6 +178,8 @@ def validate(plan, inv):
         if "reason" in e and not isinstance(e["reason"], str):
             problems.append(f"{name!r}: 'reason' must be a string")
         flags = [f for f in ("new", "misplaced") if w.get(f)]
+        if w.get("restore_to") is not None and action != "restore":
+            flags.append(f"restorable to {w['restore_to']}")
         if flags and action == "stay" and not (isinstance(e.get("reason"), str) and e["reason"].strip()):
             problems.append(f"{name!r} is flagged {' and '.join(flags)}: 'stay' is fine but needs a 'reason'")
         if "rename" in e and e["rename"] != name:

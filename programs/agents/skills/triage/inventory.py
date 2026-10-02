@@ -93,18 +93,21 @@ def omniwm(*args):
 
 
 def omniwm_instance():
-    """OmniWM's process as {"pid", "started"}, or None if there isn't exactly
-    one or ps can't say. The pid alone can be reused; with its start time it
-    names one run of OmniWM, which is what an OmniWM restart changes."""
-    env = dict(os.environ, LC_ALL="C")  # a stable lstart format
+    """This user's OmniWM process as {"pid", "started"}, or None if there
+    isn't exactly one or ps can't say. The pid alone can be reused; with its
+    start time it names one run of OmniWM, which is what an OmniWM restart
+    changes."""
+    # lstart is printed in local time: pinned to UTC, or a timezone change
+    # (travel, a shell with TZ set) would read as a restart. C for its format.
+    env = dict(os.environ, LC_ALL="C", TZ="UTC0")
     try:
-        pids = subprocess.run(["pgrep", "-x", "OmniWM"], capture_output=True, text=True,
-                              env=env, timeout=5).stdout.split()
-        if len(pids) != 1 or not pids[0].isdigit():
+        pids = subprocess.run(["pgrep", "-x", "-U", str(os.getuid()), "OmniWM"], capture_output=True,
+                              text=True, env=env, timeout=5).stdout.split()
+        if len(pids) != 1 or not (pids[0].isascii() and pids[0].isdigit()):
             return None
         started = subprocess.run(["ps", "-o", "lstart=", "-p", pids[0]], capture_output=True,
                                  text=True, env=env, timeout=5).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, ValueError, subprocess.SubprocessError):
         return None
     return {"pid": int(pids[0]), "started": started} if started else None
 
