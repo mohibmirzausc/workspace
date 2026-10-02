@@ -27,8 +27,9 @@ triage's: every workspace is niri, set in the seed.
 
 - **Workspace 1 is the user's.** Never move a window into it or out of it,
   and never relabel it. Report what is there, but leave it alone.
-  The one exception is a cmux restart, which dumps every window on 1:
-  `restore` puts each back where the last run left it (see
+  The one exception is a cmux restart, which piles every window onto one
+  workspace (1, or whichever one the user was on): `restore` puts each back
+  where the last run left it, which can mean off 1 or back onto it (see
   [Restart recovery](#restart-recovery)).
 - **The pool is workspaces 2-9 and 11.** Projects are allocated from it.
   11 is numbered after review but sits with 1-5 on the external monitor
@@ -83,52 +84,79 @@ keeping it in place takes a stated `reason` (step 5).
 For each workspace it gives its label, layout, tiled count, non-cmux apps,
 and `project_repos`. The inventory also reports `current_workspace`.
 
-It also reports `restart` (top level) and each window's `last_workspace` and
-`restore_to`, for [Restart recovery](#restart-recovery). If `restart` is true,
-or any window has a `restore_to`, recover first.
+It also reports `restart` and `restart_workspace` (top level) and each
+window's `last_workspace`, `restore_to` and `restore_from`, for
+[Restart recovery](#restart-recovery). If `restart` is true, or any window
+has a `restore_to`, recover first.
 
 ### Restart recovery
 
-cmux restarts often. Afterwards every window is on workspace 1 and has a new
-`id`, so every window reads `new`; names survive. Each run logs where every
+cmux restarts often. Afterwards every window is piled on one workspace, the
+**pile**, and has a new `id`, so every window reads `new`; names survive.
+The pile is usually the workspace the user was looking at, so it can be any
+of 1-11 (on 2026-09-30 all 12 windows landed on 7). Each run logs where every
 window ended up, by name, and the inventory reads that back:
 
 - `last_workspace`: where the last run left this window. It's `null` when
   the window's name isn't unique now, the log doesn't know the name, or the
   log says the name was another repo's.
-- `restart: true`: most windows are on 1 with new ids, but the last run left
-  most of them elsewhere.
-- `restore_to`: the workspace `restore` would put this window on, or `null`.
-  It's set for a window on 1 with a new id whose `last_workspace` is 2-11,
-  during a restart. It's also set for a window whose approved restore failed
-  last time, even if `restart` is now false.
+- `restart: true` and `restart_workspace: N`: at least 75% of the cmux
+  windows (and at least 3) are on workspace N, and most of those have new ids
+  and were left elsewhere by the last run. A busy project workspace whose
+  windows kept their ids is not a restart. With no restart,
+  `restart_workspace` is `null`.
+- `restore_to` / `restore_from`: the workspace `restore` would put this
+  window on, and the pile it takes it from, or `null`. They're set for a
+  window on the pile with a new id whose `last_workspace` is any other
+  workspace, during a restart. They're also set for a window whose approved
+  restore failed last time, while it is still on that pile, even if
+  `restart` is now false. A window the log already put on the pile gets
+  none: it's home.
 
 Restores are part of the plan, so they share the one go-ahead in step 5.
-Show them first, one line each (`a work  1 → 3`), and ask as part of that
-go-ahead: "cmux restarted: restore these N windows to their workspaces?" On
-a yes, each window with a `restore_to` gets
-`{"id": "<id>", "action": "restore"}`. `restore` takes no `to` (or exactly
-its `restore_to`) and no `rename`. Put the restores first in the plan too.
+Show them first, one line each, from the pile to the workspace
+(`a work  7 → 3`), and ask as part of that go-ahead: "cmux restarted and
+piled N windows on workspace 7: restore them to their workspaces?" On a yes,
+each window with a `restore_to` gets `{"id": "<id>", "action": "restore"}`.
+`restore` takes no `to` (or exactly its `restore_to`) and no `rename`. Put
+the restores first in the plan too.
+
+**Restores and workspace 1.** A pile on 1 is the one way a window leaves 1.
+A pile elsewhere is the one way a window goes *onto* 1: a window the last
+run left on 1 gets `restore_to: 1`, because the restart took the user's own
+window off their workspace, and putting it back is what they'd do by hand.
+Nothing else ever goes onto 1. Call these out in the restore list
+(`jan  7 → 1 (your workspace)`), so the user can say no to them alone. To
+decline one, plan it like any window on the pile (it isn't on 1, so not
+`skip`; `stay` needs a reason, since it reads `new`).
 
 Everything else gets a normal decision, as in any run:
 
-- a window on 1 with no `restore_to` is `skip`. That covers windows that were
-  on 1 before the restart (`last_workspace` 1), windows with no usable
-  `last_workspace` (a new name, or one shared by two windows), and windows
-  the user dragged onto 1 (same id as last run). Say which ones, so the user
-  can move them by hand;
-- if the user says no to the restores, every window on 1 is `skip`. A
-  declined restore is forgotten: the next run won't offer it again;
-- windows already off 1 are planned as usual.
+- a window on the pile with no `restore_to` is planned like any window
+  there. If the pile is 1, that means `skip`. That covers windows that were
+  on the pile before the restart (`last_workspace` is the pile), windows
+  with no usable `last_workspace` (a new name, or one shared by two
+  windows), and windows the user dragged onto the pile (same id as last
+  run). If the pile is a pool workspace or review, they `stay`, `move` or go
+  to `review` as usual (they read `new`, so `stay` needs a reason). Say
+  which ones, so the user can move them by hand if they want;
+- if the user says no to the restores, every window on the pile gets the
+  same normal decision. A declined restore is forgotten: the next run won't
+  offer it again;
+- windows off the pile, including any on 1 when the pile is elsewhere, are
+  planned as usual (`skip` on 1).
 
-`apply.py` refuses a restore unless the window has a `restore_to` and is on
-1, uniquely matched and uniquely named, and goes to that workspace. Floating
-and scratchpad windows are refused too, so `skip` them. It re-checks all of
-this against a fresh inventory right before moving each window. Undo moves
-restored windows back to 1, and they can be restored again afterwards. An
-approved restore that fails keeps its `restore_to`, so the next run can
-offer it again. Re-applying a restore plan after it ran reports `already on
-N`.
+`apply.py` refuses a restore unless the window has a `restore_to`, is still
+on its `restore_from`, is uniquely matched and uniquely named, and goes to
+that workspace. Floating and scratchpad windows are refused too. It
+re-checks all of this against a fresh inventory right before moving each
+window. Undo moves restored windows back to the pile they came off (back
+onto 1 only if the pile was 1, off 1 only if the restore put them there),
+with the same name and id checks, and they can be restored again
+afterwards. An approved restore that fails keeps its `restore_to`, so the
+next run can offer it again. Re-applying a restore plan after it ran reports
+`already on N`, except for a window it put on 1: that one is on 1 now, so
+the re-applied plan is refused until it's `skip`.
 
 ### 2. Group windows into projects
 
@@ -221,7 +249,8 @@ python3 <this skill's directory>/apply.py --dry-run /tmp/triage-plan.json
 If it prints `refused`, fix the plan. Every problem names its window. Then
 show the user:
 
-- **Restores**, after a restart, one line each: `a work  1 → 3`.
+- **Restores**, after a restart, one line each, pile to workspace:
+  `a work  7 → 3`. Mark any onto 1: `jan  7 → 1 (your workspace)`.
 - **Moves**, one line each: `alloc misc  6 → 2  (misplaced: internal-allocations on F1 dotfiles)`.
   Put these first after any restores, so none gets lost in a table.
 - **Flagged windows that stay**, each with its reason.
@@ -275,8 +304,10 @@ python3 <this skill's directory>/apply.py --undo
 ```
 
 It reverses the most recent run that changed something: labels, then layouts,
-then moves and restores, then renames. Undoing a restore is the one time
-triage moves a window onto workspace 1, and only a window it restored.
+then moves and restores, then renames. Undoing a restore moves the window
+back onto the pile it came off. That is the one time an undo moves a window
+onto workspace 1 (the pile was 1) or off it (the restore put it there), and
+only a window that restore moved, still under the same name.
 Only runs from before every workspace was niri logged layouts. If the dry
 run would set one to dwindle, ask the user first.
 

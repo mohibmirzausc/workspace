@@ -11,14 +11,14 @@ Entry shape:
    "undoes": ts, "complete": bool          (undo only)
    "renames":  [{"id", "cmux_workspace", "from", "to"}],
    "moves":    [{"id", "name", "from", "to"}],
-   "restores": [{"id", "name", "from", "to"}],   (from 1 after a restart; undo: back to 1)
+   "restores": [{"id", "name", "from", "to"}],   (from the restart pile; undo: back to it)
    "layouts":  [{"workspace", "from", "to"}],
    "labels":   [{"workspace", "from", "to"}],
    "projects": [{"workspace", "label", "repos"}],   (apply only; not undone)
    "failed":   ["what failed"],
    "snapshot": [window ids the run decided on],
    "placements": [{"name", "workspace", "repo",
-                   "carried"?, "unverified"?}]}   (every cmux window after the run)
+                   "carried"?, "pile"?, "unverified"?}]}   (every cmux window after the run)
 
 `projects` records which repos each planned label stands for, on every run,
 whether or not the label changed. That is how later runs learn a workspace's
@@ -26,11 +26,13 @@ project, including for labels set before this log existed.
 
 `placements` is where every cmux window was when the run ended, keyed by name
 because names survive a cmux restart and window ids don't. After a restart
-every window lands on workspace 1; the last placements say where each one
-belongs, so they can be restored. A window still on workspace 1 only because
-of a restart (its approved restore failed, or an undo put it back or left it
-there) is recorded at the workspace it belongs on, marked "carried", so one
-partial run doesn't erase it; a restore the user declined is forgotten. A
+every window lands on one workspace, the pile (whichever one the user was
+on: 1, 7, ...); the last placements say where each one belongs, so they can
+be restored. A window still on the pile only because of a restart (its
+approved restore failed, or an undo put it back or left it there) is recorded
+at the workspace it belongs on, marked "carried", with "pile" the workspace
+it is stuck on, so one partial run doesn't erase it; a restore the user
+declined is forgotten. Entries from before "pile" was logged were all on 1. A
 window that can't be located when the run ends keeps its previous placement,
 marked "unverified".
 """
@@ -172,8 +174,9 @@ def label_repos(current_labels):
 
 
 def last_placements():
-    """{name: {"workspace", "repo", "carried"}} from the most recent standing
-    entry with placements.
+    """{name: {"workspace", "repo", "carried", "pile"}} from the most recent
+    standing entry with placements. "pile" is the workspace a carried window
+    is stuck on (1 for entries from before it was logged), else None.
 
     Undone applies don't count (the undo's own placements follow them), but
     abandoned ones do: abandoning changes nothing on screen. A name recorded
@@ -197,8 +200,13 @@ def last_placements():
                 dupes.add(name)
                 spots.pop(name, None)
             elif type(n) is int and 1 <= n <= 11:
+                pile = p.get("pile", 1)
+                # A carried window with a malformed pile can't say where it
+                # is stuck, so it isn't carried.
+                carried = (p.get("carried") is True and type(pile) is int
+                           and 1 <= pile <= 11 and pile != n)
                 spots[name] = {"workspace": n, "repo": repo if isinstance(repo, str) else None,
-                               "carried": p.get("carried") is True}
+                               "carried": carried, "pile": pile if carried else None}
             else:
                 dupes.add(name)  # known to exist, but not where
         return spots
