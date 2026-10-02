@@ -105,6 +105,7 @@ in
     # Agent CLI tools that stand in for MCP servers -- see
     # programs/agents/tools/default.nix for why.
     (callPackage ./programs/agents/tools {} ).sc
+    (callPackage ./programs/agents/tools {} ).pi-bootstrap
     # Pi itself is installed via Homebrew (see darwin.nix homebrew.brews) so it
     # stays current automatically. It shells out to rg/fd; providing them on
     # PATH here skips Pi's runtime download of those tools.
