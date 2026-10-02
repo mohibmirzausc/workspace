@@ -17,11 +17,12 @@
 # and stable across cmux default changes.
 
 let
-  # Where a waiting session is: see programs/cmux/attention.py. The same file
-  # is the notification hook below and the cmux-attention launchd agent in
-  # darwin.nix, which feeds the sketchybar indicator.
-  attention = "${config.home.homeDirectory}/.config/cmux/attention.py";
-  python = "${pkgs.python3}/bin/python3";
+  # Where a waiting session is: see programs/cmux/attention.py. The same
+  # command is the notification hook below and the cmux-attention launchd
+  # agent in darwin.nix, which feeds the sketchybar indicator. A store path,
+  # not a ~/.config link, for the reason in programs/cmux/default.nix.
+  attentionPkg = pkgs.callPackage ./cmux { };
+  attention = "${attentionPkg}/bin/cmux-attention";
 
   cmuxConfig = {
     "$schema" = "https://raw.githubusercontent.com/manaflow-ai/cmux/main/web/data/cmux.schema.json";
@@ -69,7 +70,7 @@ let
       hooks = [
         {
           id = "omniwm-location";
-          command = "${python} ${attention} hook";
+          command = "${attention} hook";
           timeoutSeconds = 3;
         }
       ];
@@ -130,8 +131,6 @@ in
   home.file.".config/cmux/cmux.json".text =
     builtins.toJSON cmuxConfig;
 
-  home.file.".config/cmux/attention.py" = {
-    source = ./cmux/attention.py;
-    executable = true;
-  };
+  # On PATH for hand runs: `cmux-attention snapshot`.
+  home.packages = [ attentionPkg ];
 }

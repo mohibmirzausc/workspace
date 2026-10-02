@@ -138,7 +138,7 @@ def ws_number(ow_window):
 def cmux_by_title(ow_windows, cg):
     """title -> OmniWM cmux windows carrying it (live title, else OmniWM's).
 
-    Shared with ~/.config/cmux/attention.py (programs/cmux/attention.py), which
+    Shared with programs/cmux/attention.py (the cmux-attention command), which
     uses the same join to say which workspace a waiting session is on.
     """
     by_title = {}
