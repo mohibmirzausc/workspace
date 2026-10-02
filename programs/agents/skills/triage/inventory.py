@@ -25,17 +25,26 @@ a careful read of the table:
   * home: the pool workspace that already holds this repo's windows, if it is
     not the one the window is on.
 
-And it spots a cmux restart, which puts every window on workspace 1 and gives
-each a new id (names survive):
+And it spots a cmux restart, which piles every window onto one workspace
+(whichever the user was on: 1, 7, anything) and gives each a new id (names
+survive):
 
   * last_workspace: where the last triage run left the window, by name; None
     if its name isn't unique now, the log doesn't know it, or the log says
     it was another repo.
-  * restart (top level): most windows are on workspace 1 with new ids, but
-    the last run left most of those elsewhere.
-  * restore_to: the workspace apply.py may "restore" this window to, or None.
-    Set for a window on 1 with a new id (or one the log carried) whose
-    last_workspace is 2-11, during a restart, or if the log carried it.
+  * restart (top level): at least 75% of the cmux windows (and at least 3)
+    are on one workspace, the pile; at least 75% of those have new ids; at
+    least 75% of the new ones with unique names are names the log knows; and
+    at least two of them were left by the last run on a workspace other than
+    the pile and 1. restart_workspace (top level) is the pile's number, or
+    None when there is no restart. During a restart, misplaced and home are
+    None for windows on the pile.
+  * restore_to / restore_from: the workspace apply.py may "restore" this
+    window to, and the one it takes it from (the pile), or None. Set for a
+    window on the pile with a new id whose last_workspace is any other
+    workspace (1-11), during a restart; or for a window the log carried (its
+    approved restore didn't happen, or an undo put it back), while it is
+    still the same window (id) on the pile it was carried from.
 """
 
 import json
@@ -53,8 +62,10 @@ USER_WORKSPACE = 1
 REVIEW_WORKSPACE = 10
 # 2-9 and 11: 11 was added after 10 (review), on the external monitor.
 POOL = set(range(2, 10)) | {11}
-# A restart: at least this many cmux windows, at least this share on 1.
-RESTART_MIN_WINDOWS, RESTART_SHARE = 3, 0.75
+# A restart: at least this many cmux windows, at least this share on one
+# workspace (the pile) and renewed on it, and at least this many of them back
+# from elsewhere (not counting any bound for 1).
+RESTART_MIN_WINDOWS, RESTART_SHARE, RESTART_MIN_BACK = 3, 0.75, 2
 
 
 def run(*cmd):
@@ -226,9 +237,10 @@ def collect():
     } for ws in ow_workspaces]
 
     flag(windows, workspaces)
-    restart = recovery(windows)
+    pile = recovery(windows)
     current = next((ws["number"] for ws in ow_workspaces if ws.get("isCurrent")), None)
-    return {"current_workspace": current, "restart": restart, "windows": windows, "workspaces": workspaces}
+    return {"current_workspace": current, "restart": pile is not None, "restart_workspace": pile,
+            "windows": windows, "workspaces": workspaces}
 
 
 def flag(windows, workspaces):
@@ -276,34 +288,78 @@ def flag(windows, workspaces):
         w["misplaced"] = reason
 
 
+def located(w):
+    """The workspace a window is on: its own, or, for a title shared by
+    several windows all on one workspace, that one. None if unknown."""
+    if w["omniwm_workspace"] is not None:
+        return w["omniwm_workspace"]
+    candidates = w.get("omniwm_candidates") or []
+    # maybe_user_workspace with a lone candidate other than 1 means one of
+    # the windows sharing the title has no workspace: it could be anywhere.
+    if len(candidates) == 1 and (candidates[0] == USER_WORKSPACE or not w.get("maybe_user_workspace")):
+        return candidates[0]
+    return None
+
+
 def recovery(windows):
-    """Add last_workspace and restore_to to each window; return whether cmux
-    just restarted. Call after flag(), which sets "new"."""
+    """Add last_workspace, restore_to and restore_from to each window; return
+    the workspace a cmux restart piled the windows onto, or None if it didn't
+    just restart. Call after flag(): during a restart it clears misplaced and
+    home on the pile."""
     last = state.last_placements()
+    ids = state.last_ids()
     names = Counter(w["name"] for w in windows)
     for w in windows:
         p = last.get(w["name"]) if w["name"] and names[w["name"]] == 1 else None
         if p and p["repo"] and w.get("repo") and p["repo"] != w["repo"]:
             p = None  # the name was reused for other work
         w["last_workspace"] = p["workspace"] if p else None
-        w["_carried"] = bool(p and p["carried"])
-    # A title shared by several windows all on 1 still puts each of them on 1.
-    on_one = [w for w in windows if w["omniwm_workspace"] == USER_WORKSPACE
-              or (w["omniwm_workspace"] is None and w.get("omniwm_candidates") == [USER_WORKSPACE])]
-    # A restart gives every window a new id. A window the user dragged onto 1
-    # keeps its id, so it doesn't count (unless the log carried it: it was on
-    # 1 only because of a restart when the last run ended).
-    came_back = [w for w in on_one if w["last_workspace"] not in (None, USER_WORKSPACE)
-                 and (w.get("new") is True or w["_carried"])]
+        # Carried: on the pile only because of a restart when the last run
+        # ended (see state.py); it counts only while still on that pile, and
+        # only for the same window (its id), not a new one reusing the name.
+        # Entries from before ids were logged never sent a window to 1.
+        same = p and (p["id"] == w["id"] if p["id"] is not None else p["workspace"] != USER_WORKSPACE)
+        w["_carried"] = p["pile"] if p and p["carried"] and same else None
+
+    # The pile: the one workspace holding at least RESTART_SHARE of the
+    # windows (more than half, so there is at most one).
+    spots = Counter(located(w) for w in windows if located(w) is not None)
+    pile, count = spots.most_common(1)[0] if spots else (None, 0)
+    on_pile = [w for w in windows if pile is not None and located(w) == pile]
+    # A restart gives every window a new id, so nearly all of the pile must
+    # be new. A window the user dragged onto the pile keeps its id, so it
+    # doesn't count (unless the log carried it: it was on the pile only
+    # because of a restart when the last run ended). The ids are the last
+    # run's, even an undone one: an undo doesn't change which windows exist.
+    renewed = [w for w in on_pile if (ids is not None and w["id"] not in ids) or w["_carried"] == pile]
+    # A restart keeps names, so nearly all of the renewed windows the log can
+    # identify (a name shared now identifies nothing) must be ones it knows:
+    # new windows with new names are just new windows.
+    named = [w for w in renewed if names[w["name"]] == 1]
+    known = [w for w in named if w["last_workspace"] is not None]
+    # The windows that live on the pile (often most of them: it is the
+    # workspace the user was on) are renewed too, but only the ones the log
+    # left elsewhere came back. Those bound for 1 are what a pile elsewhere
+    # would move onto the user's workspace, so they don't count as evidence.
+    came_back = [w for w in renewed if w["last_workspace"] not in (None, pile)]
+    evidence = [w for w in came_back if w["last_workspace"] != USER_WORKSPACE]
     restart = (len(windows) >= RESTART_MIN_WINDOWS
-               and len(on_one) >= RESTART_SHARE * len(windows)
-               and 2 * len(came_back) > len(on_one))
+               and count >= RESTART_SHARE * len(windows)
+               and len(renewed) >= RESTART_SHARE * len(on_pile)
+               and len(known) >= RESTART_SHARE * len(named)
+               and len(evidence) >= RESTART_MIN_BACK)
     for w in windows:
-        ok = (w in came_back and w["omniwm_workspace"] == USER_WORKSPACE and w["omniwm_match"] == "ok"
-              and (restart or w["_carried"]))
+        n = w["omniwm_workspace"]
+        ok = (w["omniwm_match"] == "ok" and n is not None and w["last_workspace"] not in (None, n)
+              and ((restart and n == pile and w in came_back) or w["_carried"] == n))
         w["restore_to"] = w["last_workspace"] if ok else None
+        w["restore_from"] = n if ok else None
+        if restart and w in on_pile:
+            # The pile's mix of repos says nothing about where its windows
+            # belong; last_workspace does.
+            w["misplaced"] = w["home"] = None
         del w["_carried"]
-    return restart
+    return pile if restart else None
 
 
 def main():
