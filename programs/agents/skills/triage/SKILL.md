@@ -101,12 +101,21 @@ window ended up, by name, and the inventory reads that back:
   the window's name isn't unique now, the log doesn't know the name, or the
   log says the name was another repo's.
 - `restart: true` and `restart_workspace: N`: at least 75% of the cmux
-  windows (and at least 3) are on workspace N, most of those have new ids,
-  and at least one of the new ones was left elsewhere by the last run. The
-  windows that live on N count as new too (a restart renews every id), so a
-  pile on the user's busiest workspace is still found. A busy project
-  workspace whose windows kept their ids is not a restart. With no restart,
-  `restart_workspace` is `null`.
+  windows (and at least 3) are on workspace N; at least 75% of those have
+  new ids; at least 75% of the new ones with unique names are names the log
+  knows; and at least two of them were left by the last run somewhere other
+  than N and 1. The windows that live on N count as new too (a restart
+  renews every id), so a pile on the user's busiest workspace is still
+  found. A busy project workspace whose windows kept their ids is not a
+  restart, and nor is a window or two closed and reopened under the same
+  name. Windows bound for 1 don't count toward the two, so a pile elsewhere
+  never moves a window onto 1 on their say-so alone. The price: a restart
+  that brings back only one window, or that follows a run with many
+  windows opened since, isn't detected; the user moves those by hand. With
+  no restart, `restart_workspace` is `null`. If the windows look piled
+  (most on one workspace, most `new`) but `restart` is false, say so and
+  ask before applying anything: every run logs each window where it is, so
+  after one more run the log no longer knows where the piled ones belonged.
 - `restore_to` / `restore_from`: the workspace `restore` would put this
   window on, and the pile it takes it from, or `null`. They're set for a
   window on the pile with a new id whose `last_workspace` is any other
@@ -126,14 +135,21 @@ the restores first in the plan too.
 While the windows are piled, the pile's own project is unknown: the
 inventory's `project_repos` for an unlabelled pile is just whichever repo
 dominates the pile. Don't label the pile from that; label it for the
-windows that live there once the restores are planned.
+windows that live there once the restores are planned. For the same
+reason, during a restart the inventory leaves `misplaced` and `home` null
+for every window on the pile: plan the ones with no `restore_to` from their
+`repo`, `cwd` and `last_workspace`, not from the pile's mix.
 
 **Restores and workspace 1.** A pile on 1 is the one way a window leaves 1.
 A pile elsewhere is the one way a window goes *onto* 1: a window the last
 run left on 1 gets `restore_to: 1`, because the restart took the user's own
 window off their workspace, and putting it back is what they'd do by hand.
-Nothing else ever goes onto 1. Call these out in the restore list
-(`jan  7 → 1 (your workspace)`), so the user can say no to them alone. To
+Nothing else ever goes onto 1. Every restore that touches workspace 1,
+off it (`a  1 → 3 (your workspace)`, a pile on 1) or onto it
+(`jan  7 → 1 (your workspace)`), goes on its own line marked
+`(your workspace)`, so the user can say no to each one alone. List the ones
+onto 1 last, apart from the rest, and ask about them separately: "and put
+`jan` back on your workspace 1?" To
 decline one, plan it like any window on the pile (it isn't on 1, so not
 `skip`; `stay` needs a reason, since it reads `new`). The log knows only
 where a window was, not why: after a pile on 1, windows left there
@@ -161,12 +177,14 @@ Everything else gets a normal decision, as in any run:
 on its `restore_from`, is uniquely matched and uniquely named, and goes to
 that workspace. (A window already on its `last_workspace`, 2-11, passes as
 `already on N`, so a re-applied plan is harmless.) Floating and scratchpad windows are refused too. It
-re-checks all of this against a fresh inventory right before moving each
-window. Undo moves restored windows back to the pile they came off (back
+re-checks all of this against one fresh inventory, taken after the renames
+and just before the moves. Undo moves restored windows back to the pile they came off (back
 onto 1 only if the pile was 1, off 1 only if the restore put them there),
 with the same name and id checks, and they can be restored again
-afterwards. Undoing a restore onto 1 also needs that run's own log entry
-to show the window left on 1. The undo has no time limit: it stays the
+afterwards. Undoing a restore off 1 or onto it also needs that run's own log entry to
+show the window left where the restore put it. A window carried onto 1 (its
+restore onto 1 failed, or an undo took it back off) is offered again only if
+the log last really placed it on 1. The undo has no time limit: it stays the
 undo target until a later run changes something. An approved restore that fails keeps its `restore_to`, so the
 next run can offer it again. Re-applying a restore plan after it ran reports
 `already on N`, except for a window it put on 1: that one is on 1 now, so
@@ -264,7 +282,9 @@ If it prints `refused`, fix the plan. Every problem names its window. Then
 show the user:
 
 - **Restores**, after a restart, one line each, pile to workspace:
-  `a work  7 → 3`. Mark any onto 1: `jan  7 → 1 (your workspace)`.
+  `a work  7 → 3`. Mark every one off or onto 1, on its own line:
+  `a  1 → 3 (your workspace)`, `jan  7 → 1 (your workspace)`, with the
+  ones onto 1 last and asked about separately.
 - **Moves**, one line each: `alloc misc  6 → 2  (misplaced: internal-allocations on F1 dotfiles)`.
   Put these first after any restores, so none gets lost in a table.
 - **Flagged windows that stay**, each with its reason.
@@ -282,8 +302,8 @@ python3 <this skill's directory>/apply.py /tmp/triage-plan.json
 ```
 
 It applies the plan in order: renames, then a fresh inventory, then moves
-and labels. Each move is re-checked against the fresh inventory right
-before it happens. It then puts every display back on the workspace it showed
+and labels. Each move is re-checked against that one fresh inventory
+(not a new one per move) just before it happens. It then puts every display back on the workspace it showed
 and logs the run to `~/.local/state/triage/log.jsonl`. If a move reports
 `already on N`, the change was already made, for example by an earlier run in
 a rolled-back conversation. That's expected.
@@ -321,7 +341,8 @@ It reverses the most recent run that changed something: labels, then layouts,
 then moves and restores, then renames. Undoing a restore moves the window
 back onto the pile it came off. That is the one time an undo moves a window
 onto workspace 1 (the pile was 1) or off it (the restore put it there), and
-only a window that restore moved, still under the same name.
+only a window that restore moved, still under the same name. A plain move
+is undone only for a window still under the name it was moved with.
 Only runs from before every workspace was niri logged layouts. If the dry
 run would set one to dwindle, ask the user first.
 

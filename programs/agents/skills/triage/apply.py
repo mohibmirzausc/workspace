@@ -627,14 +627,14 @@ def undo(dry):
     return result(run, "undid", entry["ts"])
 
 
-def on_one_after(entry, name):
+def placed_after(entry, name, n):
     """Whether an entry's own placements put the window called name on
-    workspace 1 (for real, not carried) when that run ended."""
+    workspace n (for real, not carried) when that run ended."""
     placements = entry.get("placements")
     if not isinstance(name, str) or not name or not isinstance(placements, list):
         return False
     mine = [p for p in placements if isinstance(p, dict) and p.get("name") == name]
-    return (len(mine) == 1 and is_int(mine[0].get("workspace")) and mine[0]["workspace"] == USER_WORKSPACE
+    return (len(mine) == 1 and is_int(mine[0].get("workspace")) and mine[0]["workspace"] == n
             and not mine[0].get("carried"))
 
 
@@ -694,6 +694,7 @@ def reverse(entry, inv, run):
             run.log["layouts"].append({"workspace": n, "from": to, "to": frm})
 
     moveable = POOL | {REVIEW_WORKSPACE}
+    renamed_from = {rn.get("id"): rn.get("from") for rn in items("renames")}
     for mv in reversed(items("moves")):
         frm, to, wid = mv.get("from"), mv.get("to"), mv.get("id")
         if not (is_int(frm) and is_int(to) and frm in moveable and to in moveable and isinstance(wid, str)):
@@ -702,6 +703,11 @@ def reverse(entry, inv, run):
         w = by_id.get(wid)
         if w is None:
             run.say(f"left {mv.get('name', mv.get('id'))!r}: closed since")
+        elif isinstance(mv.get("name"), str) and w["name"] not in (mv["name"], renamed_from.get(wid)):
+            # The id must still be the window it moved (a ref id is reused),
+            # under the name it moved with or, if an undo that failed part-way
+            # renamed it back already, the one it had before the run.
+            run.say(f"left {mv['name']!r}: its id is now {w['name']!r}")
         elif w["omniwm_match"] != "ok":
             # Can't tell where it is (e.g. a new window took its title): not a
             # deliberate skip, so the undo stays retryable.
@@ -730,11 +736,13 @@ def reverse(entry, inv, run):
             # The id must still be the window it restored.
             run.say(f"left {rs.get('name', wid)!r}: its id is now {w['name']!r}")
             continue
-        if to == USER_WORKSPACE and not on_one_after(entry, rs.get("name")):
-            # The one undo that empties the user's workspace: the run must also
-            # have recorded leaving the window there, so a lone hand-written
-            # restore entry can't pull a window off 1.
-            run.reject(f"restore onto 1 that the run's placements don't confirm: {rs!r}")
+        if USER_WORKSPACE in (frm, to) and not placed_after(entry, rs.get("name"), to):
+            # The undos that change the user's workspace: the run must also
+            # have recorded leaving the window where the restore put it, so a
+            # lone hand-written restore entry can't move a window off 1 or
+            # onto it.
+            run.reject(f"restore {'onto' if to == USER_WORKSPACE else 'off'} 1 that the run's placements "
+                       f"don't confirm: {rs!r}")
             continue
         if w is not None and names_now.get(w["name"]) == [wid]:
             run.carry[w["name"]] = (to, frm)  # counts only if it ends up on the pile

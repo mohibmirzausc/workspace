@@ -32,8 +32,9 @@ be restored. A window still on the pile only because of a restart (its
 approved restore failed, or an undo put it back or left it there) is recorded
 at the workspace it belongs on, marked "carried", with "pile" the workspace
 it is stuck on and "id" the window, so one partial run doesn't erase it (and
-a new window reusing the name doesn't inherit it); a restore the user
-declined is forgotten. Entries from before "pile" was logged were all on 1. A
+a new window reusing the name doesn't inherit it); a carry onto 1 counts
+only if the window's last real placement before it was on 1, and is dropped
+otherwise. A restore the user declined is forgotten. Entries from before "pile" was logged were all on 1. A
 window that can't be located when the run ends keeps its previous placement,
 marked "unverified".
 """
@@ -122,6 +123,19 @@ def last_snapshot():
     return None
 
 
+def last_ids():
+    """Window ids that existed at the last run: last_snapshot(), or, if every
+    run with a snapshot was undone, the latest one (an undo puts windows back,
+    it doesn't change which ones exist). None if never run."""
+    standing = last_snapshot()
+    if standing is not None:
+        return standing
+    for entry in reversed(read_log()):
+        if isinstance(entry.get("snapshot"), list):
+            return {i for i in entry["snapshot"] if isinstance(i, str)}
+    return None
+
+
 CHANGES = ("renames", "moves", "restores", "layouts", "labels")
 
 
@@ -174,6 +188,20 @@ def label_repos(current_labels):
     }
 
 
+def lived_on_one(entries, name):
+    """Whether the latest of these entries to place the window called name for
+    real (not carried) put it on 1. A carry onto 1 moves a window onto the
+    user's workspace, so it must go back to a time the window lived there,
+    not just to a line anyone could write."""
+    for entry in reversed(entries):
+        placements = entry.get("placements")
+        mine = [p for p in placements if isinstance(p, dict) and p.get("name") == name
+                and p.get("carried") is not True] if isinstance(placements, list) else []
+        if mine:
+            return len(mine) == 1 and type(mine[0].get("workspace")) is int and mine[0]["workspace"] == 1
+    return False
+
+
 def last_placements():
     """{name: {"workspace", "repo", "carried", "pile", "id"}} from the most
     recent standing entry with placements. "pile" is the workspace a carried
@@ -187,7 +215,9 @@ def last_placements():
     window belongs.
     """
     undone = set()
-    for entry in reversed(read_log()):
+    log = read_log()
+    for at in range(len(log) - 1, -1, -1):
+        entry = log[at]
         undone.add(reverted(entry) or "")
         if entry.get("kind") not in ("apply", "undo") or not ts_of(entry) or entry["ts"] in undone:
             continue
@@ -204,6 +234,10 @@ def last_placements():
                 spots.pop(name, None)
             elif type(n) is int and 1 <= n <= 11:
                 pile = p.get("pile", 1)
+                if (p.get("carried") is True and n == 1 and pile != 1
+                        and not lived_on_one(log[:at], name)):
+                    dupes.add(name)  # an unbacked carry onto 1: where it belongs is unknown
+                    continue
                 # A carried window with a malformed pile can't say where it
                 # is stuck, so it isn't carried.
                 carried = (p.get("carried") is True and type(pile) is int
