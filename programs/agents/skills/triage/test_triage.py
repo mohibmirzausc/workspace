@@ -269,6 +269,7 @@ class FakeDesktop:
         self.shown = dict(shown or {"A": 2, "B": 6})
         self.current = current
         self.fail, self.on_rename, self.calls = set(), None, []
+        self.instance = {"pid": 100, "started": "Fri Oct  2 09:00:00 2026"}
 
     def display(self, n):
         return self.DISPLAY.get(n, "B")
@@ -289,14 +290,22 @@ class FakeDesktop:
                 "maybe_user_workspace": 1 in cands, "floating": False, "scratchpad": False})
         wss = [{"number": n, "label": self.labels.get(n), "layout": self.layouts[n]} for n in self.NUMBERS]
         inventory.flag(windows, wss)
-        pile = inventory.recovery(windows)
+        pile, kind = inventory.recovery(windows, self.instance)
         return {"current_workspace": self.shown[self.current], "restart": pile is not None,
-                "restart_workspace": pile, "windows": windows, "workspaces": wss}
+                "restart_workspace": pile, "restart_kind": kind, "omniwm_instance": self.instance,
+                "windows": windows, "workspaces": wss}
 
     def restart(self, prefix="r", on=1):
         """cmux restarts: every window lands on one workspace (1, or the one
         the user was on) under a new id, names kept."""
         self.w = {prefix + i: dict(x, ws=on) for i, x in self.w.items()}
+
+    def omniwm_restart(self, on=6, pid=200):
+        """OmniWM restarts (quit and reopen): every window lands on one
+        workspace, the one being viewed, with its cmux id kept; OmniWM is a
+        new process."""
+        self.w = {i: dict(x, ws=on) for i, x in self.w.items()}
+        self.instance = {"pid": pid, "started": f"Fri Oct  2 14:59:{pid % 60:02d} 2026"}
 
     def omniwm(self, *args):
         return {"workspaces": [{"number": n, "display": {"id": self.display(n)},
@@ -1421,9 +1430,9 @@ class PileTests(unittest.TestCase):
         windows.append(win("u", None, None, omniwm_match="ambiguous", omniwm_id=None,
                            omniwm_candidates=[7], maybe_user_workspace=True))
         inventory.flag(windows, workspaces())
-        self.assertIsNone(inventory.recovery(windows))
+        self.assertEqual(inventory.recovery(windows), (None, None))
         windows[-1]["maybe_user_workspace"] = False  # all sharers on 7: it's on 7
-        self.assertEqual(inventory.recovery(windows), 7)
+        self.assertEqual(inventory.recovery(windows), (7, "cmux"))
 
     def test_inconsistent_inventory_restore_is_refused(self):
         # validate() doesn't trust the inventory's restore_to blindly.
@@ -1653,6 +1662,214 @@ class PileTests(unittest.TestCase):
         self.assertEqual(spots(), {"pi": 3, "deb verifier": 7, "π - mohib": 10})
         self.assertFalse(any(p["carried"] for p in state.last_placements().values()))
 
+
+class OmniwmRestartTests(unittest.TestCase):
+    """An OmniWM restart piles the windows too (on 2026-10-02 all 12 cmux
+    windows landed on 6, the one being viewed), but keeps every cmux id, so
+    the new-id evidence never fired. A new OmniWM process stands in for it."""
+
+    HOME = {"jan": 1, "a": 2, "b": 3, "c": 3, "d": 4, "e": 5, "f": 6, "g": 6, "h": 7, "i": 9, "t": 10,
+            "y": 11}
+
+    def setUp(self):
+        reset_log()
+
+    def settled(self):
+        d = FakeDesktop({i: (i, ws, None) for i, ws in self.HOME.items()})
+        with d:
+            code, out = apply.apply(full_plan(d), dry=False)
+            self.assertEqual(code, 0, out)
+        return d
+
+    def restores(self, d, **decisions):
+        inv = d.collect()
+        restores = {w["id"]: {"action": "restore"} for w in inv["windows"] if w["restore_to"] is not None}
+        return full_plan(d, **(restores | decisions))
+
+    def where(self, d):
+        return {x["name"]: x["ws"] for x in d.w.values()}
+
+    def verdict(self, d):
+        inv = d.collect()
+        return inv["restart"], inv["restart_workspace"], inv["restart_kind"]
+
+    def test_runs_log_the_omniwm_instance(self):
+        d = self.settled()
+        self.assertEqual(state.read_log()[-1]["omniwm"], d.instance)
+        self.assertEqual(state.last_omniwm(), d.instance)
+
+    def test_omniwm_restart_pile_on_six(self):
+        with self.settled() as d:
+            d.omniwm_restart(on=6)
+            inv = d.collect()
+            self.assertEqual((inv["restart"], inv["restart_workspace"], inv["restart_kind"]), (True, 6, "omniwm"))
+            self.assertEqual({w["name"]: w["restore_to"] for w in inv["windows"] if w["restore_to"]},
+                             {n: ws for n, ws in self.HOME.items() if ws != 6})
+            for w in inv["windows"]:
+                self.assertFalse(w["new"])  # same ids: nothing reads new
+                self.assertEqual((w["misplaced"], w["home"]), (None, None), w["name"])
+            code, out = apply.apply(self.restores(d), dry=False)
+            self.assertEqual((code, self.where(d)), (0, self.HOME), out)
+            # The run logged the new OmniWM, so the restart is over.
+            self.assertEqual(self.verdict(d), (False, None, None))
+
+    def test_busy_workspace_with_the_same_omniwm_is_not_a_restart(self):
+        # Same windows, same OmniWM: the user dragged nine onto 6 by hand.
+        with self.settled() as d:
+            for i in "abcdehiy":
+                d.w[i]["ws"] = 6
+            self.assertEqual(self.verdict(d), (False, None, None))
+            self.assertEqual({w["restore_to"] for w in d.collect()["windows"]}, {None})
+            # The same desktop with a new OmniWM is one.
+            d.instance = {"pid": 200, "started": "Fri Oct  2 14:59:02 2026"}
+            self.assertEqual(self.verdict(d), (True, 6, "omniwm"))
+
+    def test_a_reused_pid_with_a_new_start_time_is_a_restart(self):
+        with self.settled() as d:
+            d.omniwm_restart(on=6, pid=100)
+            self.assertNotEqual(d.instance, state.last_omniwm())
+            self.assertEqual(self.verdict(d), (True, 6, "omniwm"))
+
+    def test_a_restart_before_the_last_placements_is_not_evidence(self):
+        # OmniWM restarted (no pile), then an undo ran under the new OmniWM
+        # and logged where everything was. Windows dragged onto 6 after that
+        # are just a busy workspace, though the undone run saw the old OmniWM.
+        reset_log()
+        d = FakeDesktop({i: (i, ws, None) for i, ws in self.HOME.items()})
+        with d:
+            self.assertEqual(apply.apply(full_plan(d, a={"action": "move", "to": 8}), dry=False)[0], 0)
+            d.instance = {"pid": 200, "started": "Fri Oct  2 14:59:02 2026"}
+            self.assertEqual(apply.undo(dry=False)[0], 0)
+            self.assertEqual(state.last_omniwm(), d.instance)
+            for i in "abcdehiy":
+                d.w[i]["ws"] = 6
+            self.assertEqual(self.verdict(d), (False, None, None))
+
+    def test_the_omniwm_is_the_one_the_placements_were_logged_with(self):
+        # An undo that couldn't record placements leaves the run before the
+        # undone one standing: its OmniWM, not the undone run's, counts.
+        x, y = {"pid": 1, "started": "x"}, {"pid": 2, "started": "y"}
+        state.append({"kind": "apply", "snapshot": [], "placements": [{"name": "a", "workspace": 3}], "omniwm": x})
+        b = state.append({"kind": "apply", "moves": [{"id": "a"}], "snapshot": [],
+                          "placements": [{"name": "a", "workspace": 5}], "omniwm": y})
+        self.assertEqual(state.last_omniwm(), y)
+        state.append({"kind": "undo", "undoes": b["ts"], "complete": True})
+        self.assertEqual((state.last_omniwm(), spots()), (x, {"a": 3}))
+
+    def test_cmux_restart_is_still_cmux(self):
+        with self.settled() as d:
+            d.restart(on=6)
+            self.assertEqual(self.verdict(d), (True, 6, "cmux"))
+            # Both restarted (a reboot): the new ids say it.
+            d.instance = {"pid": 300, "started": "Fri Oct  2 15:30:00 2026"}
+            self.assertEqual(self.verdict(d), (True, 6, "cmux"))
+            code, out = apply.apply(self.restores(d), dry=False)
+            self.assertEqual((code, self.where(d)), (0, self.HOME), out)
+
+    def test_no_logged_instance_says_nothing(self):
+        # Entries from before the instance was logged, a malformed one, or
+        # OmniWM not found now: no OmniWM evidence either way.
+        for logged in (None, "100", {"pid": "100", "started": "x"}, {"pid": 100}, {"pid": 0, "started": "x"},
+                       {"pid": 100, "started": ""}, {"pid": True, "started": "x"},
+                       {"pid": 100, "started": "x", "extra": 1}):
+            with self.subTest(logged=logged), self.settled() as d:
+                entries = state.read_log()
+                if logged is None:
+                    del entries[-1]["omniwm"]
+                else:
+                    entries[-1]["omniwm"] = logged
+                reset_log()
+                for e in entries:
+                    state.append(e)
+                self.assertIsNone(state.last_omniwm())
+                d.omniwm_restart(on=6)
+                self.assertEqual(self.verdict(d), (False, None, None))
+        with self.settled() as d:
+            d.omniwm_restart(on=6)
+            d.instance = None
+            self.assertEqual(self.verdict(d), (False, None, None))
+
+    def test_thresholds_still_apply(self):
+        # Fewer than 3 windows.
+        reset_log()
+        with FakeDesktop({"a": ("a", 3, None), "b": ("b", 4, None)}) as d:
+            apply.apply(full_plan(d), dry=False)
+            d.omniwm_restart(on=6)
+            self.assertEqual(self.verdict(d), (False, None, None))
+        # Under 75% on the pile: 8 of 12 piled.
+        with self.settled() as d:
+            d.omniwm_restart(on=6)
+            for i, ws in (("a", 2), ("b", 3), ("c", 3), ("d", 4)):
+                d.w[i]["ws"] = ws
+            self.assertEqual(self.verdict(d), (False, None, None))
+            d.w["d"]["ws"] = 6  # 9 of 12
+            self.assertEqual(self.verdict(d), (True, 6, "omniwm"))
+        # Under 75% of the names known.
+        reset_log()
+        with FakeDesktop({"a": ("a", 3, None), "b": ("b", 4, None), "c": ("c", 6, None)}) as d:
+            apply.apply(full_plan(d), dry=False)
+            d.omniwm_restart(on=6)
+            for i in "pq":
+                d.w[i] = dict(name=i, ws=6, repo=None)
+            self.assertEqual(self.verdict(d), (False, None, None))  # 3 of 5 known
+            del d.w["q"]
+            self.assertEqual(self.verdict(d), (True, 6, "omniwm"))  # 3 of 4
+
+    def test_fewer_than_two_back_from_elsewhere(self):
+        reset_log()
+        homes = {"a": 3, "f": 6, "g": 6, "h": 6, "k": 6}
+        with FakeDesktop({i: (i, ws, None) for i, ws in homes.items()}) as d:
+            apply.apply(full_plan(d), dry=False)
+            d.omniwm_restart(on=6)
+            self.assertEqual(self.verdict(d), (False, None, None))  # only 'a' came back
+            d.w["b"] = dict(name="b", ws=6, repo=None)
+            self.assertEqual(self.verdict(d), (False, None, None))  # 'b' is unknown to the log
+
+    def test_windows_bound_for_one_do_not_prove_it(self):
+        reset_log()
+        with FakeDesktop({"jan": ("jan", 1, "rel"), "k": ("k", 1, "rel"),
+                          "r1": ("r1", 7, "r"), "r2": ("r2", 7, "r")}) as d:
+            apply.apply(full_plan(d), dry=False)
+            d.omniwm_restart(on=7)
+            self.assertEqual(self.verdict(d), (False, None, None))
+            self.assertEqual({w["restore_to"] for w in d.collect()["windows"]}, {None})
+
+    def test_pile_on_one_is_restored_off_it(self):
+        with self.settled() as d:
+            d.omniwm_restart(on=1)
+            inv = d.collect()
+            self.assertEqual((inv["restart"], inv["restart_workspace"], inv["restart_kind"]), (True, 1, "omniwm"))
+            self.assertIsNone(next(w for w in inv["windows"] if w["name"] == "jan")["restore_to"])
+            code, out = apply.apply(self.restores(d, jan={"action": "skip"}), dry=False)
+            self.assertEqual((code, self.where(d)), (0, self.HOME), out)
+
+    def test_undo_after_an_omniwm_restore_offers_them_again(self):
+        with self.settled() as d:
+            d.omniwm_restart(on=6)
+            self.assertEqual(apply.apply(self.restores(d), dry=False)[0], 0)
+            self.assertEqual(apply.undo(dry=False)[0], 0)
+            self.assertEqual(set(self.where(d).values()), {6})
+            # The undone run's OmniWM doesn't count; the one before it does,
+            # and the undo's placements carry every window it put back.
+            inv = d.collect()
+            self.assertEqual({w["name"]: w["restore_to"] for w in inv["windows"] if w["restore_to"]},
+                             {n: ws for n, ws in self.HOME.items() if ws != 6})
+            code, out = apply.apply(self.restores(d), dry=False)
+            self.assertEqual((code, self.where(d)), (0, self.HOME), out)
+
+    def test_moved_mid_run_is_refused_at_the_recheck(self):
+        # The plan was checked on the pile; a window that leaves it before
+        # its turn is not moved.
+        with self.settled() as d:
+            d.omniwm_restart(on=6)
+            plan = self.restores(d)
+
+            def drag(desk):
+                desk.w["a"]["ws"] = 8
+            d.on_rename = drag
+            plan["windows"] = [e | ({"rename": "ff"} if e["id"] == "f" else {}) for e in plan["windows"]]
+            code, out = apply.apply(plan, dry=False)
+            self.assertEqual(d.ws_of("a"), 8, out)
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

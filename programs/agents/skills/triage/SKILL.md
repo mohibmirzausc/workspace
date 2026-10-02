@@ -27,8 +27,8 @@ triage's: every workspace is niri, set in the seed.
 
 - **Workspace 1 is the user's.** Never move a window into it or out of it,
   and never relabel it. Report what is there, but leave it alone.
-  The one exception is a cmux restart, which piles every window onto one
-  workspace (1, or whichever one the user was on): `restore` puts each back
+  The one exception is a cmux or OmniWM restart, which piles every window
+  onto one workspace (1, or whichever one the user was on): `restore` puts each back
   where the last run left it, which can mean off 1 or back onto it (see
   [Restart recovery](#restart-recovery)).
 - **The pool is workspaces 2-9 and 11.** Projects are allocated from it.
@@ -84,41 +84,53 @@ keeping it in place takes a stated `reason` (step 5).
 For each workspace it gives its label, layout, tiled count, non-cmux apps,
 and `project_repos`. The inventory also reports `current_workspace`.
 
-It also reports `restart` and `restart_workspace` (top level) and each
+It also reports `restart`, `restart_workspace` and `restart_kind` (top level) and each
 window's `last_workspace`, `restore_to` and `restore_from`, for
 [Restart recovery](#restart-recovery). If `restart` is true, or any window
 has a `restore_to`, recover first.
 
 ### Restart recovery
 
-cmux restarts often. Afterwards every window is piled on one workspace, the
-**pile**, and has a new `id`, so every window reads `new`; names survive.
-The pile is usually the workspace the user was looking at, so it can be any
-of 1-11 (on 2026-09-30 all 12 windows landed on 7). Each run logs where every
-window ended up, by name, and the inventory reads that back:
+cmux restarts often, and OmniWM restarts (quit and reopen, or an upgrade)
+do the same to the windows. Afterwards every window is piled on one
+workspace, the **pile**. The pile is usually the workspace the user was
+looking at, so it can be any of 1-11 (on 2026-09-30 a cmux restart put all
+12 windows on 7; on 2026-10-02 an OmniWM restart put all 12 on 6). After a
+cmux restart every window has a new `id`, so every window reads `new`;
+names survive. After an OmniWM restart the ids are kept and nothing reads
+`new`; what changed is OmniWM itself: each run logs OmniWM's process (pid
+and start time), and a different one now means OmniWM restarted since. Each
+run also logs where every window ended up, by name, and the inventory reads
+that back:
 
 - `last_workspace`: where the last run left this window. It's `null` when
   the window's name isn't unique now, the log doesn't know the name, or the
   log says the name was another repo's.
 - `restart: true` and `restart_workspace: N`: at least 75% of the cmux
-  windows (and at least 3) are on workspace N; at least 75% of those have
-  new ids; at least 75% of the new ones with unique names are names the log
-  knows; and at least two of them were left by the last run somewhere other
-  than N and 1. The windows that live on N count as new too (a restart
-  renews every id), so a pile on the user's busiest workspace is still
-  found. A busy project workspace whose windows kept their ids is not a
+  windows (and at least 3) are on workspace N; at least 75% of those are
+  renewed; at least 75% of the renewed ones with unique names are names the
+  log knows; and at least two of them were left by the last run somewhere
+  other than N and 1. Renewed means a new id (`restart_kind: "cmux"`), or,
+  when OmniWM is a different process than the one the last run logged,
+  every window on N (`restart_kind: "omniwm"`; a reboot that restarts both
+  reads `"cmux"`). The windows that live on N count as renewed too, so a
+  pile on the user's busiest workspace is still found. A busy project
+  workspace whose windows kept their ids, under the same OmniWM, is not a
   restart, and nor is a window or two closed and reopened under the same
-  name. Windows bound for 1 don't count toward the two, so a pile elsewhere
+  name. Runs from before OmniWM was logged can't show an OmniWM restart.
+  After an OmniWM restart, a window the user dragged onto N by hand since
+  the last run can't be told from a piled one, so it may be offered back
+  too; that's one more reason each restore is listed. Windows bound for 1 don't count toward the two, so a pile elsewhere
   never moves a window onto 1 on their say-so alone. The price: a restart
   that brings back only one window, or that follows a run with many
   windows opened since, isn't detected; the user moves those by hand. With
-  no restart, `restart_workspace` is `null`. If the windows look piled
-  (most on one workspace, most `new`) but `restart` is false, say so and
+  no restart, `restart_workspace` and `restart_kind` are `null`. If the
+  windows look piled (most on one workspace) but `restart` is false, say so and
   ask before applying anything: every run logs each window where it is, so
   after one more run the log no longer knows where the piled ones belonged.
 - `restore_to` / `restore_from`: the workspace `restore` would put this
   window on, and the pile it takes it from, or `null`. They're set for a
-  window on the pile with a new id whose `last_workspace` is any other
+  renewed window on the pile whose `last_workspace` is any other
   workspace, during a restart. They're also set for a window whose approved
   restore failed last time, or that an undo put back on the pile, while it
   is still the same window (same `id`) on that pile, even if `restart` is
@@ -127,7 +139,8 @@ window ended up, by name, and the inventory reads that back:
 Restores are part of the plan, so they share the one go-ahead in step 5.
 Show them first, one line each, from the pile to the workspace
 (`a work  7 → 3`), and ask as part of that go-ahead: "cmux restarted and
-piled N windows on workspace 7: restore them to their workspaces?" On a yes,
+piled N windows on workspace 7: restore them to their workspaces?" (say
+"OmniWM restarted" when `restart_kind` is `"omniwm"`) On a yes,
 each window with a `restore_to` gets `{"id": "<id>", "action": "restore"}`.
 `restore` takes no `to` (or exactly its `restore_to`) and no `rename`. Put
 the restores first in the plan too.
