@@ -39,7 +39,8 @@ it (still not on workspace 1, still uniquely matched; a restore: still on the
 pile, still the same OmniWM window, still uniquely named, still restorable to
 the same workspace) right before it happens;
 a window already on its destination is "already there", so re-applying a plan
-(e.g. after a rolled-back conversation) is harmless. Then layouts, labels, and
+(e.g. after a rolled-back conversation) is harmless (a plan that restored a
+window onto 1 is refused instead, until that window is "skip"). Then layouts, labels, and
 every display back to the workspace it showed. Every change is logged with its
 before value (state.py), even if the run stops part-way, and --undo replays
 the log backwards under the same workspace bounds.
@@ -440,13 +441,14 @@ def placements(run):
         carry = run.carry.get(w["name"]) if unique else None
         if carry and w["omniwm_workspace"] == carry[1]:
             # Still on the pile: record where it belongs, and where it's stuck.
-            p.update(workspace=carry[0], carried=True, pile=carry[1])
+            p.update(workspace=carry[0], carried=True, pile=carry[1], id=w["id"])
         elif w["omniwm_workspace"] is None and unique and w["name"] in before:
             # Can't be located right now (e.g. its title lags): keep what the
             # log knew rather than forget it.
             old = before[w["name"]]
             p.update(workspace=old["workspace"], unverified=True,
-                     **({"carried": True, "pile": old["pile"]} if old["carried"] else {}))
+                     **({"carried": True, "pile": old["pile"], **({"id": old["id"]} if old["id"] else {})}
+                        if old["carried"] else {}))
         out.append(p)
     return out
 
@@ -625,6 +627,17 @@ def undo(dry):
     return result(run, "undid", entry["ts"])
 
 
+def on_one_after(entry, name):
+    """Whether an entry's own placements put the window called name on
+    workspace 1 (for real, not carried) when that run ended."""
+    placements = entry.get("placements")
+    if not isinstance(name, str) or not name or not isinstance(placements, list):
+        return False
+    mine = [p for p in placements if isinstance(p, dict) and p.get("name") == name]
+    return (len(mine) == 1 and is_int(mine[0].get("workspace")) and mine[0]["workspace"] == USER_WORKSPACE
+            and not mine[0].get("carried"))
+
+
 def reverse(entry, inv, run):
     """Replay an entry backwards under the same bounds apply enforces. The log
     is a plain file anyone can edit, so it isn't trusted to stay in bounds.
@@ -650,7 +663,7 @@ def reverse(entry, inv, run):
     names_now = {}
     for x in inv["windows"]:
         names_now.setdefault(x["name"], []).append(x["id"])
-    # Windows still on 1 from a restart: undoing something else mustn't
+    # Windows still on a restart's pile: undoing something else mustn't
     # forget where they belong.
     run.carry = {x["name"]: (x["restore_to"], x["restore_from"]) for x in inv["windows"]
                  if x.get("restore_to") is not None}
@@ -716,6 +729,12 @@ def reverse(entry, inv, run):
         if w is not None and w["name"] != rs.get("name"):
             # The id must still be the window it restored.
             run.say(f"left {rs.get('name', wid)!r}: its id is now {w['name']!r}")
+            continue
+        if to == USER_WORKSPACE and not on_one_after(entry, rs.get("name")):
+            # The one undo that empties the user's workspace: the run must also
+            # have recorded leaving the window there, so a lone hand-written
+            # restore entry can't pull a window off 1.
+            run.reject(f"restore onto 1 that the run's placements don't confirm: {rs!r}")
             continue
         if w is not None and names_now.get(w["name"]) == [wid]:
             run.carry[w["name"]] = (to, frm)  # counts only if it ends up on the pile

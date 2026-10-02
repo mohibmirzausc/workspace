@@ -18,7 +18,7 @@ Entry shape:
    "failed":   ["what failed"],
    "snapshot": [window ids the run decided on],
    "placements": [{"name", "workspace", "repo",
-                   "carried"?, "pile"?, "unverified"?}]}   (every cmux window after the run)
+                   "carried"?, "pile"?, "id"?, "unverified"?}]}   (every cmux window after the run)
 
 `projects` records which repos each planned label stands for, on every run,
 whether or not the label changed. That is how later runs learn a workspace's
@@ -31,7 +31,8 @@ on: 1, 7, ...); the last placements say where each one belongs, so they can
 be restored. A window still on the pile only because of a restart (its
 approved restore failed, or an undo put it back or left it there) is recorded
 at the workspace it belongs on, marked "carried", with "pile" the workspace
-it is stuck on, so one partial run doesn't erase it; a restore the user
+it is stuck on and "id" the window, so one partial run doesn't erase it (and
+a new window reusing the name doesn't inherit it); a restore the user
 declined is forgotten. Entries from before "pile" was logged were all on 1. A
 window that can't be located when the run ends keeps its previous placement,
 marked "unverified".
@@ -174,9 +175,11 @@ def label_repos(current_labels):
 
 
 def last_placements():
-    """{name: {"workspace", "repo", "carried", "pile"}} from the most recent
-    standing entry with placements. "pile" is the workspace a carried window
-    is stuck on (1 for entries from before it was logged), else None.
+    """{name: {"workspace", "repo", "carried", "pile", "id"}} from the most
+    recent standing entry with placements. "pile" is the workspace a carried
+    window is stuck on (1 for entries from before it was logged) and "id" the
+    window's id (None for entries from before it was logged); both are None
+    for a window that isn't carried.
 
     Undone applies don't count (the undo's own placements follow them), but
     abandoned ones do: abandoning changes nothing on screen. A name recorded
@@ -205,8 +208,10 @@ def last_placements():
                 # is stuck, so it isn't carried.
                 carried = (p.get("carried") is True and type(pile) is int
                            and 1 <= pile <= 11 and pile != n)
+                wid = p.get("id")
                 spots[name] = {"workspace": n, "repo": repo if isinstance(repo, str) else None,
-                               "carried": carried, "pile": pile if carried else None}
+                               "carried": carried, "pile": pile if carried else None,
+                               "id": wid if carried and isinstance(wid, str) and wid else None}
             else:
                 dupes.add(name)  # known to exist, but not where
         return spots

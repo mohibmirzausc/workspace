@@ -101,17 +101,19 @@ window ended up, by name, and the inventory reads that back:
   the window's name isn't unique now, the log doesn't know the name, or the
   log says the name was another repo's.
 - `restart: true` and `restart_workspace: N`: at least 75% of the cmux
-  windows (and at least 3) are on workspace N, and most of those have new ids
-  and were left elsewhere by the last run. A busy project workspace whose
-  windows kept their ids is not a restart. With no restart,
+  windows (and at least 3) are on workspace N, most of those have new ids,
+  and at least one of the new ones was left elsewhere by the last run. The
+  windows that live on N count as new too (a restart renews every id), so a
+  pile on the user's busiest workspace is still found. A busy project
+  workspace whose windows kept their ids is not a restart. With no restart,
   `restart_workspace` is `null`.
 - `restore_to` / `restore_from`: the workspace `restore` would put this
   window on, and the pile it takes it from, or `null`. They're set for a
   window on the pile with a new id whose `last_workspace` is any other
   workspace, during a restart. They're also set for a window whose approved
-  restore failed last time, while it is still on that pile, even if
-  `restart` is now false. A window the log already put on the pile gets
-  none: it's home.
+  restore failed last time, or that an undo put back on the pile, while it
+  is still the same window (same `id`) on that pile, even if `restart` is
+  now false. A window the log already put on the pile gets none: it's home.
 
 Restores are part of the plan, so they share the one go-ahead in step 5.
 Show them first, one line each, from the pile to the workspace
@@ -121,6 +123,11 @@ each window with a `restore_to` gets `{"id": "<id>", "action": "restore"}`.
 `restore` takes no `to` (or exactly its `restore_to`) and no `rename`. Put
 the restores first in the plan too.
 
+While the windows are piled, the pile's own project is unknown: the
+inventory's `project_repos` for an unlabelled pile is just whichever repo
+dominates the pile. Don't label the pile from that; label it for the
+windows that live there once the restores are planned.
+
 **Restores and workspace 1.** A pile on 1 is the one way a window leaves 1.
 A pile elsewhere is the one way a window goes *onto* 1: a window the last
 run left on 1 gets `restore_to: 1`, because the restart took the user's own
@@ -128,7 +135,11 @@ window off their workspace, and putting it back is what they'd do by hand.
 Nothing else ever goes onto 1. Call these out in the restore list
 (`jan  7 → 1 (your workspace)`), so the user can say no to them alone. To
 decline one, plan it like any window on the pile (it isn't on 1, so not
-`skip`; `stay` needs a reason, since it reads `new`).
+`skip`; `stay` needs a reason, since it reads `new`). The log knows only
+where a window was, not why: after a pile on 1, windows left there
+(declined restores, or a restart that wasn't detected) are recorded on 1
+too, so a later pile elsewhere offers them onto 1. That's why each one is
+asked about.
 
 Everything else gets a normal decision, as in any run:
 
@@ -148,12 +159,15 @@ Everything else gets a normal decision, as in any run:
 
 `apply.py` refuses a restore unless the window has a `restore_to`, is still
 on its `restore_from`, is uniquely matched and uniquely named, and goes to
-that workspace. Floating and scratchpad windows are refused too. It
+that workspace. (A window already on its `last_workspace`, 2-11, passes as
+`already on N`, so a re-applied plan is harmless.) Floating and scratchpad windows are refused too. It
 re-checks all of this against a fresh inventory right before moving each
 window. Undo moves restored windows back to the pile they came off (back
 onto 1 only if the pile was 1, off 1 only if the restore put them there),
 with the same name and id checks, and they can be restored again
-afterwards. An approved restore that fails keeps its `restore_to`, so the
+afterwards. Undoing a restore onto 1 also needs that run's own log entry
+to show the window left on 1. The undo has no time limit: it stays the
+undo target until a later run changes something. An approved restore that fails keeps its `restore_to`, so the
 next run can offer it again. Re-applying a restore plan after it ran reports
 `already on N`, except for a window it put on 1: that one is on 1 now, so
 the re-applied plan is refused until it's `skip`.
