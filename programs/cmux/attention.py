@@ -532,22 +532,33 @@ def mismatch_note(was, now):
             "OmniWM was upgraded; restart OmniWM. Locations are stale or missing until then.")
 
 
+# The mismatch the daemon last reported on, so a refresh that raised still
+# gets its note logged by the next one.
+mismatch_reported = None
+
+
+def report_mismatch():
+    global mismatch_reported
+    note = mismatch_note(mismatch_reported, omniwm_mismatch)
+    if note:
+        log(note)
+    mismatch_reported = omniwm_mismatch
+
+
 def refresh(previous):
-    was = omniwm_mismatch
     try:
         state = compute(previous)
     except Exception as exc:
         # Malformed output from cmux or OmniWM must not kill the daemon
         # (launchd would restart it, but the bar would sit stale meanwhile).
         log("refresh failed:", repr(exc))
+        report_mismatch()
         return previous
+    report_mismatch()
     if state is None:
         # cmux is down or refusing us: say nothing rather than leave a stale
         # "needs you" on the bar.
         state = summarize({}, set(), set())
-    note = mismatch_note(was, omniwm_mismatch)
-    if note:
-        log(note)
     state["updatedAt"] = time.time()
     try:
         write_state(state)

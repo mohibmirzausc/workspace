@@ -354,6 +354,22 @@ class OmniwmMismatch(unittest.TestCase):
         self.assertIsNone(self.query(None))  # timeout, not installed
         self.assertIsNotNone(a.omniwm_mismatch)
 
+    def test_reported_once_even_after_a_failed_refresh(self):
+        logged, real = [], (a.log, a.compute)
+        a.log = lambda *parts: logged.append(" ".join(map(str, parts)))
+
+        def boom(previous):
+            a.omniwm_mismatch = {"appVersion": "0.7.3", "protocolVersion": 16}
+            raise ValueError("bad tree")
+        a.compute = boom
+        try:
+            a.refresh(None)
+            a.refresh(None)
+        finally:
+            a.log, a.compute = real
+            a.mismatch_reported = None
+        self.assertEqual(sum("restart OmniWM" in line for line in logged), 1)
+
     def test_note_once_per_mismatch(self):
         now = {"appVersion": "0.7.3", "protocolVersion": 16}
         note = a.mismatch_note(None, now)
