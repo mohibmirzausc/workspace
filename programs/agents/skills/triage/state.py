@@ -17,6 +17,7 @@ Entry shape:
    "projects": [{"workspace", "label", "repos"}],   (apply only; not undone)
    "failed":   ["what failed"],
    "snapshot": [window ids the run decided on],
+   "omniwm": {"pid", "started"} | null,     (OmniWM's process when the run ended)
    "placements": [{"name", "workspace", "repo",
                    "carried"?, "pile"?, "id"?, "unverified"?}]}   (every cmux window after the run)
 
@@ -37,6 +38,11 @@ only if the window's last real placement before it was on 1, and is dropped
 otherwise. A restore the user declined is forgotten. Entries from before "pile" was logged were all on 1. A
 window that can't be located when the run ends keeps its previous placement,
 marked "unverified".
+
+`omniwm` is how an OmniWM restart is told apart from a busy workspace: an
+OmniWM restart piles the windows too, but keeps every cmux id, so ids can't
+show it. A different OmniWM process (pid and start time) than the one the
+last run saw can. Entries from before it was logged say nothing either way.
 """
 
 import datetime
@@ -136,6 +142,21 @@ def last_ids():
     return None
 
 
+def last_omniwm():
+    """The OmniWM process ({"pid", "started"}) when the run last_placements()
+    reads ended, or None if that run didn't log a well-formed one (entries
+    from before it was logged, or OmniWM wasn't found). From the same entry
+    as the placements, so a different process now means OmniWM restarted
+    after the placements restores would go back to were recorded."""
+    log = read_log()
+    at = _placements_at(log)
+    ow = log[at].get("omniwm") if at is not None else None
+    if (isinstance(ow, dict) and set(ow) == {"pid", "started"} and type(ow["pid"]) is int
+            and 0 < ow["pid"] < 2**31 and isinstance(ow["started"], str) and ow["started"]):
+        return {"pid": ow["pid"], "started": ow["started"]}
+    return None
+
+
 CHANGES = ("renames", "moves", "restores", "layouts", "labels")
 
 
@@ -202,6 +223,19 @@ def lived_on_one(entries, name):
     return False
 
 
+def _placements_at(log):
+    """The index of the most recent standing entry with placements, or None."""
+    undone = set()
+    for at in range(len(log) - 1, -1, -1):
+        entry = log[at]
+        undone.add(reverted(entry) or "")
+        if entry.get("kind") not in ("apply", "undo") or not ts_of(entry) or entry["ts"] in undone:
+            continue
+        if isinstance(entry.get("placements"), list):
+            return at
+    return None
+
+
 def last_placements():
     """{name: {"workspace", "repo", "carried", "pile", "id"}} from the most
     recent standing entry with placements. "pile" is the workspace a carried
@@ -214,39 +248,33 @@ def last_placements():
     more than once, or with no workspace, is dropped: it can't say where one
     window belongs.
     """
-    undone = set()
     log = read_log()
-    for at in range(len(log) - 1, -1, -1):
-        entry = log[at]
-        undone.add(reverted(entry) or "")
-        if entry.get("kind") not in ("apply", "undo") or not ts_of(entry) or entry["ts"] in undone:
+    at = _placements_at(log)
+    if at is None:
+        return {}
+    placements = log[at]["placements"]
+    spots, dupes = {}, set()
+    for p in placements:
+        if not isinstance(p, dict) or not isinstance(p.get("name"), str) or not p["name"]:
             continue
-        placements = entry.get("placements")
-        if not isinstance(placements, list):
-            continue
-        spots, dupes = {}, set()
-        for p in placements:
-            if not isinstance(p, dict) or not isinstance(p.get("name"), str) or not p["name"]:
+        name, n, repo = p["name"], p.get("workspace"), p.get("repo")
+        if name in spots or name in dupes:
+            dupes.add(name)
+            spots.pop(name, None)
+        elif type(n) is int and 1 <= n <= 11:
+            pile = p.get("pile", 1)
+            if (p.get("carried") is True and n == 1 and pile != 1
+                    and not lived_on_one(log[:at], name)):
+                dupes.add(name)  # an unbacked carry onto 1: where it belongs is unknown
                 continue
-            name, n, repo = p["name"], p.get("workspace"), p.get("repo")
-            if name in spots or name in dupes:
-                dupes.add(name)
-                spots.pop(name, None)
-            elif type(n) is int and 1 <= n <= 11:
-                pile = p.get("pile", 1)
-                if (p.get("carried") is True and n == 1 and pile != 1
-                        and not lived_on_one(log[:at], name)):
-                    dupes.add(name)  # an unbacked carry onto 1: where it belongs is unknown
-                    continue
-                # A carried window with a malformed pile can't say where it
-                # is stuck, so it isn't carried.
-                carried = (p.get("carried") is True and type(pile) is int
-                           and 1 <= pile <= 11 and pile != n)
-                wid = p.get("id")
-                spots[name] = {"workspace": n, "repo": repo if isinstance(repo, str) else None,
-                               "carried": carried, "pile": pile if carried else None,
-                               "id": wid if carried and isinstance(wid, str) and wid else None}
-            else:
-                dupes.add(name)  # known to exist, but not where
-        return spots
-    return {}
+            # A carried window with a malformed pile can't say where it
+            # is stuck, so it isn't carried.
+            carried = (p.get("carried") is True and type(pile) is int
+                       and 1 <= pile <= 11 and pile != n)
+            wid = p.get("id")
+            spots[name] = {"workspace": n, "repo": repo if isinstance(repo, str) else None,
+                           "carried": carried, "pile": pile if carried else None,
+                           "id": wid if carried and isinstance(wid, str) and wid else None}
+        else:
+            dupes.add(name)  # known to exist, but not where
+    return spots

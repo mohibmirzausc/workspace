@@ -76,10 +76,10 @@ SKETCHYBAR = find("sketchybar", "/opt/homebrew/bin/sketchybar")
 def _import_inventory():
     """The triage skill's inventory module, or None.
 
-    Installed by home.nix at ~/.claude/skills/triage. The repo copy next to
-    this file is tried first so a run from a checkout (and the tests) uses
-    the code beside it; an installed attention.py resolves into the nix
-    store, where that relative path does not exist.
+    The copy next to this file is tried first: the repo layout in a checkout
+    (and the tests), and the same layout in the store, where
+    programs/cmux/default.nix copies the triage skill in beside it. The
+    skill installed by home.nix at ~/.claude/skills/triage is the fallback.
     """
     here = os.path.dirname(os.path.realpath(__file__))
     for d in (os.environ.get("TRIAGE_DIR"),
@@ -303,22 +303,39 @@ def summarize(mapping, need, unread):
 # Live sources
 # ---------------------------------------------------------------------------
 
-def run_json(cmd, timeout):
-    """Parsed JSON stdout of cmd, or None on any failure."""
+def run_json(cmd, timeout, any_exit=False):
+    """Parsed JSON stdout of cmd, or None on any failure. any_exit parses it
+    even after a non-zero exit, for a CLI that reports errors as JSON."""
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                              env=dict(os.environ, CMUX_QUIET="1"))
-        if out.returncode != 0:
+        if out.returncode != 0 and not any_exit:
             return None
         return json.loads(out.stdout)
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
 
 
+# Set by omniwm() to OmniWM's version payload while omniwmctl and the running
+# app disagree on protocol, else None. Happens when brew upgrades the OmniWM
+# cask under a running app: the new omniwmctl (a symlink into the .app) then
+# refuses the old server on every call, exit 1:
+#   error: protocol_mismatch (server protocol 16, app 0.7.3)
+# Every location then reads as unplaced, so the daemon logs it (once).
+omniwm_mismatch = None
+
+
 def omniwm(what, timeout, *args):
-    doc = run_json([OMNIWMCTL, "query", what, *args, "--json"], timeout)
+    global omniwm_mismatch
+    doc = run_json([OMNIWMCTL, "query", what, *args, "--json"], timeout, any_exit=True)
+    if isinstance(doc, dict) and doc.get("code") == "protocol_mismatch":
+        result = doc.get("result")
+        payload = result.get("payload") if isinstance(result, dict) else None
+        omniwm_mismatch = payload if isinstance(payload, dict) else {}
+        return None
     if not isinstance(doc, dict) or not doc.get("ok"):
         return None
+    omniwm_mismatch = None
     result = doc.get("result")
     payload = result.get("payload") if isinstance(result, dict) else None
     got = payload.get(what) if isinstance(payload, dict) else None
@@ -505,6 +522,29 @@ def drawn(state):
             state["done"]["count"], state["done"]["keys"], state["windows"])
 
 
+def mismatch_note(was, now):
+    """The log line for an OmniWM protocol mismatch that just began, else
+    None, so a mismatch that lasts all day is one line, not one per refresh."""
+    if now is None or was is not None:
+        return None
+    return (f"omniwmctl cannot talk to the running OmniWM "
+            f"(app {now.get('appVersion', '?')}, protocol {now.get('protocolVersion', '?')}): "
+            "OmniWM was upgraded; restart OmniWM. Locations are stale or missing until then.")
+
+
+# The mismatch the daemon last reported on, so a refresh that raised still
+# gets its note logged by the next one.
+mismatch_reported = None
+
+
+def report_mismatch():
+    global mismatch_reported
+    note = mismatch_note(mismatch_reported, omniwm_mismatch)
+    if note:
+        log(note)
+    mismatch_reported = omniwm_mismatch
+
+
 def refresh(previous):
     try:
         state = compute(previous)
@@ -512,7 +552,9 @@ def refresh(previous):
         # Malformed output from cmux or OmniWM must not kill the daemon
         # (launchd would restart it, but the bar would sit stale meanwhile).
         log("refresh failed:", repr(exc))
+        report_mismatch()
         return previous
+    report_mismatch()
     if state is None:
         # cmux is down or refusing us: say nothing rather than leave a stale
         # "needs you" on the bar.

@@ -25,24 +25,30 @@ a careful read of the table:
   * home: the pool workspace that already holds this repo's windows, if it is
     not the one the window is on.
 
-And it spots a cmux restart, which piles every window onto one workspace
-(whichever the user was on: 1, 7, anything) and gives each a new id (names
-survive):
+And it spots a restart, which piles every window onto one workspace
+(whichever the user was on: 1, 7, anything). A cmux restart also gives each
+window a new id (names survive); an OmniWM restart keeps the ids, but
+OmniWM itself is a different process than at the last run:
 
   * last_workspace: where the last triage run left the window, by name; None
     if its name isn't unique now, the log doesn't know it, or the log says
     it was another repo.
   * restart (top level): at least 75% of the cmux windows (and at least 3)
-    are on one workspace, the pile; at least 75% of those have new ids; at
-    least 75% of the new ones with unique names are names the log knows; and
-    at least two of them were left by the last run on a workspace other than
-    the pile and 1. restart_workspace (top level) is the pile's number, or
-    None when there is no restart. During a restart, misplaced and home are
-    None for windows on the pile.
+    are on one workspace, the pile; at least 75% of those are renewed; at
+    least 75% of the renewed ones with unique names are names the log knows;
+    and at least two of them were left by the last run on a workspace other
+    than the pile and 1. Renewed means a new id (restart_kind "cmux"), or,
+    if that falls short and OmniWM's process (pid and start time) differs
+    from the one the last run logged, every window on the pile (restart_kind
+    "omniwm"). restart_workspace (top level) is the pile's number;
+    restart_workspace and restart_kind are None when there is no restart.
+    During a restart, misplaced and home are None for windows on the pile.
+  * omniwm_instance (top level): OmniWM's process, {"pid", "started"}, or
+    None if there isn't exactly one; apply.py logs it.
   * restore_to / restore_from: the workspace apply.py may "restore" this
     window to, and the one it takes it from (the pile), or None. Set for a
-    window on the pile with a new id whose last_workspace is any other
-    workspace (1-11), during a restart; or for a window the log carried (its
+    renewed window on the pile whose last_workspace is any other workspace
+    (1-11), during a restart; or for a window the log carried (its
     approved restore didn't happen, or an undo put it back), while it is
     still the same window (id) on the pile it was carried from.
 """
@@ -84,6 +90,26 @@ def omniwm(*args):
     if not doc.get("ok"):
         sys.exit(f"inventory: omniwmctl query {args[0]} failed: {doc}")
     return doc["result"]["payload"]
+
+
+def omniwm_instance():
+    """This user's OmniWM process as {"pid", "started"}, or None if there
+    isn't exactly one or ps can't say. The pid alone can be reused; with its
+    start time it names one run of OmniWM, which is what an OmniWM restart
+    changes."""
+    # lstart is printed in local time: pinned to UTC, or a timezone change
+    # (travel, a shell with TZ set) would read as a restart. C for its format.
+    env = dict(os.environ, LC_ALL="C", TZ="UTC0")
+    try:
+        pids = subprocess.run(["pgrep", "-x", "-U", str(os.getuid()), "OmniWM"], capture_output=True,
+                              text=True, env=env, timeout=5).stdout.split()
+        if len(pids) != 1 or not (pids[0].isascii() and pids[0].isdigit()):
+            return None
+        started = subprocess.run(["ps", "-o", "lstart=", "-p", pids[0]], capture_output=True,
+                                 text=True, env=env, timeout=5).stdout.strip()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    return {"pid": int(pids[0]), "started": started} if started else None
 
 
 def repo_of(path):
@@ -138,7 +164,7 @@ def ws_number(ow_window):
 def cmux_by_title(ow_windows, cg):
     """title -> OmniWM cmux windows carrying it (live title, else OmniWM's).
 
-    Shared with ~/.config/cmux/attention.py (programs/cmux/attention.py), which
+    Shared with programs/cmux/attention.py (the cmux-attention command), which
     uses the same join to say which workspace a waiting session is on.
     """
     by_title = {}
@@ -182,6 +208,7 @@ def collect():
 
     ow_windows = omniwm("windows", "--fields", "id,window-id,app,title,workspace,mode,is-scratchpad")["windows"]
     ow_workspaces = omniwm("workspaces")["workspaces"]
+    instance = omniwm_instance()
     cg = live_titles()
 
     by_title = cmux_by_title(ow_windows, cg)
@@ -237,9 +264,10 @@ def collect():
     } for ws in ow_workspaces]
 
     flag(windows, workspaces)
-    pile = recovery(windows)
+    pile, kind = recovery(windows, instance)
     current = next((ws["number"] for ws in ow_workspaces if ws.get("isCurrent")), None)
     return {"current_workspace": current, "restart": pile is not None, "restart_workspace": pile,
+            "restart_kind": kind, "omniwm_instance": instance,
             "windows": windows, "workspaces": workspaces}
 
 
@@ -301,13 +329,18 @@ def located(w):
     return None
 
 
-def recovery(windows):
+def recovery(windows, instance=None):
     """Add last_workspace, restore_to and restore_from to each window; return
-    the workspace a cmux restart piled the windows onto, or None if it didn't
-    just restart. Call after flag(): during a restart it clears misplaced and
-    home on the pile."""
+    (pile, kind): the workspace a restart piled the windows onto and "cmux"
+    or "omniwm" for which one restarted, or (None, None) if neither just
+    did. instance is OmniWM's process now (omniwm_instance()). Call after
+    flag(): during a restart it clears misplaced and home on the pile."""
     last = state.last_placements()
     ids = state.last_ids()
+    was = state.last_omniwm()
+    # Both known and different: a run that logged no OmniWM, or a now with
+    # none, says nothing, so old log entries never read as a restart.
+    omniwm_restarted = was is not None and instance is not None and was != instance
     names = Counter(w["name"] for w in windows)
     for w in windows:
         p = last.get(w["name"]) if w["name"] and names[w["name"]] == 1 else None
@@ -326,28 +359,48 @@ def recovery(windows):
     spots = Counter(located(w) for w in windows if located(w) is not None)
     pile, count = spots.most_common(1)[0] if spots else (None, 0)
     on_pile = [w for w in windows if pile is not None and located(w) == pile]
-    # A restart gives every window a new id, so nearly all of the pile must
-    # be new. A window the user dragged onto the pile keeps its id, so it
-    # doesn't count (unless the log carried it: it was on the pile only
+    # A cmux restart gives every window a new id, so nearly all of the pile
+    # must be new. A window the user dragged onto the pile keeps its id, so
+    # it doesn't count (unless the log carried it: it was on the pile only
     # because of a restart when the last run ended). The ids are the last
     # run's, even an undone one: an undo doesn't change which windows exist.
-    renewed = [w for w in on_pile if (ids is not None and w["id"] not in ids) or w["_carried"] == pile]
-    # A restart keeps names, so nearly all of the renewed windows the log can
-    # identify (a name shared now identifies nothing) must be ones it knows:
-    # new windows with new names are just new windows.
-    named = [w for w in renewed if names[w["name"]] == 1]
-    known = [w for w in named if w["last_workspace"] is not None]
-    # The windows that live on the pile (often most of them: it is the
-    # workspace the user was on) are renewed too, but only the ones the log
-    # left elsewhere came back. Those bound for 1 are what a pile elsewhere
-    # would move onto the user's workspace, so they don't count as evidence.
-    came_back = [w for w in renewed if w["last_workspace"] not in (None, pile)]
-    evidence = [w for w in came_back if w["last_workspace"] != USER_WORKSPACE]
-    restart = (len(windows) >= RESTART_MIN_WINDOWS
-               and count >= RESTART_SHARE * len(windows)
-               and len(renewed) >= RESTART_SHARE * len(on_pile)
-               and len(known) >= RESTART_SHARE * len(named)
-               and len(evidence) >= RESTART_MIN_BACK)
+    by_cmux = [w for w in on_pile if (ids is not None and w["id"] not in ids) or w["_carried"] == pile]
+    # An OmniWM restart keeps every cmux id, so the ids can't tell; a new
+    # OmniWM process since that same run can, and then the whole pile is
+    # renewed. The price: a window dragged onto the pile by hand since the
+    # last run can't be told apart, so it may be offered back too (each
+    # restore is still asked about).
+    by_omniwm = on_pile if omniwm_restarted else []
+
+    def judge(renewed):
+        """(restart?, came_back) for this notion of renewed."""
+        # A restart keeps names, so nearly all of the renewed windows the log
+        # can identify (a name shared now identifies nothing) must be ones it
+        # knows: new windows with new names are just new windows.
+        named = [w for w in renewed if names[w["name"]] == 1]
+        known = [w for w in named if w["last_workspace"] is not None]
+        # The windows that live on the pile (often most of them: it is the
+        # workspace the user was on) are renewed too, but only the ones the
+        # log left elsewhere came back. Those bound for 1 are what a pile
+        # elsewhere would move onto the user's workspace, so they don't count
+        # as evidence.
+        came_back = [w for w in renewed if w["last_workspace"] not in (None, pile)]
+        evidence = [w for w in came_back if w["last_workspace"] != USER_WORKSPACE]
+        ok = (len(windows) >= RESTART_MIN_WINDOWS
+              and count >= RESTART_SHARE * len(windows)
+              and len(renewed) >= RESTART_SHARE * len(on_pile)
+              and len(known) >= RESTART_SHARE * len(named)
+              and len(evidence) >= RESTART_MIN_BACK)
+        return ok, came_back
+
+    # cmux first: when both restarted (a reboot), the new ids say more.
+    kind, came_back = None, []
+    for name, renewed in (("cmux", by_cmux), ("omniwm", by_omniwm)):
+        ok, back = judge(renewed)
+        if ok:
+            kind, came_back = name, back
+            break
+    restart = kind is not None
     for w in windows:
         n = w["omniwm_workspace"]
         ok = (w["omniwm_match"] == "ok" and n is not None and w["last_workspace"] not in (None, n)
@@ -359,7 +412,7 @@ def recovery(windows):
             # belong; last_workspace does.
             w["misplaced"] = w["home"] = None
         del w["_carried"]
-    return pile if restart else None
+    return (pile, kind) if restart else (None, None)
 
 
 def main():

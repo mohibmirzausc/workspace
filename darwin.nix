@@ -29,6 +29,10 @@ let
   bordersActive = "0xffcba6f7";   # mauve, = COLOR_ACCENT below
   bordersScratch = "0xfff9e2af";  # yellow, = COLOR_YELLOW below
 
+  # programs/cmux/attention.py as a store-path command; see that directory's
+  # default.nix. The same derivation programs/cmux.nix and karabiner.nix use.
+  cmuxAttention = pkgs.callPackage ./programs/cmux { };
+
   sketchybarEnv = {
     # DELIBERATELY NO ${pkgs.coreutils}/bin HERE. It used to sit ahead of
     # /usr/bin, which shadowed BSD stat with GNU stat -- and `stat -f` means
@@ -100,9 +104,9 @@ let
     WM_BORDER_COLOR = bordersActive;
     WM_BORDER_COLOR_SCRATCH = bordersScratch;
     # The attention script (programs/cmux/attention.py) as a command, for the
-    # attn.need item's click in sketchybarrc. Nix python by absolute path for
-    # the same reason as WM_BORDERS_BIN.
-    WM_ATTENTION_CMD = "${pkgs.python3}/bin/python3 ${home}/.config/cmux/attention.py";
+    # attn.need item's click in sketchybarrc. A store path for the same reason
+    # as WM_BORDERS_BIN; see programs/cmux/default.nix for why not ~/.config.
+    WM_ATTENTION_CMD = "${cmuxAttention}/bin/cmux-attention";
 
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
@@ -332,6 +336,25 @@ in
     # that is missing the write above still lands and a logout will pick it up.
     /usr/bin/osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to true' 2>/dev/null || \
       echo "note: could not apply menu-bar autohide live; it will apply after logout"
+
+    # Say so when the Homebrew step above upgraded OmniWM under a running app.
+    # omniwmctl is a symlink into the new .app, and it refuses the old server
+    # on every call (exit 1, on stdout):
+    #   error: protocol_mismatch (server protocol 16, app 0.7.3)
+    # which silently breaks everything that drives OmniWM: Karabiner's Caps+F5
+    # and Caps+6, the sketchybar bridge, the cmux-attention locations, triage.
+    # Warn only; restarting OmniWM here could reshuffle windows mid-session.
+    # As the user, since OmniWM's IPC socket is per user; bounded so a hung
+    # app cannot stall activation. Not running at all is not this problem.
+    if [ -x /opt/homebrew/bin/omniwmctl ]; then
+      OW_PING="$(sudo --user=${user} --set-home ${pkgs.coreutils}/bin/timeout 5 /opt/homebrew/bin/omniwmctl ping 2>&1 || true)"
+      case "$OW_PING" in
+        *protocol_mismatch*)
+          printf '\e[1;33mwarning: OmniWM was upgraded but the old version is still running (%s).\e[0m\n' "$OW_PING" >&2
+          echo "warning: omniwmctl, Caps+F5/Caps+6, the bar and triage fail until you restart OmniWM (quit it from its menu bar icon, then reopen)." >&2
+          ;;
+      esac
+    fi
   '';
 
   # Enable Touch ID for sudo (including inside tmux sessions)
@@ -717,9 +740,10 @@ in
   # event stream dropping) is retried inside the daemon, which never exits.
   launchd.user.agents.cmux-attention = {
     serviceConfig = {
+      # A store path, not the ~/.config/cmux link: this agent is loaded
+      # before home-manager links files (programs/cmux/default.nix).
       ProgramArguments = [
-        "${pkgs.python3}/bin/python3"
-        "${home}/.config/cmux/attention.py"
+        "${cmuxAttention}/bin/cmux-attention"
         "daemon"
       ];
       EnvironmentVariables = sketchybarEnv;

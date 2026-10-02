@@ -322,5 +322,63 @@ class Events(unittest.TestCase):
         self.assertEqual(rest, b"")
 
 
+class OmniwmMismatch(unittest.TestCase):
+    # What omniwmctl 0.7.4 prints (exit 1) against a running 0.7.3.
+    MISMATCH = {"code": "protocol_mismatch", "ok": False, "status": "error",
+                "result": {"kind": "version",
+                           "payload": {"appVersion": "0.7.3", "protocolVersion": 16}}}
+
+    def query(self, doc):
+        real = a.run_json
+        a.run_json = lambda cmd, timeout, any_exit=False: doc
+        try:
+            return a.omniwm("workspaces", 1)
+        finally:
+            a.run_json = real
+
+    def tearDown(self):
+        a.omniwm_mismatch = None
+
+    def test_mismatch_is_recorded_and_returns_none(self):
+        self.assertIsNone(self.query(self.MISMATCH))
+        self.assertEqual(a.omniwm_mismatch["appVersion"], "0.7.3")
+
+    def test_a_good_reply_clears_it(self):
+        self.query(self.MISMATCH)
+        ok = {"ok": True, "result": {"payload": {"workspaces": []}}}
+        self.assertEqual(self.query(ok), [])
+        self.assertIsNone(a.omniwm_mismatch)
+
+    def test_other_failures_leave_it_alone(self):
+        self.query(self.MISMATCH)
+        self.assertIsNone(self.query(None))  # timeout, not installed
+        self.assertIsNotNone(a.omniwm_mismatch)
+
+    def test_reported_once_even_after_a_failed_refresh(self):
+        logged, real = [], (a.log, a.compute)
+        a.log = lambda *parts: logged.append(" ".join(map(str, parts)))
+
+        def boom(previous):
+            a.omniwm_mismatch = {"appVersion": "0.7.3", "protocolVersion": 16}
+            raise ValueError("bad tree")
+        a.compute = boom
+        try:
+            a.refresh(None)
+            a.refresh(None)
+        finally:
+            a.log, a.compute = real
+            a.mismatch_reported = None
+        self.assertEqual(sum("restart OmniWM" in line for line in logged), 1)
+
+    def test_note_once_per_mismatch(self):
+        now = {"appVersion": "0.7.3", "protocolVersion": 16}
+        note = a.mismatch_note(None, now)
+        self.assertIn("restart OmniWM", note)
+        self.assertIn("app 0.7.3, protocol 16", note)
+        self.assertIsNone(a.mismatch_note(now, now))
+        self.assertIsNone(a.mismatch_note(now, None))
+        self.assertIsNone(a.mismatch_note(None, None))
+
+
 if __name__ == "__main__":
     unittest.main()
