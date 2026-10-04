@@ -99,6 +99,16 @@
 # rebuild never undoes a triage run. To change it, edit the live file or re-run
 # triage, not the seed. layoutType is NOT carried over (it was while triage
 # picked dwindle for small projects): layouts come from the seed.
+#
+# SCRATCHPAD SLOTS ARE NOT IN THIS FILE. Caps+Shift+S/T/E/C put the focused
+# window in slot 1-4 and Caps+S/T/E/C toggle it, but OmniWM 0.7.4 keeps which
+# window is in which slot only in memory ([scratchpads] here holds labels), so
+# every OmniWM restart or upgrade emptied them. The slots are picked by hand
+# (one Chrome window on C, not every Chrome window), so app rules cannot
+# rebuild them; the omniwm-scratchpads agent (./omniwm/scratchpads.py, run
+# from darwin.nix) saves them as they change and assigns the same windows back
+# when OmniWM comes up again. App rules are still fine alongside it: a window
+# already in a slot is never touched by a restore.
 
 let
   # Carries the pool workspaces' runtime labels (set by the triage skill) into
@@ -109,6 +119,10 @@ let
   '';
 in
 {
+  # `omniwm-scratchpads status|restore` by hand; the daemon mode runs as the
+  # omniwm-scratchpads launchd agent in darwin.nix. See the note above.
+  home.packages = lib.mkIf pkgs.stdenv.isDarwin [ (pkgs.callPackage ./omniwm/scratchpads.nix { }) ];
+
   home.activation.installOmniwmConfig = lib.mkIf pkgs.stdenv.isDarwin
     (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       OW_DIR="$HOME/.config/omniwm"

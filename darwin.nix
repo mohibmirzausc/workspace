@@ -730,6 +730,31 @@ in
     };
   };
 
+  # Keeps OmniWM's scratchpad slots (Caps+Shift+S/T/E/C) across an OmniWM
+  # restart or upgrade, which otherwise empties them: saves them to
+  # ~/.local/state/omniwm-scratchpads.json as they change, and assigns the
+  # same windows back when a new OmniWM appears. See programs/omniwm/
+  # scratchpads.py.
+  #
+  # A store path, not a ~/.config link: this agent is loaded before
+  # home-manager links files (programs/omniwm/scratchpads.nix). It finds
+  # omniwmctl at /opt/homebrew/bin itself, so it needs no PATH. KeepAlive only
+  # on a non-zero exit: with no omniwmctl it exits 0 and launchd leaves it
+  # stopped. OmniWM quitting, restarting or answering protocol_mismatch is
+  # waited out inside the daemon, which never exits for it.
+  launchd.user.agents.omniwm-scratchpads = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.callPackage ./programs/omniwm/scratchpads.nix { }}/bin/omniwm-scratchpads"
+        "daemon"
+      ];
+      RunAtLoad = true;
+      KeepAlive = { SuccessfulExit = false; };
+      StandardOutPath = "${home}/Library/Logs/omniwm-scratchpads.log";
+      StandardErrorPath = "${home}/Library/Logs/omniwm-scratchpads.log";
+    };
+  };
+
   # JankyBorders -- coloured border on the focused window. See
   # programs/borders.nix for why this rather than OmniWM's own [borders]
   # (short version: OmniWM draws entirely outside the window frame; this
