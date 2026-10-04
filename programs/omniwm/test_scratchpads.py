@@ -74,7 +74,7 @@ class FakeOmniWM:
             return None
         return {"pid": self.pid, "started": self.started, "epoch": self.epoch}
 
-    def alive(self, pid):
+    def alive(self, pid, started=None):
         return pid in self.alive_pids
 
     # -- omniwmctl -----------------------------------------------------------
@@ -191,7 +191,8 @@ class Base(unittest.TestCase):
 
     def keeper(self):
         return sp.Keeper(path=self.path, instance=self.ow.instance, alive=self.ow.alive,
-                         age=lambda pid: 1000.0, clock=lambda: self.now)
+                         age=lambda pid: 1000.0, clock=lambda: self.now,
+                         started=lambda pid: ("Thu Jan  1 00:00:00 1970", 0))
 
     def saved(self):
         with open(self.path) as f:
@@ -294,7 +295,7 @@ def E(pid, wid, bundle, title, app=None):
 class Matching(unittest.TestCase):
     old = staticmethod(lambda pid: 1000.0)
 
-    def m(self, e, wins, alive=lambda pid: True, age=None):
+    def m(self, e, wins, alive=lambda pid, started=None: True, age=None):
         return sp.match(e, wins, alive, age or self.old)
 
     def test_same_window(self):
@@ -302,7 +303,7 @@ class Matching(unittest.TestCase):
         self.assertEqual((out, w["windowId"]), ("found", 10))
 
     def test_pid_reused_by_another_app_is_not_a_match(self):
-        out, _, _ = self.m(E(1, 10, CHROME, "a"), [W(1, 10, "com.other", "a")], alive=lambda pid: False)
+        out, _, _ = self.m(E(1, 10, CHROME, "a"), [W(1, 10, "com.other", "a")], alive=lambda pid, started=None: False)
         self.assertEqual(out, "missing")
 
     def test_closed_while_app_runs_has_no_title_fallback(self):
@@ -314,34 +315,45 @@ class Matching(unittest.TestCase):
 
     def test_app_restarted_unique_title(self):
         out, w, _ = self.m(E(1, 10, CHROME, "Inbox"), [W(2, 50, CHROME, "Inbox"), W(2, 51, CHROME, "Other")],
-                           alive=lambda pid: False)
+                           alive=lambda pid, started=None: False)
         self.assertEqual((out, w["windowId"]), ("found", 50))
 
     def test_app_restarted_two_same_titles_is_ambiguous(self):
         out, _, _ = self.m(E(1, 10, CHROME, "New Tab"), [W(2, 50, CHROME, "New Tab"), W(2, 51, CHROME, "New Tab")],
-                           alive=lambda pid: False)
+                           alive=lambda pid, started=None: False)
         self.assertEqual(out, "ambiguous")
+
+    def test_reused_pid_after_a_reboot_allows_the_title_fallback(self):
+        e = dict(E(2014, 69, OBSIDIAN, "Notes"), appStarted=1000)
+        alive = lambda pid, started=None: started is None  # pid runs, but it started at another time
+        out, w, _ = self.m(e, [W(3000, 5, OBSIDIAN, "Notes")], alive=alive)
+        self.assertEqual((out, w["windowId"]), ("found", 5))
+
+    def test_young_duplicates_wait_rather_than_skip(self):
+        out, _, _ = self.m(E(1, 10, CHROME, "New Tab"), [W(2, 50, CHROME, "New Tab"), W(2, 51, CHROME, "New Tab")],
+                           alive=lambda pid, started=None: False, age=lambda pid: 3.0)
+        self.assertEqual(out, "wait")
 
     def test_app_just_started_waits(self):
         out, _, _ = self.m(E(1, 10, CHROME, "Inbox"), [W(2, 50, CHROME, "Inbox")],
-                           alive=lambda pid: False, age=lambda pid: 3.0)
+                           alive=lambda pid, started=None: False, age=lambda pid: 3.0)
         self.assertEqual(out, "wait")
 
     def test_title_fallback_never_crosses_apps(self):
         out, _, _ = self.m(E(1, 10, CHROME, "Inbox"), [W(2, 50, "com.apple.Safari", "Inbox")],
-                           alive=lambda pid: False)
+                           alive=lambda pid, started=None: False)
         self.assertEqual(out, "missing")
 
     def test_plan_outcomes(self):
         wins = [W(1, 10, CHROME, "a", slot=4), W(1, 11, CHROME, "b", slot=2), W(1, 12, CHROME, "c")]
         rows = sp.plan([(4, E(1, 10, CHROME, "a")), (4, E(1, 11, CHROME, "b")), (1, E(1, 12, CHROME, "c"))],
-                       wins, lambda pid: True, self.old)
+                       wins, lambda pid, started=None: True, self.old)
         self.assertEqual([r[2] for r in rows], ["in-place", "taken", "assign"])
 
     def test_two_slots_on_one_window_are_both_skipped(self):
         wins = [W(2, 50, CHROME, "Inbox")]
         rows = sp.plan([(1, E(1, 10, CHROME, "Inbox")), (4, E(1, 11, CHROME, "Inbox"))],
-                       wins, lambda pid: False, self.old)
+                       wins, lambda pid, started=None: False, self.old)
         self.assertEqual([r[2] for r in rows], ["ambiguous", "ambiguous"])
 
 
@@ -398,6 +410,9 @@ class Saving(Base):
         k.tick()
         self.ow.wins[a]["slot"] = None  # the user's Caps+Shift+C on it
         k.tick()
+        self.assertEqual(self.saved_keys(), {3: [b], 4: [a]}, "held a moment, in case OmniWM is quitting")
+        self.now += sp.UNASSIGN_GRACE
+        k.tick()
         self.assertEqual(self.saved_keys(), {3: [b]})
 
     def test_moving_a_window_to_another_slot(self):
@@ -433,6 +448,19 @@ class Saving(Base):
         self.now += sp.VANISH_GRACE + 1
         k.tick()
         self.assertEqual(self.saved_keys(), {})
+
+    def test_corrupt_file_is_moved_aside(self):
+        with open(self.path, "w") as f:
+            f.write("{not json")
+        self.ow.add(1, 10, CHROME, "a", slot=4)
+        self.keeper().tick()
+        self.assertEqual(self.saved_keys(), {4: [(1, 10)]})
+        self.assertTrue([n for n in os.listdir(self.dir) if ".corrupt-" in n])
+
+    def test_entries_carry_the_app_start_time(self):
+        self.ow.add(1, 10, CHROME, "a", slot=4)
+        self.keeper().tick()
+        self.assertEqual(self.saved()["slots"]["4"][0]["appStarted"], 0)
 
     def test_empty_window_list_is_never_saved(self):
         self.ow.add(1, 10, CHROME, "a", slot=4)
@@ -494,7 +522,7 @@ class Restart(Base):
         # and a hand-run restore leaves slots alone rather than toggling them out
         self.assertEqual(sp.restore(sp.saved_entries(self.saved()), self.ow.alive, lambda p: 1000.0,
                                     self.ow.instance(), self.ow.instance),
-                         {(s, p, w): ("in-place", "same window") for s, p, w in
+                         {(s, p, w): ("in-place", "same window", (p, w)) for s, p, w in
                           [(2, 83127, 42676), (3, 2014, 69), (4, 56249, 42018)]})
         self.assertEqual(self.ow.slot_of(self.master), 4)
 
@@ -503,6 +531,8 @@ class Restart(Base):
         self.now = self.ow.epoch + sp.SETTLE + 1
         self.k.tick()
         self.ow.wins[self.mc]["slot"] = None  # the user empties slot 2
+        self.k.tick()
+        self.now += sp.UNASSIGN_GRACE
         self.k.tick()
         self.assertNotIn("2", self.saved()["slots"])
         self.restart()
@@ -538,7 +568,7 @@ class Restart(Base):
         self.now += sp.PENDING_GRACE + 1
         self.k.tick()
         self.assertEqual(self.saved()["pending"], {})
-        self.assertTrue(self.log_has("not found within"))
+        self.assertTrue(self.log_has("not back within"))
 
     def test_a_window_that_shows_up_late_is_restored(self):
         late = self.ow.wins.pop(self.notes)
@@ -620,21 +650,62 @@ class Restart(Base):
         self.assertEqual(self.ow.slot_of(self.master), 4)
 
     def test_focus_moving_away_before_assign_stops_the_restore(self):
+        # Slot order is 2, 3, 4: a click lands on the cmux window inside the
+        # assign for slot 2, so OmniWM puts cmux in slot 2 instead.
         self.restart()
         self.now = self.ow.epoch + sp.SETTLE + 1
         cmux = (75354, 29693)
 
         def user(ow, n):
             ow.on_assign = None
-            ow.focus = cmux  # a click lands between our check and the assign
+            ow.focus = cmux
         self.ow.on_assign = user
         view = self.ow.view()
         self.k.tick()
-        self.assertTrue(self.log_has("instead (focus moved)"))
+        self.assertTrue(self.log_has("went into slot 2 instead"))
+        self.assertEqual(self.ow.slot_of(cmux), 2)
         self.assertEqual(self.ow.view()[0], view[0], "workspaces put back even when stopped")
-        self.assertEqual(self.saved()["omniwm"]["pid"], self.before["omniwm"]["pid"], "not saved")
+        self.assertEqual(self.saved()["omniwm"]["pid"], self.before["omniwm"]["pid"], "not saved mid-restore")
+        # The next ticks: the rest is restored, Minecraft is still wanted on
+        # slot 2 (cmux is ours, by mistake, not the user's choice), and cmux
+        # is kept out of the file.
+        self.now += sp.RETRY_AFTER + 1
+        self.k.tick()
+        self.assertEqual(self.ow.slot_of(self.mc), 2)
+        self.assertEqual(self.ow.slot_of(self.master), 4)
+        self.assertEqual(self.ow.slot_of(self.notes), 3)
+        self.assertEqual(self.saved_keys(), self.saved_keys(self.before))
+        self.assertFalse(self.log_has("by hand"))
 
-    def test_focus_that_never_lands_is_retried_then_given_up(self):
+    def test_assign_toggling_out_a_member_is_put_right(self):
+        # Slot 2 is showing with the user's window Y in it; focus jumps to Y
+        # just as the restore assigns Minecraft to slot 2, which releases Y.
+        self.restart()
+        self.now = self.ow.epoch + sp.SETTLE + 1
+        y = self.ow.add(75354, 29700, "com.cmuxterm.app", "Y")
+        self.ow.wins[y]["slot"], self.ow.wins[y]["hidden"], self.ow.revealed = 2, False, 2
+        self.ow.focus = y
+        # Y was filled by hand after the restart; make it ours as though the
+        # file had it, so slot 2 is still being restored.
+        self.k.begin(self.ow.instance())
+        self.k.ours.add(y)
+
+        def user(ow, n):
+            if n == 2:
+                ow.on_assign = None
+                ow.focus = y
+        self.ow.on_assign = user
+        self.k.restored = False
+        self.k.tick()
+        self.assertTrue(self.log_has("was toggled out of slot 2"))
+        self.assertIsNone(self.ow.slot_of(y))
+        self.now += sp.RETRY_AFTER + 1
+        self.k.tick()
+        self.assertEqual(self.ow.slot_of(y), 2, "put back")
+        self.assertEqual(self.ow.slot_of(self.mc), 2)
+        self.assertIn(y, self.saved_keys()[2])
+
+    def test_focus_that_never_lands_slows_down_then_expires(self):
         self.restart()
         self.now = self.ow.epoch + sp.SETTLE + 1
         self.ow.focus_lag = 10 ** 9
@@ -643,8 +714,81 @@ class Restart(Base):
                 self.k.tick()
                 self.now += sp.RETRY_AFTER + 1
             self.k.tick()
-        self.assertTrue(self.log_has("gave up"))
+            self.assertTrue(self.log_has("failed 3 times"))
+            self.assertIn("4", self.saved()["pending"], "kept, retried slowly")
+            focuses = len([c for c in self.ow.calls if c[:2] == ["window", "focus"]])
+            self.now += sp.RETRY_AFTER + 1
+            self.k.tick()
+            self.assertEqual(focuses, len([c for c in self.ow.calls if c[:2] == ["window", "focus"]]),
+                             "no focus stealing every 30s once slowed")
+            self.now += sp.PENDING_GRACE
+            self.k.tick()
         self.assertEqual(self.saved()["pending"], {})
+
+    def test_title_fallback_keeps_the_other_pending_member(self):
+        # Two Chrome windows in slot 4; Chrome restarts and brings them back
+        # one at a time. The first, matched by title, must not read as a
+        # hand fill that drops the second.
+        second = self.ow.add(56249, 42030, CHROME, "Second")
+        self.ow.wins[second]["slot"] = 4
+        self.k.tick()
+        del self.ow.wins[self.master], self.ow.wins[second], self.ow.wins[self.other]
+        self.ow.alive_pids.discard(56249)
+        first = self.ow.add(60000, 1, CHROME, "Master")
+        self.restart()
+        self.now = self.ow.epoch + sp.SETTLE + 1
+        self.k.tick()
+        self.assertEqual(self.ow.slot_of(first), 4)
+        self.assertFalse(self.log_has("by hand"))
+        late = self.ow.add(60000, 2, CHROME, "Second")
+        self.now += 5
+        self.k.tick()
+        self.assertEqual(self.ow.slot_of(late), 4)
+
+    def test_daemon_restart_keeps_pending_for_a_half_restored_slot(self):
+        second = self.ow.add(2014, 70, OBSIDIAN, "Other vault")
+        self.ow.wins[second]["slot"] = 3
+        self.k.tick()
+        late = self.ow.wins.pop(second)
+        self.restart()
+        self.now = self.ow.epoch + sp.SETTLE + 1
+        self.k.tick()
+        self.assertEqual(self.ow.slot_of(self.notes), 3)
+        k2 = self.keeper()  # darwin-rebuild restarted the agent
+        k2.tick()
+        self.assertIn("3", self.saved()["pending"])
+        self.ow.wins[second] = late
+        self.now += 5
+        k2.tick()
+        self.assertEqual(self.ow.slot_of(second), 3)
+
+    def test_slot_filled_during_settle_wins(self):
+        self.restart()
+        cmux = (75354, 29693)
+        self.ow.wins[cmux]["slot"] = 4  # Caps+Shift+C on cmux before the restore ran
+        self.now = self.ow.epoch + sp.SETTLE + 1
+        self.k.tick()
+        self.assertIsNone(self.ow.slot_of(self.master), "not added to the slot the user just filled")
+        self.assertEqual(self.ow.slot_of(self.mc), 2)
+        self.assertEqual(self.saved_keys()[4], [cmux])
+
+    def test_user_switching_workspace_during_restore_is_left_alone(self):
+        self.restart()
+        self.now = self.ow.epoch + sp.SETTLE + 1
+        real = sp.view_now
+        calls = []
+
+        def view_now():
+            v = real()
+            calls.append(v)
+            if len(calls) == 4:  # the restore's last step is done: the user presses Caps+5
+                self.ow.show_ws(5)
+                self.ow.focus = None
+            return v
+        with mock.patch.object(sp, "view_now", view_now):
+            self.k.tick()
+        self.assertEqual(self.ow.view()[0][0], ("display:3", 5, True))
+        self.assertTrue(self.log_has("leaving it as you left it"))
 
     def test_slow_focus_still_lands(self):
         self.restart()
@@ -662,9 +806,12 @@ class Restart(Base):
             ow.displays = [d for d in ow.displays if d["id"] != "display:1"]
             ow.displays[0]["owns"] |= set(range(6, 11))
         self.ow.on_focus = unplug
+        view = self.ow.view()
         self.k.tick()
         self.assertEqual(self.ow.slot_of(self.notes), 3)
         self.assertEqual(self.ow.slot_of(self.master), 4)
+        self.assertEqual(self.ow.view(), ([("display:3", view[0][0][1], True)], view[1]),
+                         "the display that is left gets its workspace and focus back")
 
     def test_previously_focused_window_now_hidden_is_not_refocused(self):
         self.restart()

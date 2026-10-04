@@ -28,12 +28,14 @@ its own restart restore catalog the same way: pid + windowId + bundleId
 
   1. bundle id + pid + window id. Exact. A pid reused by another app fails
      the bundle check.
-  2. bundle id + title, ONLY if the saved pid is no longer running (the app
-     itself restarted, e.g. after a reboot), only once that app has been up
-     APP_SETTLE seconds (so all its windows have come back), and only if
-     exactly one unassigned window of that app has that title. Two Chrome
-     windows called "New Tab" are skipped and logged, never guessed. If the
-     saved pid is still running, a missing window was closed: no fallback.
+  2. bundle id + title, ONLY if the app process that had the saved pid is
+     gone (the app itself restarted, e.g. after a reboot; a pid reused by
+     another process is told apart by the app's saved start time), only once
+     the app has been up APP_SETTLE seconds (so all its windows have come
+     back and stopped loading), and only if exactly one window of that app,
+     in a slot or not, has that title. Two Chrome windows called "New Tab"
+     are skipped and logged, never guessed. If the saved process is still
+     running, a missing window was closed: no fallback.
 
 Apps without a bundle id (Minecraft's "java") use "name:<app name>".
 
@@ -42,12 +44,14 @@ WHEN TO SAVE, AND WHEN NOT TO. OmniWM's lifetime is its pid plus start time
 are the truth, so a slot the user empties is saved empty. Across lifetimes
 the file is the truth until the restore has run: nothing is written for a new
 OmniWM before that, and nothing at all while OmniWM is unreachable or
-answering protocol_mismatch (an upgrade under a running app). A saved window
-that vanishes from OmniWM's list is kept for VANISH_GRACE seconds before it is
-dropped, so the last answers of an OmniWM that is quitting cannot wipe the
-file. Windows not found at restore stay "pending" for PENDING_GRACE seconds
-(apps reopen their windows slowly after a reboot), then are dropped and
-logged.
+answering protocol_mismatch (an upgrade under a running app), nor from an
+empty window list. A saved window that vanishes from OmniWM's list is kept
+for VANISH_GRACE seconds before it is dropped (an unassign: UNASSIGN_GRACE),
+so the last answers of an OmniWM that is quitting cannot wipe the file.
+Windows not found at restore stay "pending" for PENDING_GRACE seconds (apps
+reopen their windows slowly after a reboot), then are dropped and logged. A
+slot the user fills by hand after a restart (even before the restore runs)
+is theirs: whatever is still pending for it is dropped.
 
 HOW A RESTORE ASSIGNS. There is no IPC call that assigns a given window, only
 `command scratchpad assign <n>`, which acts on the focused window. And assign
@@ -55,12 +59,16 @@ TOGGLES: a window already in slot n is released from it (WMController+
 ScratchpadCommands.assignWindowToScratchpad). So for each window: re-read the
 live state, skip it if it is in any slot already (a slot the user filled since
 the restart wins), `window focus` it, wait until OmniWM reports it focused,
-re-read once more, assign, and check the result. Slots hold several windows
-(ScratchpadState.membersBySlot), so assigning never evicts another member. An
-assigned window is hidden unless its slot is the one showing, as with the
-hotkey. Afterwards each display gets its workspace back and the window that
-had focus is refocused, unless it is now hidden in a scratchpad (focusing it
-would reveal the slot).
+re-read once more and re-check the focus, assign, and check the result.
+Slots hold several windows (ScratchpadState.membersBySlot), so assigning
+never evicts another member. An assigned window is hidden unless its slot is
+the one showing, as with the hotkey. If the user's click or hotkey moved the
+focus in the last instant and the assign hit another window, the restore
+stops: a window wrongly put in the slot is kept out of the file, and a member
+wrongly toggled out is queued to go back. Afterwards each display gets its
+workspace back and the window that had focus is refocused (unless it is now
+hidden in a scratchpad: focusing it would reveal the slot), but only if the
+user didn't switch workspace or focus during the restore themselves.
 """
 
 import base64
@@ -97,6 +105,8 @@ PENDING_GRACE = 30 * 60.0
 FOCUS_TIMEOUT = 2.0
 RETRY_AFTER = 30.0
 MAX_ATTEMPTS = 3
+SLOW_RETRY = 5 * 60.0
+UNASSIGN_GRACE = 3.0
 FIELDS = "id,pid,window-id,app,title,workspace,scratchpad-index,is-visible"
 
 
@@ -269,14 +279,20 @@ def same_instance(a, b):
     return bool(a and b) and a.get("pid") == b.get("pid") and a.get("started") == b.get("started")
 
 
-def pid_alive(pid):
+def pid_alive(pid, started=None):
+    """Is the process that had pid still running? With its start time, a
+    reused pid (likely after a reboot) reads as not running."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
     except (OSError, OverflowError, ValueError):
-        return True  # EPERM: it exists
-    return True
+        pass  # EPERM: it exists
+    if type(started) not in (int, float):
+        return True
+    s = started_at(pid)
+    # ps prints whole seconds
+    return s is None or abs(s[1] - started) <= 2
 
 
 def app_age(pid, now):
@@ -298,21 +314,28 @@ def key(w):
     return (w["pid"], w["windowId"])
 
 
-def entry_of(w):
-    return {"pid": w["pid"], "windowId": w["windowId"], "bundleId": w.get("bundleId"),
-            "app": w.get("app"), "title": w.get("title") or ""}
+ENTRY_KEYS = ("pid", "windowId", "bundleId", "app", "title", "appStarted")
+
+
+def entry_of(w, app_started=None):
+    e = {"pid": w["pid"], "windowId": w["windowId"], "bundleId": w.get("bundleId"),
+         "app": w.get("app"), "title": w.get("title") or ""}
+    if app_started is not None:
+        e["appStarted"] = app_started
+    return e
 
 
 def describe(e):
     return f"{e.get('app') or e.get('bundleId') or '?'} {e.get('title')!r} (pid {e.get('pid')}, window {e.get('windowId')})"
 
 
-def live_slots(wins):
-    """{"n": [entry, ...]} from a window list, members in window-id order."""
+def live_slots(wins, app_started=lambda pid: None, skip=()):
+    """{"n": [entry, ...]} from a window list, members in window-id order.
+    skip: window keys left out (a stray a stopped restore put in a slot)."""
     out = {}
     for w in sorted(wins, key=key):
-        if w["slot"] is not None:
-            out.setdefault(str(w["slot"]), []).append(entry_of(w))
+        if w["slot"] is not None and key(w) not in skip:
+            out.setdefault(str(w["slot"]), []).append(entry_of(w, app_started(w["pid"])))
     return out
 
 
@@ -320,15 +343,16 @@ def match(e, wins, alive, age):
     """Find saved entry e among the live windows.
 
     Returns (outcome, window, why): ("found", w, how) or ("missing", None,
-    why), ("ambiguous", None, why), ("wait", None, why). alive(pid) says if
-    a process is running; age(pid) is how long it has been, or None."""
+    why), ("ambiguous", None, why), ("wait", None, why). alive(pid, started) says if
+    the process that had pid (started at epoch `started`, if known) still
+    runs; age(pid) is how long the process now at pid has run, or None."""
     ak = app_key(e)
     for w in wins:
         if key(w) == (e.get("pid"), e.get("windowId")) and app_key(w) == ak:
             return "found", w, "same window"
     if ak is None:
         return "missing", None, "not found, and it has no app to match by"
-    if type(e.get("pid")) is int and alive(e["pid"]):
+    if type(e.get("pid")) is int and alive(e["pid"], e.get("appStarted")):
         return "missing", None, "not found while its app is still running: closed"
     title = e.get("title") or ""
     if not title:
@@ -336,11 +360,13 @@ def match(e, wins, alive, age):
     cands = [w for w in wins if app_key(w) == ak and w.get("title") == title]
     if not cands:
         return "missing", None, "its app restarted and no window has its title"
+    # Judged only once the app has settled: windows that are still loading
+    # can share a title for a moment.
+    ages = [age(w["pid"]) for w in cands]
+    if any(a is None or a < APP_SETTLE for a in ages):
+        return "wait", None, "its app restarted moments ago; waiting for all its windows"
     if len(cands) > 1:
         return "ambiguous", None, f"its app restarted and {len(cands)} of its windows are titled {title!r}"
-    a = age(cands[0]["pid"])
-    if a is None or a < APP_SETTLE:
-        return "wait", None, "its app restarted moments ago; waiting for all its windows"
     return "found", cands[0], "same app and title (the app restarted)"
 
 
@@ -427,14 +453,21 @@ class Debounce:
 # ---------------------------------------------------------------------------
 
 def load_state(path=None):
+    """The state file, {} if there is none. Raises OSError if it can't be
+    read; a corrupt one is moved aside (kept for a look) and reads as {}."""
     path = path or STATE_FILE
     try:
         with open(path) as f:
             doc = json.load(f)
     except FileNotFoundError:
         return {}
-    except (OSError, ValueError) as exc:
-        log(f"cannot read {path}: {exc}; starting from nothing")
+    except ValueError as exc:
+        aside = f"{path}.corrupt-{int(time.time())}"
+        try:
+            os.replace(path, aside)
+            log(f"{path} is not JSON ({exc}); moved it to {aside}")
+        except OSError:
+            pass
         return {}
     return doc if isinstance(doc, dict) else {}
 
@@ -446,6 +479,8 @@ def write_state(doc, path=None):
     with open(tmp, "w") as f:
         json.dump(doc, f, indent=2, sort_keys=True)
         f.write("\n")
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(tmp, path)
 
 
@@ -479,7 +514,16 @@ class Lock:
 # ---------------------------------------------------------------------------
 
 class Aborted(Exception):
-    pass
+    """The restore stopped part way through.
+
+    strays: keys of windows OmniWM put in the slot instead of ours (focus
+    moved between the check and the assign). lost: windows (as listed just
+    before the assign) that the assign toggled OUT of the slot, because the
+    focus had moved onto a member of that slot."""
+
+    def __init__(self, why, strays=(), lost=(), slot=None):
+        super().__init__(why)
+        self.strays, self.lost, self.slot = list(strays), list(lost), slot
 
 
 def sleep(s):
@@ -487,54 +531,74 @@ def sleep(s):
 
 
 def assign_one(slot, e, alive, age, inst, instance):
-    """Assign the window saved as e to slot. Returns (outcome, why).
+    """Assign the window saved as e to slot. Returns (outcome, why, window
+    key or None).
 
     Every check is against a fresh read, since the user may be pressing
-    hotkeys meanwhile. Raises Aborted when OmniWM changed under us."""
+    hotkeys meanwhile. Raises Aborted when OmniWM changed under us, or the
+    assign hit another window."""
     wins = windows()
     (_, _, outcome, w, why), = plan([(slot, e)], wins, alive, age)
     if outcome != "assign":
-        return outcome, why
+        return outcome, why, key(w) if w else None
     try:
         ctl("window", "focus", w["id"])
     except Rejected as exc:
-        return "failed", f"focusing it was refused ({exc.code})"
+        return "failed", f"focusing it was refused ({exc.code})", key(w)
     deadline = time.monotonic() + FOCUS_TIMEOUT
     while focused() != key(w):
         if time.monotonic() >= deadline:
-            return "failed", "focus did not land on it"
+            return "failed", "focus did not land on it", key(w)
         sleep(0.05)
     if not same_instance(instance(), inst):
         raise Aborted("OmniWM restarted mid-restore")
-    before = {key(x): x["slot"] for x in windows()}
+    listed = windows()
+    before = {key(x): x["slot"] for x in listed}
     if before.get(key(w), "gone") is not None:
         # Gone, or put in a slot (by a hotkey) since the first read. Assigning
         # now would toggle it back out.
         if before.get(key(w)) == slot:
-            return "in-place", "put back by hand meanwhile"
-        return "taken", "it changed while being restored"
+            return "in-place", "put back by hand meanwhile", key(w)
+        return "taken", "it changed while being restored", key(w)
+    if focused() != key(w):
+        return "failed", "focus moved off it before the assign", key(w)
     try:
         ctl("command", "scratchpad", "assign", str(slot))
     except Rejected as exc:
-        return "failed", f"assign was refused ({exc.code})"
+        return "failed", f"assign was refused ({exc.code})", key(w)
     after = {key(x): x["slot"] for x in windows()}
     strays = [k for k, s in after.items() if s == slot and before.get(k) != slot and k != key(w)]
-    if strays:
-        # Focus moved between the check and the assign (a click, a hotkey),
-        # and OmniWM assigned that window instead.
-        raise Aborted(f"slot {slot} got window {strays[0]} instead (focus moved); "
-                      "stopping. Fix it with the hotkeys if that is wrong")
+    lost = [x for x in listed if x["slot"] == slot and after.get(key(x)) != slot]
+    if strays or lost:
+        # Focus moved between the last check and the assign (a click, a
+        # hotkey), and the assign hit that window instead: into the slot, or
+        # out of it if it was a member already.
+        what = (f"window {strays[0]} went into slot {slot} instead" if strays
+                else f"{describe(lost[0])} was toggled out of slot {slot}")
+        raise Aborted(f"{what} (focus moved during the restore); stopping", strays, lost, slot)
     if after.get(key(w)) != slot:
-        return "failed", "it is not in the slot after assigning"
-    return "assigned", "assigned"
+        return "failed", "it is not in the slot after assigning", key(w)
+    return "assigned", "assigned", key(w)
 
 
-def restore_view(view, wins):
-    """Put each display's workspace and the focused window back."""
+def view_now():
+    return displays(), focused()
+
+
+def restore_view(view, last):
+    """Put each display's workspace and the focused window back.
+
+    view is what it was before the restore; last is what the restore itself
+    left after its last step (None if unknown). If the live view differs
+    from last, the user changed it meanwhile (Caps+7, a click), and theirs
+    wins: nothing is put back."""
     before_displays, before_focus = view
     try:
-        now = displays()
+        now, now_focus = view_now()
     except (Unavailable, Rejected):
+        return
+    if last is not None and (sorted(now) != sorted(last[0]) or now_focus != last[1]):
+        log("you moved focus or switched workspace during the restore; leaving it as you left it")
         return
     now_ws = {d: n for d, n, _ in now}
     now_current = next((d for d, _, c in now if c), None)
@@ -549,6 +613,10 @@ def restore_view(view, wins):
         if current and d in now_ws and (moved or now_ws[d] != n or now_current != d):
             switch(n, d)
     if before_focus is None:
+        return
+    try:
+        wins = windows()
+    except (Unavailable, Rejected):
         return
     w = next((x for x in wins if key(x) == before_focus), None)
     if w is None or (w["slot"] is not None and not w["visible"]):
@@ -568,29 +636,34 @@ def switch(n, display):
         return False
 
 
-def restore(entries, alive, age, inst, instance=None, report=None):
-    """Restore [(slot, entry)]. Returns {(slot, pid, wid): (outcome, why)}.
+def restore(entries, alive, age, inst, instance=None, report=None, results=None):
+    """Restore [(slot, entry)] and return results, {(slot, pid, wid):
+    (outcome, why, live window key)}.
 
-    Raises Unavailable/Aborted from the middle; the view is put back
-    whenever anything was assigned."""
+    results is filled as it goes, so a caller that passes its own dict
+    still has the finished part when this raises Unavailable or Aborted from
+    the middle. The view is put back whenever anything was tried."""
     instance, report = instance or omniwm_instance, report or log
-    results, todo = {}, []
-    for s, e, outcome, _, why in plan(entries, windows(), alive, age):
+    results = {} if results is None else results
+    todo = []
+    for s, e, outcome, w, why in plan(entries, windows(), alive, age):
         if outcome == "assign":
             todo.append((s, e))
         else:
-            results[(s, e["pid"], e["windowId"])] = (outcome, why)
+            results[(s, e["pid"], e["windowId"])] = (outcome, why, key(w) if w else None)
     if not todo:
         return results
-    view = (displays(), focused())
+    view, last = view_now(), None
     try:
         for s, e in todo:
-            outcome, why = assign_one(s, e, alive, age, inst, instance)
-            results[(s, e["pid"], e["windowId"])] = (outcome, why)
+            last = None
+            outcome, why, wk = assign_one(s, e, alive, age, inst, instance)
+            results[(s, e["pid"], e["windowId"])] = (outcome, why, wk)
             report(f"slot {s}: {describe(e)}: {why}")
+            last = view_now()
     finally:
         try:
-            restore_view(view, windows())
+            restore_view(view, last)
         except (Unavailable, Rejected):
             pass
     return results
@@ -603,27 +676,35 @@ def restore(entries, alive, age, inst, instance=None, report=None):
 class Keeper:
     """Saves the live slots, and restores the saved ones on a new OmniWM.
 
-    lifetime  the OmniWM instance this has reconciled the file with; until
-              then (a new OmniWM) nothing is written.
-    pending   {(slot, pid, wid): {"slot", "entry", "since", "attempts",
-              "next"}}: saved windows not yet back in their slot.
-    vanished  {(slot, pid, wid): when first seen out of its slot}, for
-              held().
+    lifetime    the OmniWM instance this has reconciled the file with; until
+                then (a new OmniWM) nothing is written.
+    pending     {(slot, pid, wid): {"slot", "entry", "since", "attempts",
+                "next"}}: saved windows not yet back in their slot.
+    ours        live window keys this restore put back (or found in place),
+                or that were already saved: a slot member NOT in it was put
+                there by hand since the restart, and the user's choice for
+                that slot wins over what is still pending for it.
+    quarantine  {window key: slot}: windows a stopped restore put in a slot
+                by mistake, kept out of the file until that window moves.
+    vanished    {(slot, pid, wid): (since, grace)} for held().
     """
 
     def __init__(self, path=None, instance=omniwm_instance, alive=pid_alive, age=None,
-                 clock=time.time):
+                 clock=time.time, started=started_at):
         self.path = path or STATE_FILE
         self.instance = instance
         self.alive = alive
         self.clock = clock
         self.age = age or (lambda pid: app_age(pid, self.clock()))
+        self.started = started
         self.lifetime = None
         self.restored = False
         self.pending = {}
         self.vanished = {}
         self.saved_slots = {}
         self.ours = set()
+        self.quarantine = {}
+        self.app_starts = {}
         self.logged = set()
         self.down = None  # why OmniWM was last unreachable, logged once
 
@@ -662,39 +743,53 @@ class Keeper:
             log("OmniWM reachable again.")
             self.down = None
         if not same_instance(inst, self.lifetime):
-            self.begin(inst)
+            try:
+                self.begin(inst)
+            except OSError as exc:
+                self.once(("read",), f"cannot read {self.path}: {exc}; waiting")
+                return None
         now = self.clock()
+        self.expire(now)
         if not self.restored:
             ready = inst["epoch"] + SETTLE
             if now < ready:
                 return ready
-            wins = self.run_restore(inst, wins, initial=True)
-            if wins is None:
-                return None
+            self.claim(wins, initial=True)
+            ran, wins = self.run_restore(inst, wins, initial=True)
+            if not ran:
+                return now + 2.0
             self.restored = True
-        elif self.retry_due(wins, now):
-            wins = self.run_restore(inst, wins, initial=False)
             if wins is None:
-                return None
-        self.expire(wins, now)
+                return self.next_wake(now)
+        elif self.retry_due(wins, now):
+            _, wins = self.run_restore(inst, wins, initial=False)
+            if wins is None:
+                return self.next_wake(now)
+        self.claim(wins, initial=False)
         if not same_instance(self.instance(), inst):
             return None  # restarted while we looked: the next tick begins again
         self.save(inst, wins, now)
+        return self.next_wake(now)
+
+    def next_wake(self, now):
         nxt = [p["next"] for p in self.pending.values() if p["next"] > now]
-        nxt += [t + VANISH_GRACE for t in self.vanished.values() if t + VANISH_GRACE > now]
+        nxt += [t + g for t, g in self.vanished.values() if t + g > now]
         return min(nxt) if nxt else None
 
     def begin(self, inst):
         doc = load_state(self.path)
         self.lifetime, self.vanished, self.ours, self.logged = inst, {}, set(), set()
+        self.quarantine = {}
         now = self.clock()
         slots = doc.get("slots") if isinstance(doc.get("slots"), dict) else {}
         pending = doc.get("pending") if isinstance(doc.get("pending"), dict) else {}
         self.pending, self.saved_slots = {}, {}
         if same_instance(doc.get("omniwm"), inst):
-            self.saved_slots = slots
             # The daemon restarted, OmniWM didn't: the live slots are already
-            # right. Only carry on with what was still pending.
+            # right, and what the file holds was this lifetime's state (so
+            # it counts as ours). Only carry on with what was still pending.
+            self.saved_slots = slots
+            self.ours = {(e["pid"], e["windowId"]) for _, e in entries_of(slots)}
             self.restored = True
             for s, e in entries_of(pending):
                 since = e.get("since") if isinstance(e.get("since"), (int, float)) else now
@@ -712,7 +807,7 @@ class Keeper:
             log(f"OmniWM pid {inst['pid']}; nothing saved yet.")
 
     def add_pending(self, s, e, since):
-        e = {k: e.get(k) for k in ("pid", "windowId", "bundleId", "app", "title")}
+        e = {k: e.get(k) for k in ENTRY_KEYS if e.get(k) is not None or k in ("bundleId", "app")}
         self.pending[(s, e["pid"], e["windowId"])] = {"slot": s, "entry": e, "since": since,
                                                       "attempts": 0, "next": 0.0}
 
@@ -723,34 +818,62 @@ class Keeper:
                    for r in plan(due, wins, self.alive, self.age))
 
     def run_restore(self, inst, wins, initial):
-        """Restore the due pending windows. Returns the live windows after,
-        or None if OmniWM went away (nothing is saved then)."""
+        """Restore the due pending windows. Returns (ran, windows after):
+        ran is False when another restore held the lock; the windows are
+        None if OmniWM went away or the restore was stopped (nothing is
+        saved then)."""
         now = self.clock()
         due = {k: p for k, p in self.pending.items() if p["next"] <= now}
         entries = [(p["slot"], p["entry"]) for p in due.values()]
+        results, stopped = {}, False
         with Lock(self.path) as got:
             if not got:
                 log("another restore is running; trying again shortly")
-                for p in due.values():
-                    p["next"] = now + 2.0
-                return wins
+                return False, wins
             try:
-                results = restore(entries, self.alive, self.age, inst, self.instance)
+                restore(entries, self.alive, self.age, inst, self.instance, results=results)
             except Unavailable as exc:
                 self.unreachable(str(exc), exc.mismatch)
-                return None
+                stopped = True
             except (Aborted, Rejected) as exc:
                 log(f"restore stopped: {exc}")
-                for p in due.values():
-                    p["next"] = now + RETRY_AFTER
-                return None
-        for k, (outcome, why) in results.items():
+                stopped = True
+                self.stopped(exc, now)
+        for k, p in due.items():
+            if k not in results and stopped:
+                p["next"] = now + RETRY_AFTER  # not reached: try again later
+        self.record(results, now, initial)
+        if stopped:
+            return True, None
+        try:
+            return True, windows()
+        except Unavailable as exc:
+            self.unreachable(str(exc), exc.mismatch)
+            return True, None
+
+    def stopped(self, exc, now):
+        """After an Aborted: keep a stray out of the file, and queue a window
+        the assign toggled out of its slot to be put back."""
+        for k in getattr(exc, "strays", ()):
+            self.quarantine[k] = exc.slot
+            log(f"slot {exc.slot}: window {k} was put there by mistake; it is not saved "
+                "there unless you move it. To take it out, show the slot, focus it and "
+                "press the slot's Caps+Shift chord")
+        for w in getattr(exc, "lost", ()):
+            e = entry_of(w, self.app_start(w["pid"]))
+            self.add_pending(exc.slot, e, now)
+            self.ours.discard(key(w))
+            log(f"slot {exc.slot}: {describe(e)} was toggled out by mistake; will put it back")
+
+    def record(self, results, now, initial):
+        for k, (outcome, why, wk) in results.items():
             p = self.pending.get(k)
             if p is None:
                 continue
             e, s = p["entry"], p["slot"]
             if outcome in ("assigned", "in-place", "duplicate"):
-                self.ours.add(k)
+                if wk is not None:
+                    self.ours.add(wk)
                 del self.pending[k]
                 if outcome == "in-place" and not initial:
                     log(f"slot {s}: {describe(e)} is back in place")
@@ -762,43 +885,78 @@ class Keeper:
                 log(f"slot {s}: skipped {describe(e)}: {why}")
             elif outcome == "failed":
                 p["attempts"] += 1
-                p["next"] = now + RETRY_AFTER
                 if p["attempts"] >= MAX_ATTEMPTS:
-                    del self.pending[k]
-                    log(f"slot {s}: gave up on {describe(e)} after {MAX_ATTEMPTS} tries: {why}")
+                    # Keep it until the pending grace runs out, but stop
+                    # stealing focus every RETRY_AFTER for it.
+                    p["next"] = now + SLOW_RETRY
+                    self.once(("failing",) + k, f"slot {s}: {describe(e)} failed {p['attempts']} times "
+                              f"({why}); retrying every {SLOW_RETRY / 60:.0f} min")
+                else:
+                    p["next"] = now + RETRY_AFTER
             else:  # missing, wait
                 self.once(("missing",) + k, f"slot {s}: {describe(e)} {why}; "
                           f"will keep looking for {PENDING_GRACE / 60:.0f} min")
-        try:
-            return windows()
-        except Unavailable as exc:
-            self.unreachable(str(exc), exc.mismatch)
-            return None
 
-    def expire(self, wins, now):
-        live = live_slots(wins)
+    def claim(self, wins, initial):
+        """Settle pending windows against the live slots, without acting.
+
+        A pending window already in its slot is ours. Then, for a slot whose
+        live members include one that is not ours (and not a mistake of
+        ours), the user filled it by hand since the restart: their choice
+        wins, and the rest still pending for it is dropped. On the first
+        pass that also covers a slot filled before the restore ran."""
+        rows = plan([(p["slot"], p["entry"]) for p in self.pending.values()], wins, self.alive, self.age)
+        for s, e, outcome, w, _ in rows:
+            if outcome in ("in-place", "duplicate") and w is not None:
+                self.ours.add(key(w))
+                self.pending.pop((s, e["pid"], e["windowId"]), None)
+        if not initial and not self.restored:
+            return
+        hand = {w["slot"] for w in wins
+                if w["slot"] is not None and key(w) not in self.ours
+                and self.quarantine.get(key(w)) != w["slot"]}
         for k, p in list(self.pending.items()):
-            s = p["slot"]
-            hand = [e for e in live.get(str(s), []) if (s, e["pid"], e["windowId"]) not in self.ours]
-            if self.restored and hand:
+            if p["slot"] in hand:
                 del self.pending[k]
-                log(f"slot {s}: dropped {describe(p['entry'])}: you filled slot {s} by hand since the restart")
-            elif now - p["since"] >= PENDING_GRACE:
+                log(f"slot {p['slot']}: dropped {describe(p['entry'])}: "
+                    f"you filled slot {p['slot']} by hand since the restart")
+
+    def expire(self, now):
+        for k, p in list(self.pending.items()):
+            if now - p["since"] >= PENDING_GRACE:
                 del self.pending[k]
-                log(f"slot {s}: dropped {describe(p['entry'])}: not found within {PENDING_GRACE / 60:.0f} min")
+                log(f"slot {p['slot']}: dropped {describe(p['entry'])}: "
+                    f"not back within {PENDING_GRACE / 60:.0f} min")
+
+    def app_start(self, pid):
+        """Epoch the app at pid started, cached (a running pid keeps it)."""
+        if pid not in self.app_starts:
+            s = self.started(pid)
+            self.app_starts[pid] = s[1] if s else None
+        return self.app_starts[pid]
 
     def save(self, inst, wins, now):
         """Write the live slots, holding back losses that look like OmniWM's
         rather than the user's (see held())."""
         if not wins:
             return  # no windows at all is OmniWM starting or stopping, not a state to keep
-        slots = live_slots(wins)
+        live_pids = {w["pid"] for w in wins}
+        self.app_starts = {p: v for p, v in self.app_starts.items() if p in live_pids}
+        for k, s in list(self.quarantine.items()):
+            w = next((x for x in wins if key(x) == k), None)
+            if w is None or w["slot"] != s:
+                del self.quarantine[k]
+        slots = live_slots(wins, self.app_start, skip=set(self.quarantine))
         for s, e in self.held(wins, now):
             slots.setdefault(str(s), []).append(e)
         pending = {}
         for p in sorted(self.pending.values(), key=lambda p: (p["slot"], p["entry"]["windowId"])):
             pending.setdefault(str(p["slot"]), []).append(dict(p["entry"], since=p["since"]))
-        old = load_state(self.path)
+        try:
+            old = load_state(self.path)
+        except OSError as exc:
+            self.once(("read",), f"cannot read {self.path}: {exc}; not saving")
+            return
         if (same_instance(old.get("omniwm"), inst) and old.get("slots") == slots
                 and old.get("pending") == pending):
             self.saved_slots = slots
@@ -820,8 +978,9 @@ class Keeper:
         A window gone from OmniWM's list is kept for VANISH_GRACE: closed
         windows go after that, while an OmniWM that is quitting is a new
         instance by then, so its last answers never reach the file. A single
-        window still listed but in no slot is the user's unassign and goes at
-        once; several at once (no hotkey does that) are held the same way."""
+        window still listed but in no slot is the user's unassign and goes
+        after UNASSIGN_GRACE, a re-check that OmniWM is still the same one;
+        several at once (no hotkey does that) get the longer grace."""
         present = {key(w): w for w in wins}
         lost = []
         for s, e in entries_of(self.saved_slots):
@@ -837,10 +996,9 @@ class Keeper:
         for s, e, why in lost:
             k = (s, e["pid"], e["windowId"])
             seen.add(k)
-            if why == "unassigned" and unassigned < 2:
-                self.vanished.pop(k, None)
-                continue
-            if now - self.vanished.setdefault(k, now) < VANISH_GRACE:
+            grace = UNASSIGN_GRACE if why == "unassigned" and unassigned < 2 else VANISH_GRACE
+            since, _ = self.vanished.setdefault(k, (now, grace))
+            if now - since < grace:
                 keep.append((s, e))
         for k in [k for k in self.vanished if k not in seen]:
             del self.vanished[k]
@@ -934,8 +1092,18 @@ def saved_entries(doc):
     return out
 
 
+def read_or_report():
+    try:
+        return load_state()
+    except OSError as exc:
+        print(f"cannot read {STATE_FILE}: {exc}")
+        return None
+
+
 def status():
-    doc = load_state()
+    doc = read_or_report()
+    if doc is None:
+        return 1
     inst = omniwm_instance()
     print(f"state file: {STATE_FILE}")
     if doc:
@@ -961,7 +1129,9 @@ def status():
 
 
 def restore_now():
-    doc = load_state()
+    doc = read_or_report()
+    if doc is None:
+        return 1
     entries = saved_entries(doc)
     if not entries:
         print(f"nothing saved in {STATE_FILE}")
@@ -982,10 +1152,10 @@ def restore_now():
             print(f"OmniWM unreachable: {exc}" + (" (upgraded but not restarted: restart OmniWM)"
                                                    if exc.mismatch is not None else ""))
             return 1
-        except Aborted as exc:
+        except (Aborted, Rejected) as exc:
             print(f"stopped: {exc}")
             return 1
-    for (s, pid, wid), (outcome, why) in sorted(results.items()):
+    for (s, pid, wid), (outcome, why, _) in sorted(results.items()):
         if outcome not in ("assigned",):
             print(f"slot {s}: pid {pid} window {wid}: {outcome} ({why})")
     return 0
