@@ -113,6 +113,8 @@ in
     (callPackage ./programs/yaks.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
     (callPackage ./programs/claude-session.nix {} )
+    # `mem`: the agent memory CLI from ~/src/memory (see programs/mem.nix).
+    (callPackage ./programs/mem.nix { memHome = "${config.home.homeDirectory}/src/memory"; })
     htmlPagesServer  # `html-pages-server`: local gallery at localhost:7777
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     (callPackage ./programs/claude-code-tools/package.nix {} )
