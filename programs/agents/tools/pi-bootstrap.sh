@@ -69,6 +69,18 @@ pi mcp add slack \
 # Slack needs the pre-registered client id and fixed callback port above
 # because its auth server advertises `registration_endpoint: null` -- dynamic
 # client registration is unsupported. Notion supports it, so it needs neither.
+#
+# That client id is Claude's Slack app, and Slack matches the redirect URI
+# exactly. The app registers `http://localhost:3118/callback`, but
+# `--oauth-callback-port` makes Pi send `http://127.0.0.1:3118/callback`, so
+# sign-in fails with "redirect_uri did not match any configured URIs". Pi's
+# `oauth.callbackUrl` is sent as written, but `pi mcp add` has no flag for it,
+# so set it here. This runs after every `pi mcp add`, which replaces the entry.
+mcp_json="$HOME/.pi/agent/mcp.json"
+jq '.mcpServers.slack.oauth.callbackUrl = "http://localhost:3118/callback"' \
+  "$mcp_json" > "$mcp_json.tmp"
+mv "$mcp_json.tmp" "$mcp_json"
+
 echo "==> mcp: notion"
 pi mcp add notion \
   --url https://mcp.notion.com/mcp \

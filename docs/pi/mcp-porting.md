@@ -139,6 +139,13 @@ pi mcp add slack --url https://mcp.slack.com/mcp \
 pi mcp add notion --url https://mcp.notion.com/mcp
 ```
 
+Slack also needs `oauth.callbackUrl: "http://localhost:3118/callback"`. The
+client id is Claude's Slack app, which registers that exact URI, while
+`--oauth-callback-port` alone makes Pi send `http://127.0.0.1:3118/callback`.
+Slack rejects the mismatch ("redirect_uri did not match any configured
+URIs"). `pi mcp add` has no flag for `callbackUrl`, so `pi-bootstrap` sets it
+with `jq` right after adding the server.
+
 The resulting `~/.pi/agent/mcp.json` uses nearly the same `mcpServers` schema
 as Claude, so the two configs stay readable side by side.
 
