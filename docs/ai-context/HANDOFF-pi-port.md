@@ -87,9 +87,15 @@ Verified working; merge it.
 
 ## Decisions already made — do not re-litigate
 
-**Pi has no MCP, by design.** Its docs say so outright: *"No MCP. Build CLI
-tools with READMEs, or build an extension that adds MCP support."* So the
-port was never a config translation.
+**Pi had no MCP, by design — until 1.0.** Its docs said so outright: *"No MCP.
+Build CLI tools with READMEs, or build an extension that adds MCP support."*
+So the port was never a config translation.
+
+> **Superseded 2026-10-05.** Pi **1.0** ships a built-in MCP client with
+> native OAuth: `pi mcp add/list/login/logout/remove`. This did *not* undo the
+> work — the case for the CLIs was token cost, not capability — but it
+> unblocked Notion and Slack. See `docs/pi/mcp-porting.md`,
+> *"Does Pi 1.0 undo any of this?"*, for what changes and what does not.
 
 The rule that fell out of it:
 
@@ -100,14 +106,19 @@ The rule that fell out of it:
 |---|---|---|
 | shortcut | ✅ `sc` CLI | plain REST, token in sops. Replaced 45 MCP tool definitions (~11k–29k tokens **per request**) |
 | MCP_DOCKER | ✅ nothing needed | it serves Obsidian; vaults are plain files Pi reads natively. All 20 tools redundant |
-| notion | ❌ must stay MCP | OAuth only — returns 401, no token exists |
-| slack | ❌ must stay MCP | OAuth; its server advertises `registration_endpoint: null` |
+| notion | ✅ MCP, codemode | OAuth only — returns 401, no token exists. Registered by `pi-bootstrap`; needs `pi mcp login notion` |
+| slack | ✅ MCP, codemode | OAuth; its server advertises `registration_endpoint: null`, hence the pre-registered client id + port 3118. Needs `pi mcp login slack` |
 | playwright | ⏸️ parked | browser lifecycle is real work; user's note: *"Claude should be able to use the playwright CLI, if anything. Low priority."* |
 | agent-mail | ⏸️ ignored | user's instruction |
 
 **Claude's OAuth sessions live in the macOS Keychain**, not a file, so they
-cannot be handed to Pi. Notion/Slack in Pi need `pi-mcp-adapter` plus a fresh
-browser sign-in by the user.
+cannot be handed to Pi. Notion/Slack in Pi need a fresh browser sign-in by the
+user — `pi mcp login <server>`. No adapter: that was the pre-1.0 plan and
+`pi-mcp-adapter` was never installed.
+
+Note the asymmetry, since it is a real difference between the harnesses: Pi
+stores MCP tokens **on disk** at `~/.pi/agent/mcp-auth.json` (`0600`, in a
+`0700` dir), where Claude uses the Keychain.
 
 **Intercom was not built.** `npm:pi-intercom` already existed; adopting it
 cost nothing and gained `ask`/`reply`, `pending`, `cancel`, an Alt+M overlay.
@@ -188,7 +199,8 @@ anything untrusted.
 |---|---|---|
 | **#105** | open, verified | merge it |
 | **Superpowers** | investigated, not installed | `pi install git:github.com/obra/superpowers` — it is already an official Pi package (top-level `skills/`, `keywords: ["pi-package"]`, a `pi` manifest declaring skills **and** an extension). 15 skills; only 4 ever invoked (`brainstorming` ×8, `systematic-debugging` ×2, `writing-plans`, `subagent-driven-development`). `brainstorming` verified portable. Sub-agent dependency now satisfied by #105 |
-| **Notion + Slack in Pi** | blocked on the user | `pi install npm:pi-mcp-adapter` (v3.3.0) reads the same `mcpServers` schema as Claude, so the `jq` patches in `programs/sops/default.nix` port nearly verbatim to `~/.pi/agent/mcp.json`. Needs a browser OAuth sign-in |
+| **Notion + Slack in Pi** | configured, awaiting sign-in | Done via Pi 1.0's built-in MCP, `codemode`, in `pi-bootstrap`. Remaining step is the user's alone: `pi mcp login slack` / `pi mcp login notion` (opens a browser). `pi mcp list` exits 1 until then. Codemode tools are invisible in a tool list by design — test by use, not by listing |
+| Playwright → MCP in codemode | newly plausible | It was parked because a CLI must own a browser lifecycle. Pi 1.0's codemode gets the MCP server at near-zero idle token cost, which sidesteps the reason for parking. Worth revisiting if browser work picks up |
 | **The lint workflow** | half-written, 3 bugs found | The user was mid-task on `.github/workflows/lint-agents.yml` when an API outage interrupted. Its script had: `grep -o` exiting 1 on no match (kills `set -e` **silently** — the reported symptom); `prompts/*.md` missing `review-pr`, which has no extension; and a raw `{{`/`}}` count that false-positives on JSON in `yesterday.md`. A corrected version was verified in conversation but **never written to a file** |
 | `agent-swarm` in `~/.claude/skills` | stale | a real directory from Feb, not nix-managed, Claude-only. Harmless; delete if it annoys |
 | Playwright CLI + skill | user's idea, low priority | parked |

@@ -1,14 +1,20 @@
 # Porting Claude's MCP servers to Pi
 
-Pi has **no MCP support**, by design: *"No MCP. Build CLI tools with READMEs,
-or build an extension that adds MCP support."* So the port is not a config
-translation — each service has to be re-homed onto whatever costs least.
+> **Changed in Pi 1.0 (2026-10-05).** Pi now has a **built-in MCP client** —
+> `pi mcp add/list/login/logout/remove`, with OAuth sign-in handled natively.
+> Most of this document was written when Pi had no MCP at all, and the work it
+> describes is still the right call; see *Does 1.0 undo any of this?* below
+> before concluding otherwise.
+
+Pi used to have **no MCP support**, by design: *"No MCP. Build CLI tools with
+READMEs, or build an extension that adds MCP support."* So the port was not a
+config translation — each service had to be re-homed onto whatever costs least.
 
 The goal is functional parity at lower token cost. The rule of thumb that
 falls out of the measurements below:
 
-> **REST API with a token → CLI + skill. Remote OAuth service → MCP adapter.
-> Plain files → nothing at all.**
+> **REST API with a token → CLI + skill. Remote OAuth service → MCP, in
+> codemode. Plain files → nothing at all.**
 
 ## Why bother: MCP tool definitions are not free
 
@@ -33,8 +39,8 @@ versus 225 tokens for an equivalent CLI + README.
 | `MCP_DOCKER` → obsidian | none (local files) | nothing needed | ✅ **no work** |
 | `playwright` | none | **deferred** — keep MCP for now | ⏸️ parked |
 | `agent-mail` | bearer in sops | `curl` wrapper + skill | ⬜ todo |
-| `notion` | **OAuth only** | `pi-mcp-adapter` | ⬜ todo |
-| `slack` | **OAuth only** | `pi-mcp-adapter` | ⬜ todo |
+| `notion` | **OAuth only** | built-in MCP, codemode | ✅ configured, needs sign-in |
+| `slack` | **OAuth only** | built-in MCP, codemode | ✅ configured, needs sign-in |
 
 ### shortcut → `sc` CLI ✅
 
@@ -108,7 +114,7 @@ Not yet done because the service is **not currently running** (connection
 refused), so nothing can be verified end-to-end. Build it when the service
 is up; shipping an untested wrapper would be worse than waiting.
 
-### notion and slack → `pi-mcp-adapter` ⬜
+### notion and slack → built-in MCP, in codemode ✅
 
 **These must stay MCP.** Both are remote OAuth-backed servers:
 
@@ -117,19 +123,78 @@ is up; shipping an untested wrapper would be worse than waiting.
 - `slack` — `https://mcp.slack.com/mcp`, OAuth with a pre-registered
   `clientId`. `programs/sops/default.nix` already documents why: Slack's auth
   server advertises `registration_endpoint: null`, so dynamic client
-  registration is unsupported.
-
-Claude's OAuth sessions live in the **macOS Keychain**, not a file, so they
-cannot be copied into Pi's config. Pi will need its own sign-in.
-
-Use [`pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) (npm
-`pi-mcp-adapter`, by the author of `pi-intercom`). It reads the **same
-`mcpServers` schema** as Claude, so the existing `jq` patches in
-`programs/sops/default.nix` port nearly verbatim — to
-`~/.pi/agent/mcp.json`, with `auth: "oauth"` and `oauth.clientId`.
+  registration is unsupported. Notion supports dynamic registration, so it
+  needs neither a client id nor a fixed callback port.
 
 Reimplementing either service's OAuth as a CLI would be a large amount of
 work to satisfy a philosophy. Not worth it.
+
+Pi 1.0 made this easy — **no adapter needed**. An earlier draft of this
+document recommended `pi-mcp-adapter`; that is now obsolete, and it was never
+installed. Both servers are registered by `pi-bootstrap`:
+
+```bash
+pi mcp add slack --url https://mcp.slack.com/mcp \
+  --oauth-client-id 1601185624273.8899143856786 --oauth-callback-port 3118
+pi mcp add notion --url https://mcp.notion.com/mcp
+```
+
+The resulting `~/.pi/agent/mcp.json` uses nearly the same `mcpServers` schema
+as Claude, so the two configs stay readable side by side.
+
+**`--exposure codemode` is the default, and it is the whole point.** Tool
+definitions are *not* injected into the system prompt; Pi loads them on
+demand. That keeps the per-request cost near zero rather than the ~11k–29k
+tokens Claude pays for the same servers whether or not they are used. The
+other modes are `direct` (Claude-like, always in the prompt), `deferred`
+(names up front, schemas on demand) and `hidden`.
+
+A consequence worth remembering: **codemode tools do not appear in a tool
+list.** "I don't see a Slack tool" is not evidence anything is broken — test
+by asking Pi to actually use it.
+
+#### Sign-in is the one manual step
+
+Claude's OAuth sessions live in the **macOS Keychain** (item
+`Claude Code-credentials`, an `mcpOAuth` object keyed `slack|<hash>`), in a
+Claude-specific schema. They cannot be copied into Pi. Pi needs its own:
+
+```bash
+pi mcp login slack
+pi mcp login notion
+```
+
+This opens a browser, so it is deliberately **not** scripted in
+`pi-bootstrap`. `pi mcp list` exits non-zero while any server still needs
+sign-in, which makes it a usable check.
+
+Unlike Claude, Pi stores the resulting tokens **on disk**, at
+`~/.pi/agent/mcp-auth.json`, created `0600` in a `0700` directory (verified in
+`dist/core/auth-storage.js`). Nothing secret is written by `pi mcp add` —
+`mcp.json` holds only URLs and a public client id, and is world-readable.
+
+## Does Pi 1.0 undo any of this?
+
+Mostly **no**, and it is worth being precise about why, because "Pi has MCP
+now" is an easy reason to throw away work that is still earning its keep.
+
+The argument for a CLI was never *"Pi cannot do MCP."* It was **token cost**:
+an MCP server's tool definitions ship on every request, used or not. Having a
+built-in client does not change that arithmetic for `direct` exposure.
+
+| | Keep as-is | Why |
+|---|---|---|
+| `sc` CLI | ✅ keep | Replaces 45 tool definitions. A plain-token REST API is still cheaper and simpler as a CLI, and it keeps the token off disk. |
+| `MCP_DOCKER`/Obsidian | ✅ still delete | Plain Markdown files. MCP adds nothing a built-in `read` cannot do. |
+| `agent-mail` | ✅ still a CLI | Bearer token in sops, local HTTP. Same shape as `sc`. |
+| `playwright` | 🤔 reconsider | The one genuine candidate. It was parked because a CLI would have to own a browser lifecycle; MCP in codemode sidesteps that at low cost. |
+| `notion`, `slack` | ✅ now MCP | Always had to be. 1.0 is what made it possible without an adapter. |
+
+The honest summary: 1.0 **unblocked** the two services that were stuck, and
+makes Playwright worth revisiting. It does not argue for undoing the CLIs.
+
+What *should* be retired is the blanket claim "Pi has no MCP." It was true,
+it shaped every decision here, and as of 1.0 it is false.
 
 ## Resolved: the last MCP callers are gone
 
@@ -163,7 +228,7 @@ Verified the response carries everything it reads — name, description,
 server can be removed from `~/.claude.json` whenever you want the ~11k–29k
 tokens per request back; nothing in the shared content depends on it.
 
-## Secrets## Secrets
+## Secrets
 
 Three separate layers; only the third is enforcement:
 

@@ -95,8 +95,12 @@ merely useless but actively misleading.
 sub-agent via the Task tool. The rest of it is harness-neutral, so it is kept
 as-is; under Pi the model should review serially instead of fanning out.
 
-**The second class is easier to miss: MCP tools.** Pi has no MCP at all, so
-any `mcp__*` reference is dead there.
+**The second class is easier to miss: MCP tools.** Any `mcp__*` reference is
+dead under Pi. That was originally because Pi had no MCP at all; since Pi 1.0
+it does, but the conclusion is unchanged — `mcp__server__tool` is Claude's
+naming scheme, and Pi's default `codemode` exposure does not surface MCP tools
+as callable names in the prompt at all. A hardcoded `mcp__*` call will not
+resolve.
 
 As of 2026-09-23 there are **none left** in this directory: `skills/interrupt`
 was deleted as obsolete, and `prompts/review-pr` now fetches stories with the

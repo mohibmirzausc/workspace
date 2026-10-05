@@ -40,6 +40,48 @@ for p in "${packages[@]}"; do
   pi install "$p"
 done
 
+# MCP servers.
+#
+# Pi 1.0 added a built-in MCP client -- `pi mcp add/list/login/logout`, with
+# OAuth handled natively. Before 1.0 Pi had no MCP at all ("No MCP. Build CLI
+# tools with READMEs"), which is why every other integration here is a CLI or
+# a skill instead. Slack and Notion are the two that could not be re-homed
+# that way: both are remote OAuth-only services, so there is no token to put
+# in sops and no REST call to wrap.
+#
+# `--exposure codemode` is Pi's default and the reason this is affordable.
+# Tool definitions are NOT injected into the system prompt; Pi loads them on
+# demand. Claude pays ~11k-29k tokens per request for the equivalent, used or
+# not. A consequence worth remembering: these tools will not show up in a
+# tool list, which is normal and not evidence they are broken.
+#
+# `pi mcp add` replaces an existing entry of the same name, so re-running is
+# safe. It only writes ~/.pi/agent/mcp.json -- URLs and a public client id,
+# no secrets. Tokens arrive only at `pi mcp login`, below.
+echo
+echo "==> mcp: slack"
+pi mcp add slack \
+  --url https://mcp.slack.com/mcp \
+  --oauth-client-id 1601185624273.8899143856786 \
+  --oauth-callback-port 3118 \
+  --description 'Slack workspace: read and search channels, threads, users; send messages'
+
+# Slack needs the pre-registered client id and fixed callback port above
+# because its auth server advertises `registration_endpoint: null` -- dynamic
+# client registration is unsupported. Notion supports it, so it needs neither.
+echo "==> mcp: notion"
+pi mcp add notion \
+  --url https://mcp.notion.com/mcp \
+  --description 'Notion workspace: search, read and update pages and databases'
+
 echo
 echo "Installed. Run 'homeswitch' next so the Momentum skill gets linked,"
 echo "then 'pi list' to confirm."
+echo
+echo "Then sign in to the OAuth servers -- these open a browser, so they are"
+echo "not scripted here, and they are the only step that stores a secret."
+echo "They are the one expected exception to the pi.md rule about commands"
+echo "that prompt for credentials; run them yourself, deliberately:"
+echo "    pi mcp login slack"
+echo "    pi mcp login notion"
+echo "Confirm with 'pi mcp list' (it exits 1 while any server needs sign-in)."
