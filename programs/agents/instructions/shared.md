@@ -34,3 +34,34 @@ Use `rg` instead of `grep -r` when searching files. It is faster and skips
 `.gitignore`d paths by default, so it does not return duplicate hits from
 `.worktrees/` or `node_modules/`. Add `--no-ignore` when you need to search
 ignored files. `rg` is installed via `home.nix`.
+
+## Work in a git worktree, not the main checkout
+
+Several agents work in the same repos at once. The checkout named after the
+repo (`~/src/workspace`, `~/src/crew`) is shared by all of them, so it stays
+on `main`, clean, matching `origin/main`. Changing it under another session
+stomps on that session's work.
+
+For any change you will commit, branch a worktree off the latest `main`:
+
+```bash
+git fetch origin
+git worktree add .worktrees/<topic> -b <type>/<topic> origin/main
+cd .worktrees/<topic>
+```
+
+- Make every edit, commit and push there. In the main checkout, never switch
+  branches, commit, or leave edits. The only change it gets is
+  `git pull --ff-only` on `main`.
+- Check that `.worktrees/` is ignored (`git check-ignore -q .worktrees/x`).
+  If it isn't, add it to `.git/info/exclude`, which stays local, rather than
+  editing the repo's `.gitignore`.
+- Rebase onto the latest `origin/main` before opening a PR, and again before
+  it merges.
+- After the PR merges, remove the worktree and its branch
+  (`git worktree remove .worktrees/<topic>`, `git branch -d <type>/<topic>`),
+  then fast-forward the main checkout.
+- Reading, searching and running things without changing them need no
+  worktree.
+- A repo's own `AGENTS.md` or `CLAUDE.md` wins over this rule, for repos
+  whose main checkout is also live data.
