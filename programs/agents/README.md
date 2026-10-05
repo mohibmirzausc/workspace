@@ -13,6 +13,11 @@ Harness-*specific* config stays in its own directory:
 |-----------|-------------------|----------------------|
 | `skills/` | `~/.claude/skills`   | `~/.pi/agent/skills`  |
 | `prompts/`| `~/.claude/commands` | `~/.pi/agent/prompts` |
+| `instructions/` | `~/.claude/CLAUDE.md` (`shared.md` + `claude.md`) | `~/.pi/agent/AGENTS.md` (`shared.md` + `pi.md`) |
+
+`instructions/` is assembled rather than linked: each harness gets the shared
+rules plus its own file, concatenated at build time. See
+[`instructions/README.md`](instructions/README.md).
 
 Same content, different names per harness — Claude calls them "commands",
 Pi calls them "prompt templates". Both are plain Markdown with optional
