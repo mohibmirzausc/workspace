@@ -10,6 +10,12 @@
 { pkgs }:
 
 {
+  pi-bootstrap = pkgs.writeShellApplication {
+    name = "pi-bootstrap";
+    runtimeInputs = [ ];  # pi comes from Homebrew, not nixpkgs
+    text = builtins.readFile ./pi-bootstrap.sh;
+  };
+
   sc = pkgs.writeShellApplication {
     name = "sc";
     runtimeInputs = with pkgs; [ curl jq sops ];

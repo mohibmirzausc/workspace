@@ -118,6 +118,57 @@ Prefer a CLI plus a skill over an MCP tool for anything with a plain HTTP API:
 it works in both harnesses and costs context only when relevant. See
 `docs/pi/mcp-porting.md`.
 
+## Pi packages: run `pi-bootstrap`
+
+Pi records installed packages in `~/.pi/agent/settings.json`, which Pi writes
+at runtime — so nix cannot manage it without breaking Pi's ability to save
+its own settings. Package installs are therefore a manual step, and
+`pi-bootstrap` is that step kept in the repo:
+
+```bash
+pi-bootstrap   # installs all four packages
+homeswitch     # links the Momentum skill
+pi list        # confirm
+```
+
+Idempotent, so safe to re-run. On a new machine this is the one command
+between a fresh `pi` and a fully-equipped one.
+
+| Package | Why |
+|---|---|
+| `pi-guardrails` | MO security baseline: file protection, path access, permission gates |
+| `pi-intercom` | agent-to-agent messaging between Pi sessions |
+| `pi-subagents` | sub-agent delegation and parallel dispatch |
+| `momentum-tracker` | Momentum story tracking |
+
+### Sub-agents
+
+Pi ships none by design — the README is explicit that sub-agents and plan
+mode are left to extensions. Several shared skills assume them, so
+`pi-subagents` fills the gap.
+
+Verified rather than assumed:
+
+```
+single:   a `scout` child counted 29 .nix files under programs/  (correct)
+parallel: two children returned 29 and 13, both correct, with overlapping
+          runtimes (11.6s / 13.1s) -- genuinely concurrent, not sequential
+```
+
+It registers `subagents_enable`, `subagent_supervisor` and `bg_wait`. The
+full `subagent` schema only loads *after* activation, so it costs almost no
+context until used — the same economics that make MCP expensive.
+
+Agent definitions are markdown with `name`/`description` frontmatter: a
+superset of Claude's `.claude/agents/*.md`, adding `tools`, `thinking` and
+`inheritSkills`. Built-ins (`scout`, `reviewer`, `oracle`, `worker`,
+`researcher`, `evidence-auditor`, `delegate`) work with no configuration.
+
+Chosen from eight competing npm packages because it shares an author with
+`pi-intercom` — already installed here — and the two integrate: an agent
+definition can declare `contact_supervisor` so a child can message its
+parent.
+
 ## Claude plugins in Pi
 
 Pi has no plugin system, but a Claude plugin that is *only skills* ports
