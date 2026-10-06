@@ -337,24 +337,11 @@ in
     /usr/bin/osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to true' 2>/dev/null || \
       echo "note: could not apply menu-bar autohide live; it will apply after logout"
 
-    # Say so when the Homebrew step above upgraded OmniWM under a running app.
-    # omniwmctl is a symlink into the new .app, and it refuses the old server
-    # on every call (exit 1, on stdout):
-    #   error: protocol_mismatch (server protocol 16, app 0.7.3)
-    # which silently breaks everything that drives OmniWM: Karabiner's Caps+F5
-    # and Caps+6, the sketchybar bridge, the cmux-attention locations, triage.
-    # Warn only; restarting OmniWM here could reshuffle windows mid-session.
-    # As the user, since OmniWM's IPC socket is per user; bounded so a hung
-    # app cannot stall activation. Not running at all is not this problem.
-    if [ -x /opt/homebrew/bin/omniwmctl ]; then
-      OW_PING="$(sudo --user=${user} --set-home ${pkgs.coreutils}/bin/timeout 5 /opt/homebrew/bin/omniwmctl ping 2>&1 || true)"
-      case "$OW_PING" in
-        *protocol_mismatch*)
-          printf '\e[1;33mwarning: OmniWM was upgraded but the old version is still running (%s).\e[0m\n' "$OW_PING" >&2
-          echo "warning: omniwmctl, Caps+F5/Caps+6, the bar and triage fail until you restart OmniWM (quit it from its menu bar icon, then reopen)." >&2
-          ;;
-      esac
-    fi
+    # Say so when the Homebrew step above upgraded OmniWM under a running app
+    # (omniwmctl then fails every call): see programs/omniwm/ipc-check.sh.
+    # As the user, since OmniWM's IPC socket is per user. Never fails.
+    sudo --user=${user} --set-home env TIMEOUT=${pkgs.coreutils}/bin/timeout \
+      /bin/sh ${./programs/omniwm/ipc-check.sh} || true
   '';
 
   # Enable Touch ID for sudo (including inside tmux sessions)

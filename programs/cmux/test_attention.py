@@ -5,6 +5,7 @@ Run: python3 test_attention.py   (no cmux, OmniWM or sketchybar needed)
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 
@@ -322,63 +323,154 @@ class Events(unittest.TestCase):
         self.assertEqual(rest, b"")
 
 
-class OmniwmMismatch(unittest.TestCase):
-    # What omniwmctl 0.7.4 prints (exit 1) against a running 0.7.3.
-    MISMATCH = {"code": "protocol_mismatch", "ok": False, "status": "error",
-                "result": {"kind": "version",
-                           "payload": {"appVersion": "0.7.3", "protocolVersion": 16}}}
+class OmniwmUnreachable(unittest.TestCase):
+    """OmniWM running but omniwmctl failing: what a cask upgrade under a
+    running app does, differently per release."""
 
-    def query(self, doc):
-        real = a.run_json
-        a.run_json = lambda cmd, timeout, any_exit=False: doc
-        try:
-            return a.omniwm("workspaces", 1)
-        finally:
-            a.run_json = real
+    MISMATCH = "error: protocol_mismatch (server protocol 16, app 0.7.3)"  # 0.7.3 -> 0.7.4, exit 1
+    NO_SOCKET = 'omniwmctl: Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"'  # 0.7.4 -> 0.7.5, exit 2
+
+    def desktop(self, running=True, ping=("pong\n", ""), raises=None):
+        """Stub subprocess.run for pgrep and omniwmctl ping."""
+        calls = []
+
+        def run(cmd, **kw):
+            calls.append(cmd)
+            if cmd[0] == "pgrep":
+                return type("R", (), {"returncode": 0 if running else 1})()
+            if raises:
+                raise raises
+            return type("R", (), {"stdout": ping[0], "stderr": ping[1], "returncode": 0})()
+        real = a.subprocess.run
+        a.subprocess.run = run
+        self.addCleanup(setattr, a.subprocess, "run", real)
+        return calls
 
     def tearDown(self):
-        a.omniwm_mismatch = None
+        a.omniwm_failed, a.mismatch_reported = False, None
 
-    def test_mismatch_is_recorded_and_returns_none(self):
-        self.assertIsNone(self.query(self.MISMATCH))
-        self.assertEqual(a.omniwm_mismatch["appVersion"], "0.7.3")
+    def test_both_upgrade_failures_are_caught(self):
+        for said in (self.MISMATCH, self.NO_SOCKET):
+            with self.subTest(said=said):
+                for ping in ((said + "\n", ""), ("", said + "\n")):  # stdout or stderr
+                    self.desktop(ping=ping)
+                    self.assertEqual(a.omniwm_unreachable(), said)
 
-    def test_a_good_reply_clears_it(self):
-        self.query(self.MISMATCH)
-        ok = {"ok": True, "result": {"payload": {"workspaces": []}}}
-        self.assertEqual(self.query(ok), [])
-        self.assertIsNone(a.omniwm_mismatch)
+    def test_not_running_says_nothing_and_does_not_ping(self):
+        calls = self.desktop(running=False, ping=("", self.NO_SOCKET))
+        self.assertIsNone(a.omniwm_unreachable())
+        self.assertEqual([c[0] for c in calls], ["pgrep"])
+        self.assertEqual(calls[0][:4], ["pgrep", "-x", "-U", str(os.getuid())])
 
-    def test_other_failures_leave_it_alone(self):
-        self.query(self.MISMATCH)
-        self.assertIsNone(self.query(None))  # timeout, not installed
-        self.assertIsNotNone(a.omniwm_mismatch)
+    def test_pong_is_fine(self):
+        self.desktop()
+        self.assertIsNone(a.omniwm_unreachable())
+
+    def test_a_hung_ping_is_unreachable(self):
+        self.desktop(raises=a.subprocess.TimeoutExpired("omniwmctl", 3))
+        self.assertEqual(a.omniwm_unreachable(), "no answer")
+        self.desktop(raises=OSError("gone"))
+        self.assertIsNone(a.omniwm_unreachable())
+
+    def test_failed_query_sets_the_flag_and_a_good_one_clears_it(self):
+        real = a.run_json
+        self.addCleanup(setattr, a, "run_json", real)
+        a.run_json = lambda cmd, timeout: None
+        self.assertIsNone(a.omniwm("workspaces", 1))
+        self.assertTrue(a.omniwm_failed)
+        a.run_json = lambda cmd, timeout: {"ok": True, "result": {"payload": {"workspaces": []}}}
+        self.assertEqual(a.omniwm("workspaces", 1), [])
+        self.assertFalse(a.omniwm_failed)
+
+    def logged(self):
+        lines = []
+        real = a.log
+        a.log = lambda *parts: lines.append(" ".join(map(str, parts)))
+        self.addCleanup(setattr, a, "log", real)
+        return lines
+
+    def test_reported_once_per_episode(self):
+        lines = self.logged()
+        self.desktop(ping=("", self.NO_SOCKET))
+        a.omniwm_failed = True
+        a.report_mismatch()
+        a.report_mismatch()
+        self.assertEqual(len(lines), 1)
+        self.assertIn("restart OmniWM", lines[0])
+        self.assertIn("Code=2", lines[0])
+        a.omniwm_failed = False  # it answers again
+        a.report_mismatch()
+        a.omniwm_failed = True  # and breaks again: a new episode
+        a.report_mismatch()
+        self.assertEqual(len(lines), 2)
+
+    def test_a_failed_query_with_omniwm_not_running_says_nothing(self):
+        lines = self.logged()
+        self.desktop(running=False)
+        a.omniwm_failed = True
+        a.report_mismatch()
+        self.assertEqual(lines, [])
 
     def test_reported_once_even_after_a_failed_refresh(self):
-        logged, real = [], (a.log, a.compute)
-        a.log = lambda *parts: logged.append(" ".join(map(str, parts)))
+        lines = self.logged()
+        self.desktop(ping=(self.MISMATCH + "\n", ""))
+        real = a.compute
+        self.addCleanup(setattr, a, "compute", real)
 
         def boom(previous):
-            a.omniwm_mismatch = {"appVersion": "0.7.3", "protocolVersion": 16}
+            a.omniwm_failed = True
             raise ValueError("bad tree")
         a.compute = boom
-        try:
-            a.refresh(None)
-            a.refresh(None)
-        finally:
-            a.log, a.compute = real
-            a.mismatch_reported = None
-        self.assertEqual(sum("restart OmniWM" in line for line in logged), 1)
+        a.refresh(None)
+        a.refresh(None)
+        self.assertEqual(sum("restart OmniWM" in line for line in lines), 1)
 
-    def test_note_once_per_mismatch(self):
-        now = {"appVersion": "0.7.3", "protocolVersion": 16}
-        note = a.mismatch_note(None, now)
-        self.assertIn("restart OmniWM", note)
-        self.assertIn("app 0.7.3, protocol 16", note)
-        self.assertIsNone(a.mismatch_note(now, now))
-        self.assertIsNone(a.mismatch_note(now, None))
+    def test_note_once_per_episode(self):
+        self.assertIn("restart OmniWM", a.mismatch_note(None, self.MISMATCH))
+        self.assertIsNone(a.mismatch_note(self.MISMATCH, self.MISMATCH))
+        self.assertIsNone(a.mismatch_note(self.MISMATCH, self.NO_SOCKET))
+        self.assertIsNone(a.mismatch_note(self.MISMATCH, None))
         self.assertIsNone(a.mismatch_note(None, None))
 
+
+class IpcCheck(unittest.TestCase):
+    """programs/omniwm/ipc-check.sh, the activation warning, against fake
+    pgrep and omniwmctl."""
+
+    SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "omniwm", "ipc-check.sh")
+
+    def check(self, running, ping_out, ping_code=0, ctl=True):
+        d = tempfile.mkdtemp(prefix="ipc-check-")
+        bins = os.path.join(d, "bin")
+        os.mkdir(bins)
+
+        def script(name, body):
+            path = os.path.join(bins, name)
+            with open(path, "w") as f:
+                f.write("#!/bin/sh\n" + body + "\n")
+            os.chmod(path, 0o755)
+            return path
+        script("pgrep", f"exit {0 if running else 1}")
+        timeout = script("timeout", 'shift; exec "$@"')
+        omniwmctl = script("omniwmctl", f"printf '%s\\n' '{ping_out}'; exit {ping_code}") if ctl \
+            else os.path.join(bins, "missing")
+        env = {"PATH": bins + ":/usr/bin:/bin", "OMNIWMCTL": omniwmctl, "TIMEOUT": timeout}
+        out = subprocess.run(["/bin/sh", self.SCRIPT], capture_output=True, text=True, env=env)
+        return out.returncode, out.stderr
+
+    def test_warns_on_both_upgrade_failures(self):
+        for said, code in ((OmniwmUnreachable.MISMATCH, 1), (OmniwmUnreachable.NO_SOCKET.replace("'", ""), 2)):
+            with self.subTest(said=said):
+                rc, err = self.check(True, said, code)
+                self.assertEqual(rc, 0)
+                self.assertIn("cannot reach it", err)
+                self.assertIn(said, err)
+                self.assertIn("restart it", err)
+
+    def test_quiet_when_healthy_not_running_or_not_installed(self):
+        self.assertEqual(self.check(True, "pong"), (0, ""))
+        self.assertEqual(self.check(False, "omniwmctl: Error Domain=NSPOSIXErrorDomain Code=2", 2), (0, ""))
+        self.assertEqual(self.check(True, "x", ctl=False), (0, ""))
 
 if __name__ == "__main__":
     unittest.main()

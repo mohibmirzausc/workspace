@@ -303,39 +303,29 @@ def summarize(mapping, need, unread):
 # Live sources
 # ---------------------------------------------------------------------------
 
-def run_json(cmd, timeout, any_exit=False):
-    """Parsed JSON stdout of cmd, or None on any failure. any_exit parses it
-    even after a non-zero exit, for a CLI that reports errors as JSON."""
+def run_json(cmd, timeout):
+    """Parsed JSON stdout of cmd, or None on any failure."""
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                              env=dict(os.environ, CMUX_QUIET="1"))
-        if out.returncode != 0 and not any_exit:
+        if out.returncode != 0:
             return None
         return json.loads(out.stdout)
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
 
 
-# Set by omniwm() to OmniWM's version payload while omniwmctl and the running
-# app disagree on protocol, else None. Happens when brew upgrades the OmniWM
-# cask under a running app: the new omniwmctl (a symlink into the .app) then
-# refuses the old server on every call, exit 1:
-#   error: protocol_mismatch (server protocol 16, app 0.7.3)
-# Every location then reads as unplaced, so the daemon logs it (once).
-omniwm_mismatch = None
+# Whether the last omniwm() query failed. The daemon then asks why
+# (omniwm_unreachable), rather than every query paying for it.
+omniwm_failed = False
 
 
 def omniwm(what, timeout, *args):
-    global omniwm_mismatch
-    doc = run_json([OMNIWMCTL, "query", what, *args, "--json"], timeout, any_exit=True)
-    if isinstance(doc, dict) and doc.get("code") == "protocol_mismatch":
-        result = doc.get("result")
-        payload = result.get("payload") if isinstance(result, dict) else None
-        omniwm_mismatch = payload if isinstance(payload, dict) else {}
+    global omniwm_failed
+    doc = run_json([OMNIWMCTL, "query", what, *args, "--json"], timeout)
+    omniwm_failed = not isinstance(doc, dict) or not doc.get("ok")
+    if omniwm_failed:
         return None
-    if not isinstance(doc, dict) or not doc.get("ok"):
-        return None
-    omniwm_mismatch = None
     result = doc.get("result")
     payload = result.get("payload") if isinstance(result, dict) else None
     got = payload.get(what) if isinstance(payload, dict) else None
@@ -522,27 +512,54 @@ def drawn(state):
             state["done"]["count"], state["done"]["keys"], state["windows"])
 
 
+def omniwm_unreachable():
+    """What omniwmctl says when OmniWM is running but doesn't answer its
+    ping, else None (it answers, or it isn't running: nothing to fix).
+
+    Happens when brew upgrades the OmniWM cask under a running app: the new
+    omniwmctl (a symlink into the .app) fails every call against the old one,
+    differently per release, hence "no pong" rather than one message:
+      0.7.3 -> 0.7.4: error: protocol_mismatch (server protocol 16, app 0.7.3)
+      0.7.4 -> 0.7.5: omniwmctl: Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"
+    Every location then reads as unplaced, so the daemon logs it (once).
+    """
+    try:
+        running = subprocess.run(["pgrep", "-x", "-U", str(os.getuid()), "OmniWM"],
+                                 capture_output=True, timeout=3).returncode == 0
+        if not running:
+            return None
+        out = subprocess.run([OMNIWMCTL, "ping"], capture_output=True, text=True, timeout=3)
+        said = (out.stdout + out.stderr).strip()
+    except subprocess.TimeoutExpired:
+        said = ""
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None  # can't tell; say nothing
+    if said == "pong":
+        return None
+    return said.splitlines()[0] if said else "no answer"
+
+
 def mismatch_note(was, now):
-    """The log line for an OmniWM protocol mismatch that just began, else
-    None, so a mismatch that lasts all day is one line, not one per refresh."""
+    """The log line for an unreachable OmniWM that just began, else None, so
+    one that lasts all day is one line, not one per refresh."""
     if now is None or was is not None:
         return None
-    return (f"omniwmctl cannot talk to the running OmniWM "
-            f"(app {now.get('appVersion', '?')}, protocol {now.get('protocolVersion', '?')}): "
-            "OmniWM was upgraded; restart OmniWM. Locations are stale or missing until then.")
+    return (f"omniwmctl cannot reach the running OmniWM ({now}): if OmniWM was just "
+            "upgraded, restart OmniWM. Locations are stale or missing until then.")
 
 
-# The mismatch the daemon last reported on, so a refresh that raised still
+# The problem the daemon last reported on, so a refresh that raised still
 # gets its note logged by the next one.
 mismatch_reported = None
 
 
 def report_mismatch():
     global mismatch_reported
-    note = mismatch_note(mismatch_reported, omniwm_mismatch)
+    now = omniwm_unreachable() if omniwm_failed else None
+    note = mismatch_note(mismatch_reported, now)
     if note:
         log(note)
-    mismatch_reported = omniwm_mismatch
+    mismatch_reported = now
 
 
 def refresh(previous):
