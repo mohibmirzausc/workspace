@@ -59,16 +59,40 @@ omniwm-upgrade:
     # A restart is disruptive, so every one is asked for; no terminal, no.
     ask() {
         local reply
-        [ -r /dev/tty ] || return 1
-        read -r -p "$1 [y/N] " reply </dev/tty || return 1
+        { exec 3</dev/tty; } 2>/dev/null || return 1
+        read -r -u 3 -p "$1 [y/N] " reply || return 1
+        exec 3<&-
         [[ "$reply" == [yY]* ]]
     }
-    ping_ok() { [ "$(omniwmctl ping 2>/dev/null)" = pong ]; }
+    # Bounded (no coreutils timeout on PATH), so a hung OmniWM cannot stall
+    # this; perl's alarm survives the exec and kills omniwmctl after 3s.
+    ctl() { perl -e 'alarm 3; exec @ARGV' omniwmctl "$@"; }
+    ping_ok() { [ "$(ctl ping 2>/dev/null)" = pong ]; }
+
+    # Set once OmniWM has been quit, so the EXIT trap below knows to reopen it
+    # and to print the /triage reminder however the run ends.
+    restarted=""
+    unpinned=""
+    on_exit() {
+        if [ -n "$unpinned" ]; then
+            brew pin --cask "$cask" >/dev/null 2>&1 \
+                || echo "warning: could not re-pin omniwm; run: brew pin --cask omniwm" >&2
+        fi
+        if [ -n "$restarted" ]; then
+            pgrep -xq OmniWM || open -b "$bundle_id" || true
+            echo
+            echo "OmniWM restarted, so every window is on one workspace and the scratchpads are empty:"
+            echo "  - run /triage in Claude to put windows back on their workspaces"
+            echo "  - re-assign the scratchpads with Caps+Shift+S / T / E / C"
+        fi
+    }
+    trap on_exit EXIT
 
     # Graceful quit first (an Apple Event, so OmniWM can tidy up; the first
     # time, macOS may ask to let this terminal control OmniWM). Backgrounded
     # because that prompt blocks osascript; escalate if it has not exited.
     quit_omniwm() {
+        restarted=1
         if ! pgrep -xq OmniWM; then
             echo "OmniWM is not running."
             return 0
@@ -80,6 +104,7 @@ omniwm-upgrade:
         if pgrep -xq OmniWM; then pkill -TERM -x OmniWM || true; sleep 3; fi
         if pgrep -xq OmniWM; then pkill -KILL -x OmniWM || true; sleep 1; fi
         kill "$osa" 2>/dev/null || true
+        wait "$osa" 2>/dev/null || true
         if pgrep -xq OmniWM; then
             echo "error: OmniWM would not quit." >&2
             return 1
@@ -91,54 +116,52 @@ omniwm-upgrade:
         open -b "$bundle_id"
         for _ in $(seq 1 60); do
             if ping_ok; then
-                echo "omniwmctl ping -> pong (OmniWM $(omniwmctl version 2>/dev/null || echo '?'))."
+                echo "omniwmctl ping -> pong (OmniWM $(ctl version 2>/dev/null || echo '?'))."
                 return 0
             fi
             sleep 0.5
         done
         echo "error: OmniWM did not answer omniwmctl ping within 30s; last reply:" >&2
-        omniwmctl ping >&2 || true
+        ctl ping >&2 || true
         return 1
-    }
-
-    reminder() {
-        echo
-        echo "OmniWM restarted, so every window is on one workspace and the scratchpads are empty:"
-        echo "  - run /triage in Claude to put windows back on their workspaces"
-        echo "  - re-assign the scratchpads with Caps+Shift+S / T / E / C"
     }
 
     echo "Checking for a newer omniwm..."
     brew update --quiet >/dev/null || echo "warning: brew update failed; comparing against the local index" >&2
     read -r installed available < <(brew info --cask --json=v2 "$cask" \
-        | jq -r '.casks[0] | "\(.installed // "-") \(.version)"')
+        | jq -r '.casks[0] | "\(.installed // "-") \(.version)"') \
+        || { echo "error: could not read the omniwm versions from brew info." >&2; exit 1; }
     if [ "$installed" = "-" ]; then
         echo "error: the omniwm cask is not installed; darwin-rebuild installs it (darwin.nix)." >&2
         exit 1
     fi
     echo "omniwm: installed $installed, available $available"
 
-    if [ "$installed" = "$available" ]; then
+    # Newer only if `available` sorts strictly after `installed`; a cask
+    # rolled back upstream would otherwise be offered as an "upgrade" that
+    # brew carries out as a downgrade.
+    newest="$(printf '%s\n%s\n' "$installed" "$available" | sort -V | tail -n 1)"
+    if [ "$installed" = "$available" ] || [ "$newest" = "$installed" ]; then
         if ping_ok; then
-            echo "Already current and omniwmctl reaches it; nothing to do."
+            echo "Nothing newer, and omniwmctl reaches OmniWM; nothing to do."
             exit 0
         fi
-        echo "Already current, but omniwmctl cannot reach a running OmniWM (not running, or still"
+        echo "Nothing newer, but omniwmctl cannot reach a running OmniWM (not running, or still"
         echo "the app from before the last upgrade). A restart fixes that; there is nothing to upgrade."
         ask "Restart OmniWM now?" || { echo "Left as is."; exit 0; }
         quit_omniwm
         start_omniwm
-        reminder
         exit 0
     fi
 
     echo "Upgrading quits OmniWM, which piles every window onto one workspace and empties the scratchpads."
     ask "Upgrade omniwm $installed -> $available and restart OmniWM now?" || { echo "Not upgraded."; exit 0; }
 
-    # Re-pin on every exit path, so a failed upgrade cannot leave the cask
-    # unpinned for the next rebuild to upgrade under the app.
-    trap 'brew pin --cask "$cask" >/dev/null 2>&1 || echo "warning: could not re-pin omniwm; run: brew pin --cask omniwm" >&2' EXIT
+    # The pin blocks even a named `brew upgrade --cask`, so lift it for this
+    # one upgrade; on_exit re-pins on every exit path, so a failed or
+    # interrupted run cannot leave it for the next rebuild to upgrade.
     quit_omniwm
+    unpinned=1
     brew unpin --cask "$cask" >/dev/null 2>&1 || true
     if ! HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade --cask "$cask"; then
         echo "error: brew upgrade failed; reopening the existing OmniWM." >&2
@@ -146,4 +169,3 @@ omniwm-upgrade:
         exit 1
     fi
     start_omniwm
-    reminder
