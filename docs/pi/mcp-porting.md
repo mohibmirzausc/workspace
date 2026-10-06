@@ -39,8 +39,8 @@ versus 225 tokens for an equivalent CLI + README.
 | `MCP_DOCKER` → obsidian | none (local files) | nothing needed | ✅ **no work** |
 | `playwright` | none | **deferred** — keep MCP for now | ⏸️ parked |
 | `agent-mail` | bearer in sops | `curl` wrapper + skill | ⬜ todo |
-| `notion` | **OAuth only** | built-in MCP, codemode | ✅ configured, needs sign-in |
-| `slack` | **OAuth only** | built-in MCP, codemode | ✅ configured, needs sign-in |
+| `notion` | **OAuth only** | built-in MCP, codemode | ✅ **connected**, 45 tools |
+| `slack` | **OAuth only** | built-in MCP, codemode | ✅ **connected**, 27 tools |
 
 ### shortcut → `sc` CLI ✅
 
@@ -172,8 +172,36 @@ pi mcp login notion
 ```
 
 This opens a browser, so it is deliberately **not** scripted in
-`pi-bootstrap`. `pi mcp list` exits non-zero while any server still needs
-sign-in, which makes it a usable check.
+`pi-bootstrap`. It is also interactive beyond the browser: the command
+prompts ("paste the URL it was redirected to") and blocks on stdin, so it
+cannot be run by an agent with no TTY — it has to be you, at a terminal.
+`pi mcp list` exits non-zero while any server still needs sign-in, which
+makes it a usable check.
+
+**Notion's sign-in gets hijacked by the Notion desktop app.** If Notion.app
+is running, the authorize URL opens there instead of in a browser and dies
+with a misleading *"Something went wrong — we couldn't load this connection.
+Check your internet connection."* The network is fine; the Notion app simply
+cannot run an OAuth consent flow for a third-party client.
+
+It is **universal links**, not a LaunchServices default. `lsregister` shows
+Notion.app claiming only the `notion:` scheme, so the usual
+"set your default browser" advice does not help, and neither does changing
+terminal — Pi calls macOS `open`, and macOS resolves `mcp.notion.com` to the
+app before any browser is consulted.
+
+Two ways through, both verified:
+
+```bash
+# Either: quit Notion.app first, then sign in normally.
+pi mcp login notion
+
+# Or: bypass universal-link resolution by naming the browser bundle.
+# Copy the URL pi prints -- do not click it.
+open -b com.google.chrome '<the full authorize URL>'
+```
+
+Use the whole URL, including `code_challenge` and `state`.
 
 Unlike Claude, Pi stores the resulting tokens **on disk**, at
 `~/.pi/agent/mcp-auth.json`, created `0600` in a `0700` directory (verified in

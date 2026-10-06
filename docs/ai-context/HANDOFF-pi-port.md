@@ -106,8 +106,8 @@ The rule that fell out of it:
 |---|---|---|
 | shortcut | ✅ `sc` CLI | plain REST, token in sops. Replaced 45 MCP tool definitions (~11k–29k tokens **per request**) |
 | MCP_DOCKER | ✅ nothing needed | it serves Obsidian; vaults are plain files Pi reads natively. All 20 tools redundant |
-| notion | ✅ MCP, codemode | OAuth only — returns 401, no token exists. Registered by `pi-bootstrap`; needs `pi mcp login notion` |
-| slack | ✅ MCP, codemode | OAuth; its server advertises `registration_endpoint: null`, hence the pre-registered client id + port 3118. Needs `pi mcp login slack` |
+| notion | ✅ connected, 45 tools | OAuth only — returns 401, no token exists. Registered by `pi-bootstrap`. Sign-in needs Notion.app quit, or the URL forced into a browser |
+| slack | ✅ connected, 27 tools | OAuth; its server advertises `registration_endpoint: null`, hence the pre-registered client id + port 3118, plus the `callbackUrl` patch |
 | playwright | ⏸️ parked | browser lifecycle is real work; user's note: *"Claude should be able to use the playwright CLI, if anything. Low priority."* |
 | agent-mail | ⏸️ ignored | user's instruction |
 
@@ -181,6 +181,37 @@ without protecting the credential behind it. For real separation use distinct
 profiles (`HOME` / `--session-dir` / project-local `.pi/`) and `nono` for
 anything untrusted.
 
+### MCP OAuth sign-in: three things that look like config bugs and are not
+
+All three cost real time on 2026-10-05, none is visible from `mcp.json`, and
+all three will recur on a new machine.
+
+**Slack rejects `127.0.0.1`.** The client id is Claude's Slack app, which
+registers `http://localhost:3118/callback`, and Slack matches redirect URIs
+exactly. `--oauth-callback-port` alone makes Pi send `127.0.0.1`, so sign-in
+fails with *"redirect_uri did not match any configured URIs"*. `pi mcp add`
+has no flag for it, so `pi-bootstrap` patches `oauth.callbackUrl` with `jq`
+after the add — **and must keep doing so**, because every `pi mcp add slack`
+drops the field.
+
+**Notion's sign-in is stolen by Notion.app.** The authorize URL opens in the
+desktop app, which cannot run an OAuth consent flow, and reports *"Something
+went wrong — check your internet connection."* The network is fine. This is
+**universal links**, not a LaunchServices default: `lsregister` shows
+Notion.app claiming only the `notion:` scheme, so setting a default browser
+does not help, and neither does switching terminal. Quit Notion.app, or
+`open -b com.google.chrome '<full authorize URL>'`.
+
+**`pi mcp login` cannot be run by an agent.** Besides opening a browser it
+prompts on stdin ("paste the URL it was redirected to"). With no TTY it hangs
+or reads EOF. Print the command for the user; do not try to run it. The same
+goes for any credential prompt — see the `pi.md` rule.
+
+Diagnosing these: `~/.pi/agent/mcp-auth.json` holds the in-flight state.
+`clientInformation` + `codeVerifier` but no tokens means discovery and
+registration succeeded and the **browser** step failed — which is what
+distinguishes the Notion case from a genuine config error.
+
 ### Security bugs found in `sc` (all fixed — do not reintroduce)
 
 | Bug | Why it mattered |
@@ -199,7 +230,7 @@ anything untrusted.
 |---|---|---|
 | **#105** | open, verified | merge it |
 | **Superpowers** | investigated, not installed | `pi install git:github.com/obra/superpowers` — it is already an official Pi package (top-level `skills/`, `keywords: ["pi-package"]`, a `pi` manifest declaring skills **and** an extension). 15 skills; only 4 ever invoked (`brainstorming` ×8, `systematic-debugging` ×2, `writing-plans`, `subagent-driven-development`). `brainstorming` verified portable. Sub-agent dependency now satisfied by #105 |
-| **Notion + Slack in Pi** | configured, awaiting sign-in | Done via Pi 1.0's built-in MCP, `codemode`, in `pi-bootstrap`. Remaining step is the user's alone: `pi mcp login slack` / `pi mcp login notion` (opens a browser). `pi mcp list` exits 1 until then. Codemode tools are invisible in a tool list by design — test by use, not by listing |
+| **Notion + Slack in Pi** | ✅ done | Both connected through Pi 1.0's built-in MCP in `codemode` — 27 + 45 tools, `pi mcp list` exits 0. On a new machine `pi-bootstrap` registers them, then sign-in is manual; see the sign-in gotchas below. Codemode tools are invisible in a tool list by design — test by use, not by listing |
 | Playwright → MCP in codemode | newly plausible | It was parked because a CLI must own a browser lifecycle. Pi 1.0's codemode gets the MCP server at near-zero idle token cost, which sidesteps the reason for parking. Worth revisiting if browser work picks up |
 | **The lint workflow** | half-written, 3 bugs found | The user was mid-task on `.github/workflows/lint-agents.yml` when an API outage interrupted. Its script had: `grep -o` exiting 1 on no match (kills `set -e` **silently** — the reported symptom); `prompts/*.md` missing `review-pr`, which has no extension; and a raw `{{`/`}}` count that false-positives on JSON in `yesterday.md`. A corrected version was verified in conversation but **never written to a file** |
 | `agent-swarm` in `~/.claude/skills` | stale | a real directory from Feb, not nix-managed, Claude-only. Harmless; delete if it annoys |
