@@ -96,4 +96,11 @@ echo "They are the one expected exception to the pi.md rule about commands"
 echo "that prompt for credentials; run them yourself, deliberately:"
 echo "    pi mcp login slack"
 echo "    pi mcp login notion"
+echo
+echo "Quit the Notion desktop app first. It claims mcp.notion.com as a"
+echo "universal link, so the sign-in opens there instead of a browser and"
+echo "fails with a misleading \"check your internet connection\". If you would"
+echo "rather leave it running, copy the URL pi prints and open it with:"
+echo "    open -b com.google.chrome '<the full authorize URL>'"
+echo
 echo "Confirm with 'pi mcp list' (it exits 1 while any server needs sign-in)."
