@@ -25,14 +25,16 @@ Validation (refusals name the window):
   * moves go to 2-9 or 11 and "review" means 10; only tiled, non-scratchpad
     windows matched to their own OmniWM window move. An unmatched window can
     only stay (rename it now so it matches, and move it next run);
-  * "restore" undoes a cmux restart's pile-up: only a window the inventory
+  * "restore" undoes a restart's pile-up (cmux's or OmniWM's): only a window the inventory
     gives a restore_to (see inventory.py), still on its restore_from (the
     pile), uniquely matched and uniquely named, only to that workspace, and
     never with a rename. It is the one way off workspace 1 (when the pile is
     on 1) and the one way onto it (for a window the log last saw on 1, when
     the pile is elsewhere). Anything else on 1 is still "skip";
   * renames are unique across the resulting set of names;
-  * a window flagged new or misplaced may stay, but only with a "reason".
+  * a window flagged new or misplaced, or one with a restore_to, may stay,
+    but only with a "reason" (a plan drafted before an OmniWM restart, which
+    keeps every id, is refused rather than logging the pile as home).
 
 Execution: renames, a fresh inventory, then every move is re-checked against
 it (still not on workspace 1, still uniquely matched; a restore: still on the
@@ -176,6 +178,8 @@ def validate(plan, inv):
         if "reason" in e and not isinstance(e["reason"], str):
             problems.append(f"{name!r}: 'reason' must be a string")
         flags = [f for f in ("new", "misplaced") if w.get(f)]
+        if w.get("restore_to") is not None and action != "restore":
+            flags.append(f"restorable to {w['restore_to']}")
         if flags and action == "stay" and not (isinstance(e.get("reason"), str) and e["reason"].strip()):
             problems.append(f"{name!r} is flagged {' and '.join(flags)}: 'stay' is fine but needs a 'reason'")
         if "rename" in e and e["rename"] != name:
@@ -256,11 +260,13 @@ def unrestorable(w, e, inv, names_now):
     elif on != last:
         pile = inv.get("restart_workspace") if inv.get("restart") is True else None
         if pile is None:
-            why = "'restore' is only for after a cmux restart, and the inventory doesn't report one"
+            why = "'restore' is only for after a cmux or OmniWM restart, and the inventory doesn't report one"
         elif on != pile:
             why = f"'restore' only moves windows off the restart pile on workspace {pile}; this one is on {on}"
-        else:
+        elif inv.get("restart_kind") == "cmux":
             why = f"it kept its id since the last run, so it was put on {pile} by hand, not by a restart"
+        else:
+            why = f"the inventory gives it no restore_to, so it isn't one the restart moved onto {pile}"
         return [why + skip]
     # else: already back on its last workspace (2-11): a re-applied plan.
     if "to" in e and not (is_int(e["to"]) and e["to"] == last):
@@ -429,10 +435,9 @@ def unsafe_to_unrestore(w, windows):
     return None
 
 
-def placements(run):
+def placements(run, windows):
     """Every cmux window's workspace after the run, for restart recovery."""
     before = state.last_placements()
-    windows = inventory.collect()["windows"]
     names = [w["name"] for w in windows]
     out = []
     for w in windows:
@@ -473,7 +478,11 @@ def finish(run, view, decided_ids):
     if run.dry:
         return
     try:
-        run.log["placements"] = placements(run)
+        after = inventory.collect()
+        run.log["placements"] = placements(run, after["windows"])
+        # Which OmniWM this run saw, so the next one can tell it restarted
+        # (state.last_omniwm). From the same inventory as the placements.
+        run.log["omniwm"] = after.get("omniwm_instance")
     except (SystemExit, Exception) as exc:
         # No placements: the next run falls back to the last entry that has them.
         run.fail(f"couldn't record where windows are: {exc}")

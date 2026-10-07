@@ -218,7 +218,7 @@
                       key_code = "u";
                       modifiers.mandatory = [ "control" "option" "command" ];
                     };
-                    to = [{ shell_command = "${pkgs.python3}/bin/python3 ${config.home.homeDirectory}/.config/cmux/attention.py jump"; }];
+                    to = [{ shell_command = "${pkgs.callPackage ./cmux { }}/bin/cmux-attention jump"; }];
                   }
                 ];
               }

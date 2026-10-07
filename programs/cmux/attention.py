@@ -76,10 +76,10 @@ SKETCHYBAR = find("sketchybar", "/opt/homebrew/bin/sketchybar")
 def _import_inventory():
     """The triage skill's inventory module, or None.
 
-    Installed by home.nix at ~/.claude/skills/triage. The repo copy next to
-    this file is tried first so a run from a checkout (and the tests) uses
-    the code beside it; an installed attention.py resolves into the nix
-    store, where that relative path does not exist.
+    The copy next to this file is tried first: the repo layout in a checkout
+    (and the tests), and the same layout in the store, where
+    programs/cmux/default.nix copies the triage skill in beside it. The
+    skill installed by home.nix at ~/.claude/skills/triage is the fallback.
     """
     here = os.path.dirname(os.path.realpath(__file__))
     for d in (os.environ.get("TRIAGE_DIR"),
@@ -315,9 +315,16 @@ def run_json(cmd, timeout):
         return None
 
 
+# Whether the last omniwm() query failed. The daemon then asks why
+# (omniwm_unreachable), rather than every query paying for it.
+omniwm_failed = False
+
+
 def omniwm(what, timeout, *args):
+    global omniwm_failed
     doc = run_json([OMNIWMCTL, "query", what, *args, "--json"], timeout)
-    if not isinstance(doc, dict) or not doc.get("ok"):
+    omniwm_failed = not isinstance(doc, dict) or not doc.get("ok")
+    if omniwm_failed:
         return None
     result = doc.get("result")
     payload = result.get("payload") if isinstance(result, dict) else None
@@ -505,6 +512,56 @@ def drawn(state):
             state["done"]["count"], state["done"]["keys"], state["windows"])
 
 
+def omniwm_unreachable():
+    """What omniwmctl says when OmniWM is running but doesn't answer its
+    ping, else None (it answers, or it isn't running: nothing to fix).
+
+    Happens when brew upgrades the OmniWM cask under a running app: the new
+    omniwmctl (a symlink into the .app) fails every call against the old one,
+    differently per release, hence "no pong" rather than one message:
+      0.7.3 -> 0.7.4: error: protocol_mismatch (server protocol 16, app 0.7.3)
+      0.7.4 -> 0.7.5: omniwmctl: Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"
+    Every location then reads as unplaced, so the daemon logs it (once).
+    """
+    try:
+        running = subprocess.run(["pgrep", "-x", "-U", str(os.getuid()), "OmniWM"],
+                                 capture_output=True, timeout=3).returncode == 0
+        if not running:
+            return None
+        out = subprocess.run([OMNIWMCTL, "ping"], capture_output=True, text=True, timeout=3)
+        said = (out.stdout + out.stderr).strip()
+    except subprocess.TimeoutExpired:
+        said = ""
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None  # can't tell; say nothing
+    if said == "pong":
+        return None
+    return said.splitlines()[0] if said else "no answer"
+
+
+def mismatch_note(was, now):
+    """The log line for an unreachable OmniWM that just began, else None, so
+    one that lasts all day is one line, not one per refresh."""
+    if now is None or was is not None:
+        return None
+    return (f"omniwmctl cannot reach the running OmniWM ({now}): if OmniWM was just "
+            "upgraded, restart OmniWM. Locations are stale or missing until then.")
+
+
+# The problem the daemon last reported on, so a refresh that raised still
+# gets its note logged by the next one.
+mismatch_reported = None
+
+
+def report_mismatch():
+    global mismatch_reported
+    now = omniwm_unreachable() if omniwm_failed else None
+    note = mismatch_note(mismatch_reported, now)
+    if note:
+        log(note)
+    mismatch_reported = now
+
+
 def refresh(previous):
     try:
         state = compute(previous)
@@ -512,7 +569,9 @@ def refresh(previous):
         # Malformed output from cmux or OmniWM must not kill the daemon
         # (launchd would restart it, but the bar would sit stale meanwhile).
         log("refresh failed:", repr(exc))
+        report_mismatch()
         return previous
+    report_mismatch()
     if state is None:
         # cmux is down or refusing us: say nothing rather than leave a stale
         # "needs you" on the bar.

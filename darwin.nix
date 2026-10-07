@@ -29,6 +29,10 @@ let
   bordersActive = "0xffcba6f7";   # mauve, = COLOR_ACCENT below
   bordersScratch = "0xfff9e2af";  # yellow, = COLOR_YELLOW below
 
+  # programs/cmux/attention.py as a store-path command; see that directory's
+  # default.nix. The same derivation programs/cmux.nix and karabiner.nix use.
+  cmuxAttention = pkgs.callPackage ./programs/cmux { };
+
   sketchybarEnv = {
     # DELIBERATELY NO ${pkgs.coreutils}/bin HERE. It used to sit ahead of
     # /usr/bin, which shadowed BSD stat with GNU stat -- and `stat -f` means
@@ -100,9 +104,9 @@ let
     WM_BORDER_COLOR = bordersActive;
     WM_BORDER_COLOR_SCRATCH = bordersScratch;
     # The attention script (programs/cmux/attention.py) as a command, for the
-    # attn.need item's click in sketchybarrc. Nix python by absolute path for
-    # the same reason as WM_BORDERS_BIN.
-    WM_ATTENTION_CMD = "${pkgs.python3}/bin/python3 ${home}/.config/cmux/attention.py";
+    # attn.need item's click in sketchybarrc. A store path for the same reason
+    # as WM_BORDERS_BIN; see programs/cmux/default.nix for why not ~/.config.
+    WM_ATTENTION_CMD = "${cmuxAttention}/bin/cmux-attention";
 
     COLOR_BG = "0xee1e1e2e";
     COLOR_FG = "0xffcdd6f4";
@@ -332,6 +336,12 @@ in
     # that is missing the write above still lands and a logout will pick it up.
     /usr/bin/osascript -e 'tell application "System Events" to tell dock preferences to set autohide menu bar to true' 2>/dev/null || \
       echo "note: could not apply menu-bar autohide live; it will apply after logout"
+
+    # Say so when the Homebrew step above upgraded OmniWM under a running app
+    # (omniwmctl then fails every call): see programs/omniwm/ipc-check.sh.
+    # As the user, since OmniWM's IPC socket is per user. Never fails.
+    sudo --user=${user} --set-home env TIMEOUT=${pkgs.coreutils}/bin/timeout \
+      /bin/sh ${./programs/omniwm/ipc-check.sh} || true
   '';
 
   # Enable Touch ID for sudo (including inside tmux sessions)
@@ -717,9 +727,10 @@ in
   # event stream dropping) is retried inside the daemon, which never exits.
   launchd.user.agents.cmux-attention = {
     serviceConfig = {
+      # A store path, not the ~/.config/cmux link: this agent is loaded
+      # before home-manager links files (programs/cmux/default.nix).
       ProgramArguments = [
-        "${pkgs.python3}/bin/python3"
-        "${home}/.config/cmux/attention.py"
+        "${cmuxAttention}/bin/cmux-attention"
         "daemon"
       ];
       EnvironmentVariables = sketchybarEnv;
