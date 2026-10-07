@@ -7,7 +7,9 @@
 # is that step, kept in the repo so a new machine is one command away rather
 # than a memory exercise.
 #
-# Idempotent: `pi install` on an already-installed package is a no-op refresh.
+# Idempotent, and safe to re-run to pick up new package versions: `pi install`
+# is a no-op refresh once a package exists, so each install is followed by
+# `pi update --extension` to actually upgrade it. See the loop below.
 set -euo pipefail
 
 packages=(
@@ -38,6 +40,20 @@ command -v pi >/dev/null || {
 for p in "${packages[@]}"; do
   echo "==> $p"
   pi install "$p"
+  # `pi install` on an already-installed package is a no-op refresh, not an
+  # upgrade -- it reports "Installed" and leaves the old version in place. So
+  # on an existing machine this script would otherwise freeze every package at
+  # whatever version it first installed, while a new machine got latest.
+  #
+  # That bit once: pi-subagents stayed at 0.73.1, which failed to start
+  # background children with "Background children require the host npm package
+  # ... does not provide @earendil-works/pi-agent-core/node". That subpath does
+  # not exist in any published pi-agent-core; upstream made the alias optional
+  # in 0.75.0. Re-running the bootstrap could not have fixed it.
+  #
+  # `pi update` honours a pinned ref -- @v0.15.0 refetches that tag rather than
+  # moving off it -- so this is safe for the pinned entries above.
+  pi update --extension "$p"
 done
 
 # MCP servers.

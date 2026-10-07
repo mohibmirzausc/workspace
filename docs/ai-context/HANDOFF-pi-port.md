@@ -73,8 +73,9 @@ Full detail: `programs/agents/README.md`. MCP decisions:
 | **#84** | removed the Shortcut MCP server (banking the saving) |
 | **#100** | Momentum skill for Pi |
 
-**#105 is OPEN**: sub-agents (`pi-subagents`) + the `pi-bootstrap` script.
-Verified working; merge it.
+**#105 merged**: sub-agents (`pi-subagents`) + the `pi-bootstrap` script.
+Then #111 (Slack + Notion over Pi 1.0's MCP), #112 (Slack `callbackUrl`),
+#113 (the Notion sign-in traps).
 
 ### What Pi can do now
 - 13 shared skills, 10 prompts — same files as Claude
@@ -172,6 +173,35 @@ another track's unmerged work.
 `trust.json`, `models-store.json` — symlinking any of them read-only into the
 Nix store makes Pi fail on write (the `EACCES` trap already documented for
 Claude plugins). Leave them unmanaged.
+
+**6b. `pi install` does not upgrade, and `/reload` does not finish the job.**
+Two separate traps that bite in sequence, both hit on 2026-10-07.
+
+*Installing is not updating.* `pi install` on an already-installed package is
+a **no-op refresh** — it prints "Installed" and leaves the old version in
+place. Upgrading needs `pi update --extension <source>` (plain `pi update`
+updates pi itself; `--extensions` does all packages). So a new machine gets
+latest while an existing one freezes at whatever it first installed. That is
+why `pi-bootstrap` now runs both per package. `pi update` honours a pinned
+ref — verified: `@v0.15.0` refetched that tag rather than moving off it.
+
+This is how `pi-subagents` sat at 0.73.1 and failed every **background**
+child with *"Background children require the host npm package … does not
+provide `@earendil-works/pi-agent-core/node`"*. That subpath exists in **no**
+published `pi-agent-core` (checked 1.0.2 and npm's latest 1.0.4 — the
+exports map has only `.` and `./package.json`), so it was upstream's bug, not
+a broken install, and upgrading **Pi** would not have fixed it. `pi-subagents`
+0.75.0 marked the alias `optional: true`. Foreground sub-agents were never
+affected, which is why the original single/parallel tests passed.
+
+*After upgrading a package, restart Pi — do not `/reload`.* A reload re-runs
+the extension's `session_start` with the **new** code while objects built by
+the **old** code are still in memory, so you get errors like
+`completionNotifier.bindSession is not a function` even though the installed
+package is perfectly self-consistent (verified: the method is implemented and
+declared in 0.76.1). It is Node's module cache, not a packaging fault. A
+session that errored this way is half-initialized — start a fresh one before
+judging whether an upgrade worked.
 
 **7. Any agent with `bash` already has every secret.** Verified:
 `pi --tools bash` running `hm-secrets list` enumerated the keys. So
