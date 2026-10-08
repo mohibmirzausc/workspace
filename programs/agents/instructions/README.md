@@ -9,7 +9,8 @@ the files here (`agentInstructions` in `home.nix`):
 | Pi          | `shared.md` + `pi.md`      | `~/.pi/agent/AGENTS.md` |
 
 - **`shared.md`**: rules for every agent, whatever the harness (cmux naming, `rg`).
-- **`<harness>.md`**: rules for that harness only. `claude.md` is empty for now;
+- **`<harness>.md`**: rules for that harness only. `pi.md` has the Mechanical Orchard
+  security defaults and how to launch subagents. `claude.md` is empty for now;
   an empty file adds nothing, so Claude gets exactly `shared.md`.
 
 The shared part comes first, then the harness part, joined with a blank line, under a

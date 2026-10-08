@@ -330,6 +330,28 @@ in
     fi
   '';
 
+  # pi-subagents' builtin scout, worker and delegate run with a strict tool
+  # allowlist that hides extension tools, so their (background) children could
+  # not log to the shared memory. programs/agents/pi-subagent-overrides.json
+  # re-declares each one's builtin tools plus mem_log and mem_ask, as
+  # subagents.agentOverrides in ~/.pi/agent/settings.json. That file is written
+  # by Pi at runtime (see above), so it can't be a Nix link: the overrides are
+  # deep-merged in on every activation, leaving Pi's own keys alone. If a
+  # pi-subagents update changes a builtin's tools, update the JSON to match.
+  home.activation.piSubagentOverrides = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    SETTINGS="$HOME/.pi/agent/settings.json"
+    OVERRIDES=${./programs/agents/pi-subagent-overrides.json}
+    $DRY_RUN_CMD mkdir -p "$HOME/.pi/agent"
+    tmp=$(mktemp)
+    if { cat "$SETTINGS" 2>/dev/null || echo '{}'; } | ${pkgs.jq}/bin/jq --slurpfile o "$OVERRIDES" \
+        '.subagents.agentOverrides = ((.subagents.agentOverrides // {}) * $o[0])' > "$tmp"; then
+      cmp -s "$tmp" "$SETTINGS" || $DRY_RUN_CMD cp "$tmp" "$SETTINGS"
+    else
+      echo "warning: could not merge pi-subagent overrides into $SETTINGS (invalid JSON?)"
+    fi
+    rm -f "$tmp"
+  '';
+
   # Clone agentic practice logs repository if it doesn't exist
   home.activation.cloneLogsRepo = lib.hm.dag.entryAfter ["writeBoundary"] ''
     LOGS_DIR="$HOME/.claude/claude_accessible/agentic-practice-logs"
