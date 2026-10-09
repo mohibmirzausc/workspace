@@ -1,5 +1,5 @@
 {
-  "scout": { "tools": "read, grep, find, ls, bash, write, contact_supervisor, mem_log, mem_ask" },
-  "worker": { "tools": "read, grep, find, ls, bash, edit, write, contact_supervisor, mem_log, mem_ask" },
-  "delegate": { "tools": "read, grep, find, ls, bash, edit, write, contact_supervisor, mem_log, mem_ask" }
+  "scout": { "tools": ["read", "grep", "find", "ls", "bash", "write", "contact_supervisor", "mem_log", "mem_ask"] },
+  "worker": { "tools": ["read", "grep", "find", "ls", "bash", "edit", "write", "contact_supervisor", "mem_log", "mem_ask"] },
+  "delegate": { "tools": ["read", "grep", "find", "ls", "bash", "edit", "write", "contact_supervisor", "mem_log", "mem_ask"] }
 }
