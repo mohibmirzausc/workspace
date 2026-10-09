@@ -348,6 +348,8 @@ in
       # by gcloud-cli" error on every run. "uninstall" is dependency-aware and quiet.
       cleanup = "uninstall";
       autoUpdate = true;
+      # Everything except omniwm, which is pinned -- see the omniwm note
+      # below the homebrew block.
       upgrade = true;
     };
     # Third-party taps. Must be declared here as well as in `brews` below:
@@ -534,6 +536,10 @@ in
       #
       # Pre-1.0 (0.6.9) and very low adoption upstream (single-digit installs
       # per year via brew), so treat breakage across updates as expected.
+      #
+      # PINNED, so rebuilds install it but never upgrade it -- see
+      # system.activationScripts.homebrew below the homebrew block for why and
+      # how. Upgrade deliberately with `just omniwm-upgrade`.
       "omniwm"
       "raycast"
       # Drives Caps Lock+H to leave a call -- see programs/hammerspoon.nix.
@@ -626,6 +632,54 @@ in
       "wallspace"
     ];
   };
+
+  # Keep the omniwm cask out of onActivation.upgrade, and ONLY that cask.
+  #
+  # An upgrade swaps /Applications/OmniWM.app under the running app, and the
+  # new omniwmctl (symlinked out of the new bundle) cannot talk to the old
+  # process: 0.7.3 -> 0.7.4 failed with "error: protocol_mismatch (server
+  # protocol 16, app 0.7.3)", 0.7.4 -> 0.7.5 with "NSPOSIXErrorDomain Code=2".
+  # That breaks Karabiner's Caps+F5/Caps+6, the sketchybar bridge,
+  # cmux-attention and triage until OmniWM restarts -- and a restart piles
+  # every window onto one workspace and empties the scratchpad slots, so it
+  # should happen when chosen (`just omniwm-upgrade`), not on whichever
+  # rebuild happens to run next.
+  #
+  # The mechanism is a Homebrew cask PIN (`brew pin --cask`; casks became
+  # pinnable in recent Homebrew, verified on 7.0.8).
+  # `brew bundle` drops pinned casks from its outdated list
+  # (Library/Homebrew/bundle/cask.rb, outdated_cask_names: casks.reject(&:pinned?)),
+  # so a pinned omniwm counts as satisfied and is skipped while everything
+  # else still upgrades. Alternatives that do not work:
+  #   - nix-darwin's cask entries take only name/args/greedy; there is no
+  #     per-entry "no upgrade" option, and greedy only ever adds upgrades.
+  #   - omniwm is not auto_updates, so the default non-greedy path upgrades it.
+  #   - HOMEBREW_BUNDLE_CASK_SKIP drops the entry entirely, so a new machine
+  #     would never install it; HOMEBREW_BUNDLE_NO_UPGRADE is global.
+  #   - Dropping it from `casks` gets it uninstalled by cleanup = "uninstall".
+  # So it stays an ordinary entry (fresh installs and cleanup behave as for
+  # any cask) and the pin is applied around the bundle step: before it, so a
+  # rebuild never upgrades an already-installed copy, and after it, so a copy
+  # the bundle just installed on a new machine is pinned straight away.
+  #
+  # The pin is imperative Homebrew state (a symlink in
+  # /opt/homebrew/var/homebrew/pinned_casks), which is why it is re-asserted
+  # every activation rather than set once. Side effect: a hand-run
+  # `brew upgrade` skips it too, and says so ("Not upgrading 1 pinned
+  # package"). As the user, as nix-darwin runs brew bundle; failure only warns,
+  # since the worst case is the old behaviour.
+  system.activationScripts.homebrew.text =
+    let
+      pinOmniwm = ''
+        if [ -x /opt/homebrew/bin/brew ] && [ -d /opt/homebrew/Caskroom/omniwm ] \
+          && ! [ -e /opt/homebrew/var/homebrew/pinned_casks/omniwm ]; then
+          echo >&2 "Pinning the omniwm cask (upgrade it with: just omniwm-upgrade)..."
+          sudo --user=${user} --set-home /opt/homebrew/bin/brew pin --cask omniwm \
+            || echo "warning: could not pin omniwm; this rebuild may upgrade it under the running app" >&2
+        fi
+      '';
+    in
+    lib.mkMerge [ (lib.mkBefore pinOmniwm) (lib.mkAfter pinOmniwm) ];
 
   # Always-on local gallery server for the `html-page` Claude skill. Runs at
   # login, restarts on crash, serves ~/html-pages at http://localhost:7777.
