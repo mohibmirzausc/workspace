@@ -645,6 +645,50 @@ in
     };
   };
 
+  # Keeper for the memory system's standing agents (~/src/memory, docs/standing-agents.md "Stage B1"). Agents
+  # live in a private tmux server (`tmux -L mem`); every minute and at login this runs one keeper pass, which
+  # starts every agent marked up on this machine (`mem agent up <name>`) that isn't running, resuming its Pi
+  # session, restarts crashed ones with backoff and gives up on crash loops. With no agent marked up it does
+  # nothing. It exits after each pass, so this is an interval job, not KeepAlive.
+  #
+  # AbandonProcessGroup: the tmux server it may start must outlive the pass (launchd would otherwise kill
+  # what's left in the job's process group). PATH is handed to the agents, so it mirrors an interactive shell
+  # (Pi is under /opt/homebrew/bin; fly under /usr/local/bin). Verified 2026-10-09 with a temporary job:
+  # agents outlive the pass, Pi authenticates from its own auth file, and bootout/bootstrap (a rebuild)
+  # leaves running agents alone. Log of what needed attention: ~/src/memory/.mem/keeper.log.
+  launchd.user.agents.mem-keeper = {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.callPackage ./programs/mem.nix { memHome = "${home}/src/memory"; }}/bin/mem"
+        "agent"
+        "keep"
+        "--quiet"
+      ];
+      EnvironmentVariables = {
+        PATH = lib.concatStringsSep ":" [
+          "${home}/.local/bin"
+          "/opt/homebrew/bin"
+          "/opt/homebrew/sbin"
+          "/etc/profiles/per-user/${user}/bin"
+          "${home}/.nix-profile/bin"
+          "/run/current-system/sw/bin"
+          "/nix/var/nix/profiles/default/bin"
+          "/usr/local/bin"
+          "/usr/bin"
+          "/bin"
+          "/usr/sbin"
+          "/sbin"
+        ];
+        LANG = "en_US.UTF-8";
+      };
+      RunAtLoad = true;
+      StartInterval = 60;
+      AbandonProcessGroup = true;
+      StandardOutPath = "${home}/Library/Logs/mem-keeper.log";
+      StandardErrorPath = "${home}/Library/Logs/mem-keeper.log";
+    };
+  };
+
   # SketchyBar status bar. Config lives in programs/sketchybar.nix, which writes
   # ~/.config/sketchybar/sketchybarrc; this just keeps the daemon alive.
   #
