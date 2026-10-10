@@ -77,6 +77,11 @@ It also flags the windows that need a decision:
 - `home`: the one pool workspace that already holds this repo's windows, if
   it isn't the one the window is on.
 
+`layout` is not a flag: it names the `mem layout` that built the window (the
+memory repo's `layouts/<name>.yaml`, e.g. the always-on agents' window). Its
+layout file owns its name, so never rename it (`apply.py` refuses, and
+`mem layout up` would rename it back). Place it like any other window.
+
 **A flag means "consider this", not "move this".** A new window can be exactly
 where it belongs. But every flagged window must be weighed deliberately, and
 keeping it in place takes a stated `reason` (step 5).
@@ -250,7 +255,9 @@ Write the plan as JSON: **one entry for every window in the inventory.**
 - **`rename`** is optional. Base the name on the window's `last_message`,
   `repo` and `cwd`, following the naming rule in `~/.claude/CLAUDE.md`:
   16 characters at most, with the distinguishing word first. Names must stay
-  unique across all windows once the plan has run.
+  unique across all windows once the plan has run. Never rename a window
+  with a `layout`; if its name looks wrong, tell the user to change its
+  layout file.
 - **Workspaces:**
   - `label` is `<key> <project>`, where the key is the one the user presses:
     the digit for 2-5, F1-F5 for 6-10, and `6` for 11. Examples: `2 alloc`,

@@ -32,6 +32,8 @@ Validation (refusals name the window):
     on 1) and the one way onto it (for a window the log last saw on 1, when
     the pile is elsewhere). Anything else on 1 is still "skip";
   * renames are unique across the resulting set of names;
+  * a window built by `mem layout` (inventory "layout") is never renamed: its
+    layout file names it, and `mem layout up` would rename it back;
   * a window flagged new or misplaced may stay, but only with a "reason".
 
 Execution: renames, a fresh inventory, then every move is re-checked against
@@ -180,7 +182,10 @@ def validate(plan, inv):
             problems.append(f"{name!r} is flagged {' and '.join(flags)}: 'stay' is fine but needs a 'reason'")
         if "rename" in e and e["rename"] != name:
             new = e["rename"]
-            if action == "skip":
+            if w.get("layout"):
+                problems.append(f"{name!r} belongs to mem layout {w['layout']}, which names it: rename it in "
+                                f"~/src/memory/layouts/{w['layout']}.yaml (then `mem layout up {w['layout']}`), not here")
+            elif action == "skip":
                 problems.append(f"{name!r}: a skipped window can't be renamed")
             elif action == "restore":
                 problems.append(f"{name!r}: a restored window can't be renamed (rename it next run)")

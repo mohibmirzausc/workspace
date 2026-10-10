@@ -3,6 +3,7 @@
 Run: python3 test_triage.py   (no cmux or OmniWM needed; nothing is moved)
 """
 
+import json
 import os
 import shutil
 import tempfile
@@ -212,6 +213,63 @@ class ValidateTests(unittest.TestCase):
         plan = self.plan()
         plan["workspaces"] = [{"number": 6, "layout": "grid"}]
         self.assertTrue(apply.validate(plan, self.inv))
+
+
+class LayoutWindowTests(unittest.TestCase):
+    """Windows a `mem layout` built (~/src/memory/layouts/*.yaml) are named by
+    their layout file: triage may move them, never rename them."""
+
+    def setUp(self):
+        reset_log()
+        self.home = tempfile.mkdtemp(prefix="triage-mem-")
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
+
+    def record(self, name, body):
+        d = os.path.join(self.home, ".mem", "layouts")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, name + ".json"), "w") as f:
+            f.write(body if isinstance(body, str) else json.dumps(body))
+
+    def test_reads_each_layouts_window(self):
+        self.record("agents", {"window": "W-AGENTS", "workspaces": {"librarian": "ws1"}, "groups": {}})
+        self.record("dev", {"window": "W-DEV", "workspaces": {}, "groups": {}})
+        self.assertEqual(inventory.layout_windows(self.home), {"W-AGENTS": "agents", "W-DEV": "dev"})
+
+    def test_no_memory_home_or_broken_records_mean_no_layouts(self):
+        self.assertEqual(inventory.layout_windows(os.path.join(self.home, "missing")), {})
+        self.record("bad", "{not json")
+        self.record("nowindow", {"workspaces": {}})
+        self.record("odd", {"window": 7})
+        with open(os.path.join(self.home, ".mem", "layouts", "notes.txt"), "w") as f:
+            f.write("x")
+        self.assertEqual(inventory.layout_windows(self.home), {})
+
+    def plan_inv(self):
+        windows = desktop()
+        next(w for w in windows if w["id"] == "agent")["layout"] = "agents"
+        inventory.flag(windows, workspaces())
+        inv = {"current_workspace": 6, "windows": windows, "workspaces": workspaces()}
+        def plan(**overrides):
+            entries = [{"id": w["id"], "action": "skip" if w["omniwm_workspace"] == 1 else "stay", "reason": "considered",
+                        **overrides.get(w["id"], {})} for w in windows]
+            return {"windows": entries}
+        return inv, plan
+
+    def test_a_layout_window_is_never_renamed(self):
+        inv, plan = self.plan_inv()
+        problems = apply.validate(plan(agent={"action": "stay", "rename": "web ci watch"}), inv)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("mem layout agents", problems[0])
+        self.assertIn("layouts/agents.yaml", problems[0])
+
+    def test_a_layout_window_may_still_move_or_go_to_review(self):
+        inv, plan = self.plan_inv()
+        self.assertEqual(apply.validate(plan(agent={"action": "move", "to": 5}), inv), [])
+        self.assertEqual(apply.validate(plan(agent={"action": "review"}), inv), [])
+
+    def test_keeping_its_own_name_is_not_a_rename(self):
+        inv, plan = self.plan_inv()
+        self.assertEqual(apply.validate(plan(agent={"action": "stay", "rename": "agent"}), inv), [])
 
 
 class LogTests(unittest.TestCase):
