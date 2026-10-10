@@ -24,6 +24,8 @@ a careful read of the table:
     with the reason spelled out.
   * home: the pool workspace that already holds this repo's windows, if it is
     not the one the window is on.
+  * layout: the `mem layout` that built this window (its name comes from the
+    layout file, so apply.py refuses to rename it), or None.
 
 And it spots a cmux restart, which piles every window onto one workspace
 (whichever the user was on: 1, 7, anything) and gives each a new id (names
@@ -56,6 +58,9 @@ from collections import Counter
 import state
 
 CG_TITLES = os.path.expanduser("~/.config/sketchybar/helpers/window-titles")
+# Windows built by `mem layout` (the memory repo's layouts/*.yaml) record their
+# cmux window id in <memory home>/.mem/layouts/<name>.json.
+MEM_HOME = os.environ.get("MEM_HOME") or os.path.expanduser("~/src/memory")
 SPINNER = set("◐◑◒◓") | {chr(c) for c in range(0x2800, 0x2900)}
 MESSAGE_CHARS = 140
 USER_WORKSPACE = 1
@@ -166,6 +171,28 @@ def match_title(name, by_title):
     return match, ow, candidates, maybe_user
 
 
+def layout_windows(home=MEM_HOME):
+    """cmux window UUID -> name of the `mem layout` that owns it. Those windows
+    are named by their layout file: triage may move them, never rename them
+    (`mem layout up` would rename them back). Missing or unreadable records
+    mean no layouts, never a failed inventory."""
+    d = os.path.join(home, ".mem", "layouts")
+    try:
+        files = sorted(f for f in os.listdir(d) if f.endswith(".json"))
+    except OSError:
+        return {}
+    owned = {}
+    for f in files:
+        try:
+            with open(os.path.join(d, f)) as fh:
+                window = json.load(fh).get("window")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if isinstance(window, str) and window:
+            owned[window] = f[:-len(".json")]
+    return owned
+
+
 def collect():
     tree = json.loads(run("cmux", "--json", "tree", "--all"))
     # Stable window identity: cmux's window UUID. The tree has only refs, so
@@ -185,6 +212,7 @@ def collect():
     cg = live_titles()
 
     by_title = cmux_by_title(ow_windows, cg)
+    layouts = layout_windows()
 
     windows = []
     for win in tree["windows"]:
@@ -199,13 +227,15 @@ def collect():
         match, ow, candidates, maybe_user = match_title(name, by_title)
 
         msg = sel.get("latest_submitted_message") or ""
+        wid = uuid_by_selected.get(win.get("selected_workspace_id") or "") or win["ref"]
         windows.append({
-            "id": uuid_by_selected.get(win.get("selected_workspace_id") or "") or win["ref"],
+            "id": wid,
             "cmux_window": win["ref"],
             "cmux_workspace": sel.get("ref"),
             "is_this_session": win["ref"] == here,
             "name": name,
             "named_by_hand_or_agent": bool(sel.get("has_custom_title")),
+            "layout": layouts.get(wid),
             "cwd": sel.get("current_directory"),
             "repo": repo_of(sel.get("current_directory")),
             "state": state_of(focused.get("title")),
