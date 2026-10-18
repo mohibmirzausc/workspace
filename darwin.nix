@@ -25,6 +25,9 @@ let
   # All of these clear the bar now that gaps.outer.top is 36; at 32 every
   # width overlapped it by width/2. So this is a free aesthetic choice --
   # but it stops being one if that gap ever goes back to 32.
+  # moab's sandbox toolchain and daemon launcher; see programs/moab/default.nix.
+  moab = pkgs.callPackage ./programs/moab { inherit home; };
+
   bordersWidth = "4.0";
   bordersActive = "0xffcba6f7";   # mauve, = COLOR_ACCENT below
   bordersScratch = "0xfff9e2af";  # yellow, = COLOR_YELLOW below
@@ -370,6 +373,10 @@ in
       # reasoning as flyctl and pi below. Needs `brew trust felixkratz/formulae`
       # once per machine -- see the ONE-TIME MANUAL STEP note above.
       "felixkratz/formulae"  # sketchybar
+      # Mechanical Orchard's private tap, for moab (see brews below). Private,
+      # so Homebrew clones it with your GitHub credentials: run `gh auth login`
+      # first, then `brew trust mechanical-orchard/tap` once (note above).
+      "mechanical-orchard/tap"
     ];
     # Fly.io CLI. Homebrew ships the formula with daily updates, well ahead of
     # nixpkgs. The formula drops both `flyctl` and `fly` into /opt/homebrew/bin;
@@ -419,6 +426,14 @@ in
       #
       # In homebrew-core, so unlike microsandbox it needs no `brew trust`.
       "nono"
+      # moab: Mechanical Orchard's DOT pipeline runner, whose agent steps run
+      # Claude Code / Codex over ACP. Ships moab, moab-daemon and moab-runner.
+      # Sandboxed runs need the exact nono release moab pins, which is NOT the
+      # Homebrew nono above: programs/moab/default.nix supplies the pinned one
+      # on the daemon's PATH, and launchd.user.agents.moab-daemon below keeps
+      # the daemon up with the API keys. Upgrades with the rest
+      # (onActivation.upgrade); if a new moab pins a new nono, bump it there.
+      "mechanical-orchard/tap/moab"
       # ttyd (tsl0922.github.io/ttyd): serves a terminal over HTTP/WebSocket, so
       # a local shell or TUI is reachable from a browser -- handy for driving a
       # long-running session from another device on the tailnet.
@@ -686,6 +701,36 @@ in
       AbandonProcessGroup = true;
       StandardOutPath = "${home}/Library/Logs/mem-keeper.log";
       StandardErrorPath = "${home}/Library/Logs/mem-keeper.log";
+    };
+  };
+
+  # moab's per-machine daemon, kept up so sandboxed pipeline runs get their
+  # API keys. moab's credential routes read ANTHROPIC_API_KEY (and
+  # OPENAI_API_KEY) from the daemon's environment and broker them into the nono
+  # sandbox; a daemon that `moab run start` auto-starts from a shell would
+  # inherit that shell's environment, i.e. no keys. The launcher
+  # (programs/moab/default.nix) reads the keys from 1Password -- a fingerprint
+  # prompt at login or after a crash -- puts the pinned nono and the
+  # nodejs.org node first on PATH, then execs moab-daemon in the foreground.
+  #
+  # KeepAlive only on a non-zero exit: the launcher exits 0 when it can't get
+  # the keys (prompt dismissed, 1Password locked), and moab-daemon exits 0 on
+  # `moab service stop`, so neither turns into a retry loop of fingerprint
+  # prompts. Start it by hand with
+  #   launchctl kickstart -k gui/$(id -u)/org.nixos.moab-daemon
+  # `moab service status` lists which credential variables the daemon holds.
+  launchd.user.agents.moab-daemon = {
+    serviceConfig = {
+      ProgramArguments = [ "${moab.launcher}/bin/moab-daemon-launch" ];
+      EnvironmentVariables = {
+        HOME = home;
+        LANG = "en_US.UTF-8";
+      };
+      RunAtLoad = true;
+      KeepAlive = { SuccessfulExit = false; };
+      ThrottleInterval = 60;
+      StandardOutPath = "${home}/Library/Logs/moab-daemon.log";
+      StandardErrorPath = "${home}/Library/Logs/moab-daemon.log";
     };
   };
 

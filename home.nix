@@ -5,6 +5,9 @@ let
   htmlPagesServer = pkgs.callPackage ./programs/html-pages-server { };
   htmlPagesDir = "${config.home.homeDirectory}/html-pages";
 
+  # moab's sandbox toolchain (pinned nono, nodejs.org node, ACP adapters).
+  moab = pkgs.callPackage ./programs/moab { home = config.home.homeDirectory; };
+
   # One global instructions file per harness, assembled from
   # programs/agents/instructions/: shared.md first, then <harness>.md. An empty
   # (or missing) harness file adds nothing. See
@@ -418,6 +421,27 @@ in
   # Homebrew's flyctl formula installs both `flyctl` and `fly` into
   # /opt/homebrew/bin. We keep `flyctl` but strip the `fly` symlink so it
   # doesn't shadow Concourse's `fly` CLI at /usr/local/bin/fly.
+  # ACP adapters for moab's sandboxed runs (programs/moab/default.nix explains
+  # why they come from npm and run on the nodejs.org node). Installed with
+  # `npm install -g` into their own prefix, only when the pinned list changes,
+  # so a rebuild without changes does no network work. On failure the old
+  # tree is kept and the rebuild carries on.
+  home.activation.installMoabAdapters = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    PREFIX=${lib.escapeShellArg moab.adapterPrefix}
+    WANT=${lib.escapeShellArg (lib.concatStringsSep " " moab.adapters)}
+    STAMP="$PREFIX/.installed"
+    if [ "$(cat "$STAMP" 2>/dev/null)" != "$WANT" ]; then
+      echo "installing moab ACP adapters: $WANT"
+      $DRY_RUN_CMD mkdir -p "$PREFIX"
+      # shellcheck disable=SC2086 # WANT is a space-separated package list
+      if $DRY_RUN_CMD env PATH="${moab.node}/bin:$PATH" npm install -g --prefix "$PREFIX" --no-fund --no-audit $WANT; then
+        [ -n "$DRY_RUN_CMD" ] || printf '%s' "$WANT" > "$STAMP"
+      else
+        echo "warning: moab ACP adapter install failed; keeping the previous ones"
+      fi
+    fi
+  '';
+
   home.activation.removeBrewFlyLink = lib.hm.dag.entryAfter ["writeBoundary"] ''
     BREW_FLY="/opt/homebrew/bin/fly"
     if [ -e "$BREW_FLY" ] || [ -L "$BREW_FLY" ]; then
