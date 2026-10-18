@@ -175,7 +175,8 @@ let
         exit 0
       fi
       moab_version=$("$moab" --version 2>&1 || true)
-      if [ "$moab_version" != "moab ${moabVersion}" ]; then
+      # moab prints a build suffix: "moab 0.39.0 (3ee9971)".
+      if [ "''${moab_version%% (*}" != "moab ${moabVersion}" ]; then
         log "warning: Homebrew has $moab_version, pins were checked against ${moabVersion}; if sandboxed runs refuse nono, bump programs/moab/default.nix from the new nono-pin.toml"
       fi
       mkdir -p "$MOAB_HOME"
