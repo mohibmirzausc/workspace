@@ -47,11 +47,19 @@
         #
         #     mkdir -p ~/.config/workspace && touch ~/.config/workspace/work
         #
-        # and rebuilds. Read through HOME, which install.sh passes through sudo
-        # (--impure); pure evaluation sees no HOME and gets false. Removing the
-        # file and rebuilding uninstalls it (homebrew cleanup = "uninstall").
-        work = let h = builtins.getEnv "HOME"; in
-          h != "" && builtins.pathExists "${h}/.config/workspace/work";
+        # and rebuilds. Removing the file and rebuilding uninstalls it
+        # (homebrew cleanup = "uninstall"). Pure evaluation gets false.
+        #
+        # Looked up through USER as well as HOME. The darwin switch runs as
+        # root, and nix replaces a HOME root doesn't own with root's own
+        # ("$HOME ('/Users/mohib') is not owned by you, falling back to
+        # '/var/root'"), so HOME alone made the flag false on every real
+        # rebuild. USER survives (install.sh passes it; mkDarwin relies on it
+        # too). HOME still covers linux (/home/<user>, no sudo).
+        work = let
+          marker = dir: dir != "" && builtins.pathExists "${dir}/.config/workspace/work";
+          u = builtins.getEnv "USER";
+        in marker (builtins.getEnv "HOME") || (u != "" && u != "root" && marker "/Users/${u}");
       };
 
       # Generic Darwin config — works for any username/hostname/arch.
