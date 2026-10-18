@@ -38,6 +38,20 @@
         # homebrew.onActivation.cleanup = "uninstall" removes the app on the
         # next rebuild.
         wallspace = false;
+
+        # Work mode: Mechanical Orchard tooling that a personal machine can't
+        # reach (private Homebrew tap, company 1Password vault) -- currently
+        # moab and its sandboxed-run daemon (programs/moab/). Unlike the flags
+        # above this one is PER MACHINE, so it is not hardcoded: a machine opts
+        # in with
+        #
+        #     mkdir -p ~/.config/workspace && touch ~/.config/workspace/work
+        #
+        # and rebuilds. Read through HOME, which install.sh passes through sudo
+        # (--impure); pure evaluation sees no HOME and gets false. Removing the
+        # file and rebuilding uninstalls it (homebrew cleanup = "uninstall").
+        work = let h = builtins.getEnv "HOME"; in
+          h != "" && builtins.pathExists "${h}/.config/workspace/work";
       };
 
       # Generic Darwin config — works for any username/hostname/arch.
