@@ -36,7 +36,7 @@ gh api "repos/mechanical-orchard/moab/contents/skills/moab--kb/SKILL.md?ref=v$V"
 ## Local rules (they win over moab's skills)
 
 ### Running and safety
-- **Always sandboxed.** Every agent node needs a `sandbox.fs` grant covering the folder the pipeline runs from (`ro:.` or `rw:.`). Credentials only come through `sandbox.secrets`: `anthropic` for `claude-code`, `openai` for `codex`. Runs start with `--sandbox nono`. The memory extension blocks a `moab run start` without it, and `moab-run` always adds it.
+- **Always sandboxed.** Every agent node needs a `sandbox.fs` grant covering the folder the pipeline runs from (`ro:.` or `rw:.`). Credentials only come through `sandbox.secrets`: `anthropic` for `claude-code`, `openai` for `codex`. Never `github` or `gitlab`: pipelines commit locally and the operator pushes. Runs start with `--sandbox nono`. The memory extension blocks a `moab run start` without it, and `moab-run` always adds it.
 - **Grants resolve against the pipeline file's folder.** When `moab-run` starts a run, that folder is the repo clone. Never write absolute grants or grants with `..`; `moab-run` refuses them.
 - **No nested writable grants.** `rw:.` together with `rw:./out` fails when the run starts (`sandbox_grant_integrity`), although `moab pipeline validate` passes it. When agents commit, use one `rw:.` grant. Otherwise use `ro:.` plus `rw:./out`.
 - **Writable paths must exist before the run.** `moab-run` creates the ones the pipeline names.
