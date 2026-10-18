@@ -128,6 +128,7 @@ in
 {
   imports = [
     ./programs/shottr.nix
+    ./programs/moab/darwin.nix  # features.work only
   ];
 
   # NOTE: SketchyBar's fonts are installed via Homebrew casks (see

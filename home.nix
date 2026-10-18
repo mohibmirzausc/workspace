@@ -37,6 +37,7 @@ in
     ./programs/tmux.nix
     ./programs/ticktick-sdk/config.nix
     ./programs/sops
+    ./programs/moab/home.nix  # features.work only
   ];
 
   # Note: nixpkgs configuration is now handled by darwin.nix when using nix-darwin
