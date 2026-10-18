@@ -34,7 +34,18 @@ lib.mkIf enabled {
   # compiled. Ships moab plus moab-daemon and moab-runner in libexec/ (only
   # moab is linked onto PATH).
   homebrew.taps = [ "mechanical-orchard/tap" ];
-  homebrew.brews = [ "mechanical-orchard/tap/moab" ];
+  #
+  # Homebrew's own `gh` is needed for that download, though nix already
+  # provides gh: Homebrew gets your GitHub token by running `gh auth token`
+  # with a PATH of only its shims, /usr/bin:/bin:/usr/sbin:/sbin and
+  # /opt/homebrew/opt/gh/bin (utils/github/api.rb github_cli_token), so the
+  # nix gh is invisible and the private release answers 404
+  # (GitHub::API::HTTPNotFoundError). It shares the nix gh's login
+  # (~/.config/gh plus the keychain). Listed first so it is installed before
+  # moab. HOMEBREW_GITHUB_API_TOKEN is no alternative: nix-darwin runs brew
+  # under `sudo --preserve-env=PATH`, and homebrew.extraEnv would put the
+  # token in the nix store.
+  homebrew.brews = [ "gh" "mechanical-orchard/tap/moab" ];
 
   users.users.${user}.packages = [ moab.launcher ];
 
