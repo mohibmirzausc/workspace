@@ -106,6 +106,27 @@ let
   '';
   adapterBin = "${adapterBinDir}/bin";
 
+  # git for sandboxed agents. Inside nono, opening ~/.gitconfig or
+  # ~/.config/git/config fails with EPERM (not ENOENT), which git treats as
+  # fatal: every command, even `git --version`, dies. moab refuses to pass
+  # GIT_CONFIG* into the sandbox, so this wrapper sets it there instead: when
+  # NONO_CAP_FILE is set (nono sets it only inside its sandbox) git runs with
+  # no global config, no global excludes file, and no system config (nix git's
+  # names the osxkeychain credential helper; pipelines never push, so they
+  # get no credential helper at all). Outside the sandbox (moab's
+  # own git use, unsandboxed tool nodes) it is plain git. The commit identity
+  # comes from the clone's own .git/config, which moab-run writes.
+  # Measured: memory scripts/moab-sandbox-probe, 2026-10-18.
+  sandboxGit = pkgs.writeShellScriptBin "git" ''
+    if [ -n "''${NONO_CAP_FILE:-}" ] && [ -z "''${GIT_CONFIG_GLOBAL:-}" ]; then
+      export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+      if [ -z "''${GIT_CONFIG_COUNT:-}" ]; then
+        export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.excludesFile GIT_CONFIG_VALUE_0=/dev/null
+      fi
+    fi
+    exec ${pkgs.git}/bin/git "$@"
+  '';
+
   # Where moab keeps its state; moab-daemon refuses to start if it is missing.
   moabHome = "/Users/${user}/.moab";
   brewMoab = "/opt/homebrew/opt/moab/libexec";
@@ -121,6 +142,7 @@ let
   daemonPath = lib.concatStringsSep ":" [
     "${nono}/bin"
     "${node}/bin"
+    "${sandboxGit}/bin"
     "/etc/profiles/per-user/${user}/bin"
     "/run/current-system/sw/bin"
     "/nix/var/nix/profiles/default/bin"
@@ -229,5 +251,5 @@ let
   anthropicKeyRef = "op://Employee/Anthropic Pi Coach Key/credential";
 in
 {
-  inherit moabVersion nono node adapters adapterBin daemonPath daemonShim launcher brewMoab;
+  inherit sandboxGit moabVersion nono node adapters adapterBin daemonPath daemonShim launcher brewMoab;
 }

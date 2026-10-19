@@ -31,6 +31,7 @@ Follow the `moab` skill: moab's own `moab--create-pipeline`, plus the local rule
 - **Keep it outside the target repo:** in a scratch folder, or in `~/src/memory/pipelines/<project>/` if it is meant to be reused.
 - **Prompts must be explicit:** what to change, how to verify it (run the tests), and "commit your changes with git".
 - **Grants:** use `rw:.` when agents commit, otherwise `ro:.` plus `rw:./out`. Credentials go through `sandbox.secrets`. Never nest writable grants.
+- **Pipelines never push.** Agents commit only inside the run's clone; you collect the branch and decide whether it goes to a remote. `moab-run` refuses a pipeline granting the `github` or `gitlab` route. Inside the sandbox git works without the user's global config: the clone has its own identity (`moab agent`), so prompts needn't set one.
 - **Goal gate:** put `goal_gate=true` on the node that must succeed.
 
 ### 3. Validate
