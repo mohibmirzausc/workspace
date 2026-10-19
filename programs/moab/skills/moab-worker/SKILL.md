@@ -1,6 +1,6 @@
 ---
 name: moab-worker
-description: "Use when a task should be done by running a moab pipeline, i.e. handing a repeatable or multi-step coding job to sandboxed Claude Code / Codex agents, or when asked to run, monitor, debug, rerun or collect a moab run. Covers the whole loop with moab-run: spec, pipeline, validate, start in a throwaway clone, monitor, diagnose, fix and rerun, collect and verify, deliver, and record lessons. Work machines only."
+description: "Use when a task should be done by running a moab pipeline, i.e. handing a repeatable or multi-step coding job to sandboxed Claude Code / Codex agents, or when asked to run, monitor, debug, rerun or collect a moab run. Covers the whole loop with moab-run: spec, pipeline, validate, start in a throwaway clone with a budget, watch, diagnose, fix and rerun, collect and verify, deliver, clean up, and record lessons. Work machines only."
 ---
 
 # moab-worker: get work done with a moab pipeline
@@ -39,11 +39,17 @@ Run `moab pipeline validate <pipeline.dot>` and fix every error. Warnings are a 
 
 ### 4. Start
 ```bash
-moab-run start <repo> <pipeline.dot> --slug <short-name> [--base origin/main] [--param k=v]
+moab-run start <repo> <pipeline.dot> --slug <short-name> [--base origin/main] [--param k=v] \
+  --max-minutes <n> [--max-tokens <n>]
 ```
 
+**Always give a budget.** moab has no spending cap, so moab-run enforces yours whenever it checks the run.
+- `--max-minutes` bounds everything, including one long step.
+- `--max-tokens` only bites between steps, because moab reports a step's tokens when the step ends. It catches loops and retries.
+- Size them from the job: a trivial haiku step costs about 70k–300k tokens and under a minute.
+
 **What it does:**
-- **Refuses** when the daemon is down or lacks the needed key, when validation fails, or when a grant reaches outside the clone.
+- **Refuses** when the daemon is down or lacks the needed key, when validation fails, when a grant reaches outside the clone, or when the pipeline asks for a git host's credentials.
 - **Clones** the repo into `~/moab-runs/<repo>/<date>-<slug>/work`, on branch `moab/<slug>`.
 - **Starts the run detached and sandboxed**, then prints the run id.
 
@@ -52,7 +58,12 @@ moab-run start <repo> <pipeline.dot> --slug <short-name> [--base origin/main] [-
 **When the daemon isn't running,** a human has to start it, because 1Password needs a fingerprint: `launchctl kickstart -k gui/$(id -u)/org.nixos.moab-daemon`. Ask with `mem_ask`, or ask in chat if Mohib is present. Never start a daemon yourself: the guard blocks it, and the result would have no keys.
 
 ### 5. Monitor without burning tokens
-- Check `moab-run status <run>` every few minutes, not in a tight loop. A bash loop that sleeps between checks and stops on a finished phase is fine.
+- **Wait with `moab-run watch <run> --interval 30s --timeout 20m`.** It costs no tokens while it waits.
+  - It enforces the budget on every check.
+  - It exits 0 once the run has finished, whatever the outcome; `collect` judges it.
+  - It exits 4 if the run is still going at the timeout, and leaves it running. Watch again, or stop it.
+- `moab-run status <run>` is a one-off check. It also enforces the budget.
+- **A run stopped for its budget** shows "stopped by moab-run: …", and `collect` fails it. Decide whether the budget was too small or the pipeline is looping.
 - `moab viz` opens the dashboard for a human.
 - Stop a run that has gone wrong with `moab-run stop <run>`. It stays resumable.
 
@@ -103,7 +114,12 @@ moab-run collect <run> --expect ... --fetch
 - **Treat the agents' work like an outside contribution.**
 - **Never run git yourself inside a run's clone.** A sandboxed agent may have planted git settings that execute on your machine. `moab-run collect` checks for that before it touches the clone.
 
-### 10. Record
+### 10. Clean up
+`moab-run clean <run> --yes` deletes a run's folder once you're done with it. `moab-run clean --older-than 7d` lists old runs; add `--yes` to delete them.
+- It never deletes a running run.
+- It keeps runs whose branch you haven't fetched (`--force` overrides).
+
+### 11. Record
 - `mem_log` a **lesson** for each non-obvious thing you learned about moab, a pipeline pattern, or a failure and its fix.
 - Log a **reference** for runs whose result matters: id, verdict, tokens, and where the result went (branch, PR).
 - Report token use to the human. moab gives tokens, not dollars.
