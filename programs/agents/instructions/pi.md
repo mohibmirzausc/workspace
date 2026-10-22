@@ -11,6 +11,21 @@ A safety baseline for Pi sessions on MO machines, carried over from mo-pi's mana
 
 These defaults are guardrails, not a substitute for thinking. If the user explicitly overrides one, follow their instruction for that task and keep the exception narrow.
 
+## Don't trip the permission gate
+
+pi-guardrails' permission gate stops any bash command it considers dangerous and waits for me to press a key.
+For a hosted or unattended agent, that wait can last hours, because nobody is watching its window. A child
+subagent has no window at all, so its command is simply blocked. Write commands that don't trigger it:
+
+- **Never `rm -rf`, `rm -fr` or `rm -r -f`.** Any `rm` with both recursive and force flags triggers it, even on
+  `/tmp`. Don't clean up scratch files at all: put them in `mktemp -d` or `/tmp` and leave them, since macOS clears
+  them. If a delete is really needed, use `rm -r <path>` without `-f`, as its own command.
+- No `sudo`. Anything that needs it is mine to run; tell me the command.
+- Don't chain cleanup onto a check with `;` or `&&`. One flagged word in a long compound command blocks the
+  whole thing.
+
+If a command you need is flagged anyway, say so and ask me, rather than finding a way around the gate.
+
 ## Subagents
 
 When you launch subagents with pi-subagents:
