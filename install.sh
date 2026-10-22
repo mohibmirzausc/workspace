@@ -72,6 +72,33 @@ if [[ "$(uname)" == "Darwin" ]]; then
     echo "         files under programs/ may not be linked into \$HOME." >&2
   fi
 
+  # Keep Pi's packages in step with Pi.
+  #
+  # Pi comes from brew, so this switch can upgrade it. Its packages
+  # (pi-subagents, pi-intercom, guardrails, momentum) live in ~/.pi/agent and
+  # are only installed or updated by pi-bootstrap, which used to be a manual
+  # step. Leaving it manual let them drift: Pi 1.2 dropped a package that
+  # pi-subagents 0.76.1 still required, and every background subagent failed
+  # until someone noticed. So run the package half of pi-bootstrap after every
+  # switch, as this user (not root: Pi writes ~/.pi/agent), and report whether
+  # pi-subagents can start background children on this Pi.
+  #
+  # It needs the network and must never fail the switch, so failures warn.
+  # GIT_TERMINAL_PROMPT=0 stops a git-sourced package from hanging on a
+  # credential prompt when this runs unattended.
+  PI_BOOTSTRAP=$(command -v pi-bootstrap || echo "/etc/profiles/per-user/$USER/bin/pi-bootstrap")
+  if command -v pi >/dev/null && [ -x "$PI_BOOTSTRAP" ]; then
+    echo "Updating Pi packages (pi-bootstrap --packages-only)..."
+    GIT_TERMINAL_PROMPT=0 "$PI_BOOTSTRAP" --packages-only
+    case $? in
+      0) echo "Pi packages up to date." ;;
+      3) echo "Warning: Pi packages updated, but the compatibility check above failed." >&2 ;;
+      *) echo "Warning: pi-bootstrap failed (offline?); Pi packages may be out of date." >&2 ;;
+    esac
+  else
+    echo "Skipping Pi package update (pi or pi-bootstrap not found)." >&2
+  fi
+
   # Garbage-collect old generations so the nix store doesn't grow unbounded.
   # On Determinate Nix (nix.enable = false) nix-darwin does NOT manage the daemon,
   # so nix.gc.automatic is ineffective — we GC explicitly here instead.
