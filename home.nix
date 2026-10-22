@@ -247,6 +247,15 @@ in
       recursive = true;
       force = true;
     };
+
+    # Custom pi-subagents agents (user scope: ~/.pi/agent/agents/*.md), next to the
+    # builtins. recursive keeps the directory real, so pi-subagents can still write
+    # its own files there (eject, disable). See programs/agents/pi-subagents/.
+    ".pi/agent/agents" = {
+      source = ./programs/agents/pi-subagents;
+      recursive = true;
+      force = true;
+    };
   };
 
   # Home Manager can also manage your environment variables through
