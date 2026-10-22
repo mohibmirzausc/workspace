@@ -20,7 +20,9 @@ subagent has no window at all, so its command is simply blocked. Write commands 
 - **Never `rm -rf`, `rm -fr` or `rm -r -f`.** Any `rm` with both recursive and force flags triggers it, even on
   `/tmp`. Don't clean up scratch files at all: put them in `mktemp -d` or `/tmp` and leave them, since macOS clears
   them. If a delete is really needed, use `rm -r <path>` without `-f`, as its own command.
-- No `sudo`. Anything that needs it is mine to run; tell me the command.
+- Don't type `sudo` in a command: the gate stops it before my Touch ID prompt ever appears. Root work goes through a
+  script I've approved that calls sudo itself, such as `install.sh`. Run it in the background (`run_background`, or
+  `nohup … &`) and tell me to expect a Touch ID prompt. sudo uses Touch ID here, including inside tmux.
 - Don't chain cleanup onto a check with `;` or `&&`. One flagged word in a long compound command blocks the
   whole thing.
 
