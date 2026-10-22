@@ -12,8 +12,9 @@
 {
   pi-bootstrap = pkgs.writeShellApplication {
     name = "pi-bootstrap";
-    # pi comes from Homebrew, not nixpkgs. jq sets Slack's callbackUrl.
-    runtimeInputs = [ pkgs.jq ];
+    # pi comes from Homebrew, not nixpkgs. jq sets Slack's callbackUrl; node
+    # runs the pi-subagents compatibility check.
+    runtimeInputs = [ pkgs.jq pkgs.nodejs ];
     text = builtins.readFile ./pi-bootstrap.sh;
   };
 

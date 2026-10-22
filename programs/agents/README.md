@@ -138,6 +138,15 @@ pi list        # confirm
 Idempotent, so safe to re-run. On a new machine this is the one command
 between a fresh `pi` and a fully-equipped one.
 
+**`install.sh` runs the package half after every switch**
+(`pi-bootstrap --packages-only`), so a brew upgrade of Pi and the packages
+move together instead of drifting. It ends with a compatibility check that
+asks pi-subagents whether it can start background children on this Pi, and
+warns loudly if not (that is how Pi 1.2 dropping `chord` went unnoticed until
+every background subagent failed). A failure only warns; it never fails the
+switch. The MCP registration and sign-in remain a deliberate, manual first-time
+step: run plain `pi-bootstrap` for that.
+
 | Package | Why |
 |---|---|
 | `pi-guardrails` | MO security baseline: file protection, path access, permission gates |

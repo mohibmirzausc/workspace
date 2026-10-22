@@ -12,6 +12,19 @@
 # `pi update --extension` to actually upgrade it. See the loop below.
 set -euo pipefail
 
+# --packages-only: install/update the Pi packages and check them, then stop.
+# install.sh runs it this way after every rebuild, so Pi (from brew) and its
+# packages (from npm/git) move together instead of drifting apart. The MCP
+# setup below is skipped: it replaces server entries and prints sign-in steps,
+# which belong to a deliberate first-time setup, not every rebuild.
+packages_only=0
+for arg in "$@"; do
+  case "$arg" in
+    --packages-only) packages_only=1 ;;
+    *) echo "usage: pi-bootstrap [--packages-only]" >&2; exit 2 ;;
+  esac
+done
+
 packages=(
   # MO security baseline: file protection, path access, permission gates.
   "git:github.com/mechanical-orchard/pi-guardrails@v0.15.0"
@@ -55,6 +68,50 @@ for p in "${packages[@]}"; do
   # moving off it -- so this is safe for the pinned entries above.
   pi update --extension "$p"
 done
+
+# Compatibility check: can pi-subagents start background children on this Pi?
+#
+# Pi and pi-subagents are released separately. pi-subagents launches background
+# children through a runner that aliases the host Pi's packages, and it refuses
+# to launch when one it expects is missing. Pi 1.2.0 removed its chord
+# dependency while pi-subagents 0.76.1 still demanded it, so every background
+# child failed with "... does not provide @earendil-works/chord" -- and nothing
+# said so until an agent tried to delegate. This asks pi-subagents' own check
+# (resolveHostPeerAliases, the function behind that error) and reports the
+# result here, at install time. It is a warning, never a failure.
+check_subagents() {
+  local agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  local aliases="$agent_dir/npm/node_modules/pi-subagents/src/runs/background/runner-aliases.js"
+  local pi_bin prefix host=""
+  pi_bin=$(readlink -f "$(command -v pi)")
+  prefix=$(dirname "$(dirname "$pi_bin")")
+  for candidate in "$prefix/libexec/lib/node_modules/@earendil-works/pi-coding-agent" \
+                   "$prefix/lib/node_modules/@earendil-works/pi-coding-agent"; do
+    [ -f "$candidate/package.json" ] && { host="$candidate"; break; }
+  done
+  if [ ! -f "$aliases" ] || [ -z "$host" ]; then
+    echo "==> pi-subagents check skipped (couldn't find its runner or the Pi package)"
+    return 0
+  fi
+  echo "==> pi-subagents background children on Pi $(pi --version 2>/dev/null)"
+  node --input-type=module -e '
+    const [aliasesFile, host] = process.argv.slice(1);
+    const { resolveHostPeerAliases } = await import(aliasesFile);
+    const { missing } = resolveHostPeerAliases(host);
+    if (missing.length === 0) { console.log("    ok: every host package the child runner needs is present"); process.exit(0); }
+    console.log("    WARNING: background children will fail to start. Missing from the Pi package:");
+    for (const m of missing) console.log("      " + m);
+    console.log("    pi-subagents and this Pi are out of step: update pi-subagents, or wait for a release that supports this Pi.");
+    process.exit(1);
+  ' "$aliases" "$host" || return 1
+}
+subagents_ok=1
+check_subagents || subagents_ok=0
+
+if [ "$packages_only" -eq 1 ]; then
+  [ "$subagents_ok" -eq 1 ] || exit 3
+  exit 0
+fi
 
 # MCP servers.
 #
