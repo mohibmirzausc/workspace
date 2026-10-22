@@ -177,6 +177,17 @@ superset of Claude's `.claude/agents/*.md`, adding `tools`, `thinking` and
 `inheritSkills`. Built-ins (`scout`, `reviewer`, `oracle`, `worker`,
 `researcher`, `evidence-auditor`, `delegate`) work with no configuration.
 
+Custom agents live in `programs/agents/pi-subagents/` and are linked into
+`~/.pi/agent/agents/` (user scope, every project). Add one only when the
+built-ins don't fit (Mohib: try the built-ins first).
+
+- **`comms`**: the one child trusted with `codemode`, which reaches the MCP
+  servers (Notion, Slack). The built-ins' tool allowlists leave codemode out,
+  so they can't. Its prompt confines it to the exact page, channel and text
+  named in its task: it asks rather than guessing, and it returns a short
+  receipt. Managers should launch it rarely, batch one page or channel per
+  launch, and never use it to report progress.
+
 Chosen from eight competing npm packages because it shares an author with
 `pi-intercom` — already installed here — and the two integrate: an agent
 definition can declare `contact_supervisor` so a child can message its
