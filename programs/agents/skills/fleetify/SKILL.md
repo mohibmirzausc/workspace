@@ -1,14 +1,12 @@
 ---
 name: fleetify
-description: Use when the user says "fleetify", "become a manager", "make this a fleet", or that this session is slow, crowded or keeps getting steered off course by their messages while long work runs. Turns the current Pi session into a fleet manager in place, keeping its conversation: it plans how to hand its in-flight threads to pi-subagents children, gets the plan approved through ASKS.md, launches the children, and redefines itself with `mem agent fleetify`. Pi only; the session must be a hosted interactive agent of the shared memory.
+description: Use when the user says "fleetify", "become a manager", "make this a fleet", or that this session is slow, crowded or keeps getting steered off course by their messages while long work runs. Turns the current Pi session into a fleet manager in place, keeping its conversation: it plans how to hand its in-flight threads to pi-subagents children, gets the plan approved through ASKS.md, launches the children, and redefines itself with `mem agent fleetify`. Pi only. Works for any session; one that isn't yet a hosted agent of the shared memory is hosted first.
 ---
 
 # Fleetify: turn this session into a fleet manager
 
-A session that does long work itself gets slow, and every message from Mohib steers it off course. As a **manager**,
-it keeps its conversation, hands the work to pi-subagents children, and stays free to talk. On 2026-10-22 this
-turned emurdha-allocations around ("it really worked and was great"). Design, agreed with Mohib on 2026-10-24: the
-memory ledger, L-01M5P2DVP5RW5V6BNR59WMK2KB to L-01M5P2Z00EDJSQENZNMZ8EW9EA.
+A session doing long work itself gets slow, and every message from Mohib steers it off course. As a **manager** it
+keeps its conversation, hands the work to pi-subagents children, and stays free to talk.
 
 **What you'll do:** plan, have the plan approved, launch the children, run one command, end your turn. The judgment
 is yours; `mem agent fleetify` does the file edits.
@@ -16,10 +14,15 @@ is yours; `mem agent fleetify` does the file edits.
 ## 0. Check you can
 
 - **Pi only.** In Claude Code, say it isn't supported there.
-- **You must be a hosted interactive agent:** `MEM_ROLE` is `interactive`, and `MEM_AGENT` is your name.
-  - Not hosted yet? Follow the `keep-session` skill first. Mohib has to `/quit` once, so do it now, while nothing is
-    running: children started before a Pi restart can't report back to the new process.
-  - A standing agent (`MEM_ROLE=standing`)? Stop: this skill is for interactive sessions.
+- **A standing agent** (`MEM_ROLE=standing`)? Stop: this skill is for interactive sessions.
+- **Not yet a hosted agent** (`MEM_ROLE` isn't `interactive`)? Host it first, before anything runs, because children
+  started before a Pi restart can't report back to the new process:
+  1. Agree a name and a one-line description with Mohib, in one question. Default the name to `MEM_AGENT`, else the
+     Pi session name, lowercased with dashes.
+  2. Run `mem agent adopt <name> --description "<one line>"`.
+  3. Ask Mohib to type `/quit`. The session comes back hosted in tmux, in its own window, in this same conversation.
+     He closes the old window.
+  4. Carry on from step 1 below.
 - **Delegation:** Mohib asking you to fleetify authorizes the plan. Launching children needs his yes to the plan.
 
 ## 1. Read the rules you'll work under
