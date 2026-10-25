@@ -1,6 +1,6 @@
 ---
 name: fleetify
-description: Use when the user says "fleetify", "become a manager", "make this a fleet", or that this session is slow, crowded or keeps getting steered off course by their messages while long work runs. Turns the current Pi session into a fleet manager in place, keeping its conversation: it plans how to hand its in-flight threads to pi-subagents children, gets the plan approved through ASKS.md, launches the children, and redefines itself with `mem agent fleetify`. Pi only. Works for any session; one that isn't yet a hosted agent of the shared memory is hosted first.
+description: Use when the user says "fleetify", "become a manager", "make this a fleet", or that this session is slow, crowded or keeps getting steered off course by their messages while long work runs. Turns the current Pi session into a fleet manager in place, keeping its conversation. It plans how to hand its in-flight threads to pi-subagents children, gets the plan approved through ASKS.md, launches the children, and redefines itself with `mem agent fleetify`. Pi only. Works for any session; one that isn't yet a hosted agent of the shared memory is hosted first.
 ---
 
 # Fleetify: turn this session into a fleet manager
