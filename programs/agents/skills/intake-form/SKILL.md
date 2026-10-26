@@ -53,7 +53,7 @@ want to fill it over time.
    per `html-page`'s quality bar — but honor the Fillability Floor below.
 5. **File it into the gallery** like `html-page`: write to
    `~/html-pages/<YYYY-MM-DD>-<slug>-intake/index.html` plus a `meta.json` sidecar,
-   so it's browsable at http://localhost:7777. Add the `html-page` stamp.
+   so it's browsable at http://localhost:3333. Add the `html-page` stamp.
 6. **Serve & hand off.** Start a local server and give the user the URL. Tell them:
    fill what they can, skip freely, use the per-question "note to Claude" to talk
    back, then click **Generate Summary → Copy** and paste the block back to you.

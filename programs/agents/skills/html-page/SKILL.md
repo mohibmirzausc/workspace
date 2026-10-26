@@ -45,7 +45,7 @@ file the page into a browsable gallery so the user can find it later.
    `index.html` plus a small `meta.json` sidecar. The live server picks it up
    automatically — no index to maintain.
 7. **Tell the user** the style name, the one thing that makes it memorable, and
-   that it's browsable at http://localhost:7777 (plus the file path). Mention they
+   that it's browsable at http://localhost:3333 (plus the file path). Mention they
    can name any style they like next time — anything in the world, not just a list.
 
 ## The Stamp (REQUIRED on every page)
@@ -125,7 +125,7 @@ Pages live under `~/html-pages/`, **one dated folder per page**:
 - **The gallery is a live server, not a file you maintain.** An always-on local
   server (`html-pages-server`, a launchd agent on macOS) scans `~/html-pages/`
   on every request and renders a browsable catalog — date-descending, with search
-  and sort/theme controls. The user opens **http://localhost:7777** to browse and
+  and sort/theme controls. The user opens **http://localhost:3333** to browse and
   find past pages. You do NOT need to generate or update any `index.html` catalog;
   the server builds it live. (If the server isn't running:
   `html-pages-server &`, or just open a page with `open <file>`.)
@@ -169,7 +169,7 @@ Pages live under `~/html-pages/`, **one dated folder per page**:
 | Interactivity | Fit the content; static is valid. From `styles.md`. |
 | Stamp | Style name + keywords + recreate prompt + interactivity prompt. Always. |
 | Output | `~/html-pages/<date>-<slug>/` → `index.html` (standalone) + `meta.json` sidecar. |
-| Gallery | Live server at http://localhost:7777 (auto-scans). No index file to maintain. |
+| Gallery | Live server at http://localhost:3333 (auto-scans). No index file to maintain. |
 | Stamp markup | `<dl><dt>Style/Keywords/Recreate prompt</dt><dd>…</dd></dl>` so the gallery extracts metadata. |
 | Notes theme | Use bundled `lib/` + `_template.html` only when that style is chosen. |
 | New style | Discovered/invented one? Add a row to `styles.md`. |

@@ -60,6 +60,23 @@
           marker = dir: dir != "" && builtins.pathExists "${dir}/.config/workspace/work";
           u = builtins.getEnv "USER";
         in marker (builtins.getEnv "HOME") || (u != "" && u != "root" && marker "/Users/${u}");
+
+        # The agent memory system (github.com/mohibmirzausc/memory): the `mem`
+        # CLI, its keeper (launchd, every minute) and the fleet dashboard
+        # (launchd, KeepAlive, http://127.0.0.1:7777). All of them run the code
+        # in place from the checkout at ~/src/memory, nothing is copied into the
+        # store, so the path must be the same on every machine:
+        #
+        #     git clone git@github.com:mohibmirzausc/memory ~/src/memory
+        #
+        # On when that checkout exists, so a machine without it gets none of
+        # this (and no launchd job restarting a missing program). Looked up
+        # through USER as well as HOME, like `work` above. Set it to false here
+        # to turn it off on a machine that has the checkout.
+        memory = let
+          checkout = dir: dir != "" && builtins.pathExists "${dir}/src/memory/src/cli/mem.ts";
+          u = builtins.getEnv "USER";
+        in checkout (builtins.getEnv "HOME") || (u != "" && u != "root" && checkout "/Users/${u}");
       };
 
       # Generic Darwin config — works for any username/hostname/arch.
