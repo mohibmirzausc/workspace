@@ -2,7 +2,7 @@
 
 # Always-on local gallery server for pages produced by the `html-page` Claude
 # skill. Wraps server.js (Node stdlib only) so it runs with no npm install.
-# Honors $HTML_PAGES_DIR (default ~/html-pages) and $PORT (default 7777).
+# Honors $HTML_PAGES_DIR (default ~/html-pages) and $PORT (default 3333).
 
 let
   serverJs = ./server.js;

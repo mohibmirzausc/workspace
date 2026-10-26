@@ -2,7 +2,7 @@
 // html-pages-server — an always-on local gallery for pages produced by the
 // `html-page` Claude skill. Zero dependencies (Node stdlib only).
 //
-// Serves ~/html-pages/ (override with $HTML_PAGES_DIR) on $PORT (default 7777):
+// Serves ~/html-pages/ (override with $HTML_PAGES_DIR) on $PORT (default 3333):
 //   GET  /                  live gallery: every <dir>/index.html, date-desc,
 //                           searchable, with sort/theme controls (localStorage).
 //   GET  /pages/<dir>/...   serve a page and its assets (lib/, images).
@@ -24,7 +24,7 @@ const os = require('os');
 const ROOT = process.env.HTML_PAGES_DIR
   ? path.resolve(process.env.HTML_PAGES_DIR)
   : path.join(os.homedir(), 'html-pages');
-const PORT = parseInt(process.env.PORT || '7777', 10);
+const PORT = parseInt(process.env.PORT || '3333', 10);
 
 // ── Metadata extraction ────────────────────────────────────────────────────
 // Pages carry a "stamp" (style name, keywords, recreate prompt). The skill lets

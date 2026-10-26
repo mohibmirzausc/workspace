@@ -629,14 +629,15 @@ in
   };
 
   # Always-on local gallery server for the `html-page` Claude skill. Runs at
-  # login, restarts on crash, serves ~/html-pages at http://localhost:7777.
+  # login, restarts on crash, serves ~/html-pages at http://localhost:3333
+  # (7777 is the memory fleet dashboard's, below).
   # Managed here (nix-darwin launchd.user.agents) rather than home-manager's
   # launchd.agents, which is not activated when HM runs as a nix-darwin module.
   launchd.user.agents.html-pages-server = {
     serviceConfig = {
       ProgramArguments = [ "${pkgs.callPackage ./programs/html-pages-server { }}/bin/html-pages-server" ];
       EnvironmentVariables = {
-        PORT = "7777";
+        PORT = "3333";
         HTML_PAGES_DIR = "${home}/html-pages";
       };
       RunAtLoad = true;
@@ -657,7 +658,7 @@ in
   # (Pi is under /opt/homebrew/bin; fly under /usr/local/bin). Verified 2026-10-09 with a temporary job:
   # agents outlive the pass, Pi authenticates from its own auth file, and bootout/bootstrap (a rebuild)
   # leaves running agents alone. Log of what needed attention: ~/src/memory/.mem/keeper.log.
-  launchd.user.agents.mem-keeper = {
+  launchd.user.agents.mem-keeper = lib.mkIf features.memory {
     serviceConfig = {
       ProgramArguments = [
         "${pkgs.callPackage ./programs/mem.nix { memHome = "${home}/src/memory"; }}/bin/mem"
@@ -687,6 +688,27 @@ in
       AbandonProcessGroup = true;
       StandardOutPath = "${home}/Library/Logs/mem-keeper.log";
       StandardErrorPath = "${home}/Library/Logs/mem-keeper.log";
+    };
+  };
+
+  # The memory system's fleet dashboard (~/src/memory/docs/dashboard.md): a read-only page at
+  # http://127.0.0.1:7777 with the open asks, each hosted agent (working, stuck, cost, context) and who messages
+  # whom. It watches memory's files and pushes changes to the open page within about a second. KeepAlive like the
+  # gallery: up at login, restarted if it dies. Log: ~/Library/Logs/mem-dashboard.log.
+  launchd.user.agents.mem-dashboard = lib.mkIf features.memory {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.callPackage ./programs/mem.nix { memHome = "${home}/src/memory"; }}/bin/mem"
+        "dashboard"
+        "serve"
+        "--port"
+        "7777"
+      ];
+      EnvironmentVariables.LANG = "en_US.UTF-8";
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "${home}/Library/Logs/mem-dashboard.log";
+      StandardErrorPath = "${home}/Library/Logs/mem-dashboard.log";
     };
   };
 

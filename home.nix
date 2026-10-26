@@ -1,4 +1,4 @@
-{ config, pkgs, lib, user, home, ... }:
+{ config, pkgs, lib, user, home, features, ... }:
 
 let
   # Always-on local gallery server for the `html-page` Claude skill.
@@ -114,9 +114,7 @@ in
     (callPackage ./programs/yaks.nix {} )
     (callPackage ./programs/git-worktree-switcher.nix {} )
     (callPackage ./programs/claude-session.nix {} )
-    # `mem`: the agent memory CLI from ~/src/memory (see programs/mem.nix).
-    (callPackage ./programs/mem.nix { memHome = "${config.home.homeDirectory}/src/memory"; })
-    htmlPagesServer  # `html-pages-server`: local gallery at localhost:7777
+    htmlPagesServer  # `html-pages-server`: local gallery at localhost:3333
     (callPackage ./programs/claude-code-tools/aichat-search.nix {} )
     (callPackage ./programs/claude-code-tools/package.nix {} )
     # Agent CLI tools that stand in for MCP servers -- see
@@ -152,7 +150,9 @@ in
     coder
     ghostty-bin
     opencode
-  ] else []);
+  ] else [])
+  # `mem`: the agent memory CLI, run in place from ~/src/memory (programs/mem.nix; features.memory in flake.nix).
+  ++ lib.optional features.memory (callPackage ./programs/mem.nix { memHome = "${config.home.homeDirectory}/src/memory"; });
 
   # Home Manager is pretty good at managing dotfiles. The primary way to manage
   # plain files is through 'home.file'.
