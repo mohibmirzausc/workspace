@@ -187,6 +187,13 @@ built-ins don't fit (Mohib: try the built-ins first).
   named in its task: it asks rather than guessing, and it returns a short
   receipt. Managers should launch it rarely, batch one page or channel per
   launch, and never use it to report progress.
+- **`probe-reviewer`**: a reviewer that runs its own probes (tests, builds, a
+  real `docker buildx`) instead of asking its manager to. Its definition loads
+  `~/src/memory/src/probe/extension.ts`, which runs every bash command under
+  nono, writing only a scratch folder, and refuses pushes, `gh`, registries,
+  pipelines and shared Docker changes. Loading its own extension turns off the
+  ambient ones (guardrails, memory) for this child; the sandbox replaces them.
+  See `~/src/memory/docs/probe-reviewer.md`.
 
 Chosen from eight competing npm packages because it shares an author with
 `pi-intercom` — already installed here — and the two integrate: an agent
