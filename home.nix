@@ -154,6 +154,13 @@ in
   # `mem`: the agent memory CLI, run in place from ~/src/memory (programs/mem.nix; features.memory in flake.nix).
   ++ lib.optional features.memory (callPackage ./programs/mem.nix { memHome = "${config.home.homeDirectory}/src/memory"; });
 
+  # gh-stack (GitHub's official stacked-PR extension, `gh stack`) for Mohib and the
+  # agent fleet. Linked as one entry in gh's extensions folder rather than through
+  # programs.gh.extensions, which would make the whole folder read-only (blocking
+  # `gh extension install` of anything else) and take over ~/.config/gh. Both the
+  # Homebrew and Nix gh read ~/.local/share/gh/extensions.
+  xdg.dataFile."gh/extensions/gh-stack".source = "${pkgs.gh-stack}/bin";
+
   # Home Manager is pretty good at managing dotfiles. The primary way to manage
   # plain files is through 'home.file'.
   home.file = {
