@@ -78,6 +78,9 @@ in
     fastfetch      # System information tool
     uv
     mitmproxy
+    # Shell script linter. Also on the moab daemon's PATH through /etc/profiles/per-user/<user>/bin
+    # (programs/moab/default.nix daemonPath), so moab tool nodes find it (component-build check.dot).
+    shellcheck
     # tmux is managed by programs.tmux in tmux.nix
 
     # Development tools (previously via Homebrew)
