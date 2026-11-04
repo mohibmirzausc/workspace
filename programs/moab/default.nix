@@ -224,7 +224,20 @@ let
       export ANTHROPIC_API_KEY="$key"
       unset key
 
-      log "starting $daemon ($moab_version) with ANTHROPIC_API_KEY"
+      # Optional: the OpenAI key for codex agents (moab's `openai` route reads
+      # CODEX_API_KEY or OPENAI_API_KEY). CODEX_API_KEY, so tools in unsandboxed
+      # tool nodes that look for OPENAI_API_KEY don't bill it unnoticed. Missing
+      # or unreadable: log it and start with Anthropic only.
+      keys="ANTHROPIC_API_KEY"
+      if codex_key=$(${pkgs.coreutils}/bin/timeout -k 10 120 /opt/homebrew/bin/op read --no-newline ${lib.escapeShellArg codexKeyRef}) && [ -n "$codex_key" ]; then
+        export CODEX_API_KEY="$codex_key"
+        keys="$keys and CODEX_API_KEY"
+      else
+        log "could not read ${codexKeyRef}; codex agents won't authenticate (starting with Anthropic only)"
+      fi
+      unset codex_key
+
+      log "starting $daemon ($moab_version) with $keys"
       "$daemon" &
       pid=$!
       trap 'kill -TERM "$pid" 2>/dev/null || true' TERM INT HUP
@@ -247,8 +260,10 @@ let
 
   # 1Password reference for the Anthropic key moab's `anthropic` credential
   # route reads from the daemon's environment. The field name is unchecked.
-  # No OpenAI key yet, so Codex nodes can't authenticate sandboxed.
   anthropicKeyRef = "op://Employee/Anthropic Pi Coach Key/credential";
+  # The OpenAI key for codex agents ("MOAB Codex Key", Employee vault), by item
+  # id so a rename doesn't break it. The field name is unchecked, as above.
+  codexKeyRef = "op://Employee/s46mgqy76axuqy6hp7i6mcwgza/credential";
 in
 {
   inherit sandboxGit moabVersion nono node adapters adapterBin daemonPath daemonShim launcher brewMoab;
