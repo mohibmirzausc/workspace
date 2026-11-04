@@ -3,7 +3,8 @@
 # (features.work, flake.nix); see programs/moab/default.nix for the toolchain.
 #
 # Why a launchd-managed daemon: moab's credential routes read
-# ANTHROPIC_API_KEY from the *daemon's* environment and broker it into the
+# ANTHROPIC_API_KEY (and CODEX_API_KEY, when 1Password has it) from the
+# *daemon's* environment and broker it into the
 # nono sandbox. A daemon the CLI auto-starts from a shell has whatever that
 # shell has: no key, and Homebrew's unsupported nono first on PATH.
 # programs/moab/home.nix sets MOAB_DAEMON_BIN in user sessions so the CLI
