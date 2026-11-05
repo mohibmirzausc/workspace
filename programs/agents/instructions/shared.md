@@ -65,3 +65,21 @@ cd .worktrees/<topic>
   worktree.
 - A repo's own `AGENTS.md` or `CLAUDE.md` wins over this rule, for repos
   whose main checkout is also live data.
+
+## Stacked PRs: use `gh stack`
+
+When a PR builds on another PR's branch, manage the chain with the gh-stack
+extension (`gh stack`, installed), not by hand with `cherry-pick` and
+`gh pr create --base <parent>`. GitHub then knows it is a stack, and
+restacking after a lower PR changes is one command.
+
+- New stack: `gh stack init <branch1> <branch2>` (adopts existing branches,
+  creates missing ones), or `gh stack add <branch>` on top of the current one.
+- Open the PRs: `gh stack submit --auto` (draft by default; without `--auto`
+  it opens an editor, which an agent can't use).
+- PRs already open by hand: `gh stack link <pr1> <pr2> ...` (bottom to top).
+- After a lower PR changes: `gh stack rebase --upstack`, then `gh stack push`.
+  If other agents own branches in the stack, push only your own branch.
+- `gh stack view` shows the stack; `gh stack <command> --help` for the rest.
+- gh-stack stops if a lower branch is checked out in another worktree: keep
+  a stack in one worktree.
