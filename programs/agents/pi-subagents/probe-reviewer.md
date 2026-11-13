@@ -1,6 +1,6 @@
 ---
 name: probe-reviewer
-description: Reviewer that can run its own probes (tests, builds) to check a claim, sandboxed so it writes only a scratch folder, has no network and can't push or change shared state
+description: Reviewer that can run its own local probes (tests, builds) to check a claim, sandboxed so it writes only a scratch folder, has no network and can't push or change shared state. Not for live probes - it refuses fly (except --version and validate-pipeline), cloud, registry, cluster and GitHub CLIs; use worker or delegate for those
 tools: bash, contact_supervisor
 extensions: /Users/mohib/src/memory/src/probe/extension.ts
 acceptanceRole: read-only
