@@ -261,6 +261,14 @@ in
       force = true;
     };
 
+    # Reply-style reminder: the extension appends ~/.pi/agent/reply-style.md to every
+    # prompt typed in a Pi window (not to messages, notices or subagent tasks), so
+    # the rule sits next to the question and long sessions don't dilute it.
+    # Single files, so ~/.pi/agent/extensions/ itself stays mutable (mem.ts lives
+    # there). Off for one session with PI_REPLY_STYLE=0.
+    ".pi/agent/extensions/reply-style.ts".source = ./programs/pi/extensions/reply-style.ts;
+    ".pi/agent/reply-style.md".source = ./programs/agents/reply-style.md;
+
     # Custom pi-subagents agents (user scope: ~/.pi/agent/agents/*.md), next to the
     # builtins. recursive keeps the directory real, so pi-subagents can still write
     # its own files there (eject, disable). See programs/agents/pi-subagents/.
