@@ -81,6 +81,9 @@ in
     # Shell script linter. Also on the moab daemon's PATH through /etc/profiles/per-user/<user>/bin
     # (programs/moab/default.nix daemonPath), so moab tool nodes find it (component-build check.dot).
     shellcheck
+    # Carvel ytt: renders imogen-release-train-ops pipelines/release-train.yaml from pipelines/src/
+    # (pipelines/render.sh calls bare `ytt`). Also reaches moab tool nodes via the same profile bin.
+    ytt
     # tmux is managed by programs.tmux in tmux.nix
 
     # Development tools (previously via Homebrew)
