@@ -134,9 +134,12 @@ in
     fd
     # direnv already configured in programs.direnv
 
-    # Python with ticktick-sdk
+    # Python with ticktick-sdk, and fastembed: local text embeddings (ONNX, no API
+    # key) for memory recall experiments. Its model (bge-small-en-v1.5, 67 MB) is
+    # downloaded on first use into the fastembed cache, not by this build.
     (python3.withPackages (ps: with ps; [
       (callPackage ./programs/ticktick-sdk/package.nix {})
+      fastembed
     ]))
   ] ++ [
     # # It is sometimes useful to fine-tune packages, for example, by applying
