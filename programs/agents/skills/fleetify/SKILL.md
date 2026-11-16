@@ -1,6 +1,6 @@
 ---
 name: fleetify
-description: Use when the user says "fleetify", "become a manager", "make this a fleet", or that this session is slow, crowded or keeps getting steered off course by their messages while long work runs. Turns the current Pi session into a fleet manager in place, keeping its conversation. It plans how to hand its in-flight threads to pi-subagents children, gets the plan approved through ASKS.md, launches the children, and redefines itself with `mem agent fleetify`. Pi only. Works for any session; one that isn't yet a hosted agent of the shared memory is hosted first.
+description: Use when the user says "fleetify", "become a manager", "make this a fleet", or asks a fleet manager to go back to interactive ("unfleetify"), or that this session is slow, crowded or keeps getting steered off course by their messages while long work runs. Turns the current Pi session into a fleet manager in place, keeping its conversation. It plans how to hand its in-flight threads to pi-subagents children, gets the plan approved through ASKS.md, launches the children, and redefines itself with `mem agent fleetify`. Pi only. Works for any session; one that isn't yet a hosted agent of the shared memory is hosted first.
 ---
 
 # Fleetify: turn this session into a fleet manager
@@ -103,3 +103,12 @@ Do it in one turn, in this order:
 - Check your prompt starts with "# How every fleet manager works", and the model is what the plan said.
 - Tell memory-dev (intercom, `memory-dev`) what got in your way during the conversion, with evidence. Mohib wants all
   fleet feedback sent there unprompted.
+
+## Going back to interactive
+
+When Mohib asks a fleet manager to work directly with him again (to reshape the design, say), no plan or approval is
+needed:
+1. Let running children finish, or stop them if he says so. Note their run ids in working memory.
+2. Run `mem agent unfleetify` (`--dry-run` first to see it; `--model <id>` for another model than the one before
+   fleetify). Edit the delegation lines it lists in your `agent.md`, then commit it as in step 5.
+3. End your turn. The restart comes once you and your children are idle, in the same conversation.
