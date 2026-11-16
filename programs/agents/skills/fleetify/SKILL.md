@@ -51,7 +51,9 @@ left, and what it's waiting on. Include what you promised Mohib. Don't drop the 
   inheriting 230k tokens cost $0.63 for a two-turn status check.
 - **Models by difficulty** (from the rules): Haiku or Sonnet for mechanical work, Sonnet or Sol for judgement.
 - **Your own model after the conversion:** the one your `agent.md` names; it stays unless Mohib wants another
-  (`--model <id>`, Mohib, 2026-11-13). Propose a switch only with a reason.
+  (`--model <id>`, Mohib, 2026-11-13). Propose a switch only with a reason. If `agent.md` has no `model:`
+  line, the restart uses Pi's default model, not necessarily the one you run on now: name it in the plan, and pass
+  `--model <id>` if it must stay.
 
 ## 4. Post the plan for approval
 
