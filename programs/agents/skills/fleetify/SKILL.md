@@ -109,6 +109,6 @@ Do it in one turn, in this order:
 When Mohib asks a fleet manager to work directly with him again (to reshape the design, say), no plan or approval is
 needed:
 1. Let running children finish, or stop them if he says so. Note their run ids in working memory.
-2. Run `mem agent unfleetify` (`--dry-run` first to see it; `--model <id>` for another model than the one before
-   fleetify). Edit the delegation lines it lists in your `agent.md`, then commit it as in step 5.
+2. Run `mem agent unfleetify` (`--dry-run` first to see it; `--model <id>` to change the model in
+   `agent.md`; otherwise it stays). Edit the delegation lines it lists in your `agent.md`, then commit it as in step 5.
 3. End your turn. The restart comes once you and your children are idle, in the same conversation.
