@@ -50,8 +50,10 @@ left, and what it's waiting on. Include what you promised Mohib. Don't drop the 
   "will it change code depending on what we discussed?"), and tell it to finish or hand off early. Measured: a fork
   inheriting 230k tokens cost $0.63 for a two-turn status check.
 - **Models by difficulty** (from the rules): Haiku or Sonnet for mechanical work, Sonnet or Sol for judgement.
-- **Your own model after the conversion:** Sol (`openai-codex/gpt-6.1-sol`) by default. Propose another only with a
-  reason.
+- **Your own model after the conversion:** the one your `agent.md` names; it stays unless Mohib wants another
+  (`--model <id>`, Mohib, 2026-11-13). Propose a switch only with a reason. If `agent.md` has no `model:`
+  line, the restart uses Pi's default model, not necessarily the one you run on now: name it in the plan, and pass
+  `--model <id>` if it must stay.
 
 ## 4. Post the plan for approval
 
@@ -60,7 +62,7 @@ without scrolling back. One screen:
 
 - **Threads:** one line each: the thread, where it goes, the agent and model, and the spec file it will get.
 - **The fork:** which thread, and why a spec can't carry it. Or "none".
-- **Your model after the restart**, and the reason if it isn't Sol.
+- **Your model after the restart:** the current one, or the switch you propose (`--model`) and why.
 - **Rough cost:** children's models and expected turns; the fork's size (your current context).
 - **What happens on yes:** you launch the children, run `mem agent fleetify`, compact at the end of that turn, and
   restart once all children are done.
@@ -84,7 +86,7 @@ Do it in one turn, in this order:
    ```bash
    mem agent fleetify --approved AQ-<n>            # --model <id> if the plan said so; --dry-run to preview
    ```
-   It edits your `agent.md` (the shared rules included, `compact_at`, the model, a manager section), adds a
+   It edits your `agent.md` (the shared rules included, `compact_at`, the model only with `--model`, a manager section), adds a
    Checkpoint to your working memory if needed, and asks for a restart once you're idle.
 6. **Fill in your `agent.md`** right away: the sections the command lists (the job, scope and authority, people,
    job-specific facts), from what you know, before you end this turn: the restart can't come mid-turn, but it can come
