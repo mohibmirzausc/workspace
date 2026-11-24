@@ -1,0 +1,120 @@
+/* ── comment layer ─────────────────────────────────────────────────────────
+   Hover-revealed comment control on every heading, a per-object control in the
+   inspector, a composer modal, a review panel, and export.
+   Requires: tokens.css. Pairs with comment-layer.js.
+   ────────────────────────────────────────────────────────────────────────── */
+.cmt-bar{display:flex;gap:.35rem}
+header .cmt-new{border-color:var(--accent);color:var(--accent-2)}
+header .cmt-new:hover{background:var(--accent-bg);border-color:var(--accent)}
+header .cmt-open .n{font-family:var(--mono);font-size:.66rem;font-weight:700;margin-left:.35rem;
+  padding:0 .32rem;border-radius:99px;background:var(--paper-3);color:var(--ink-3)}
+header .cmt-open .n.un{background:var(--accent);color:var(--paper)}
+
+/* Hover-revealed per section, but PERSISTENT once a section carries a comment —
+   in a long review the thing you need to see is where you have already been. */
+.cmt-dot{opacity:0;margin-left:.45rem;font-family:var(--sans);font-size:.6rem;font-weight:600;
+  text-transform:none;letter-spacing:0;vertical-align:middle;color:var(--ink-3);
+  border:1px solid var(--line);border-radius:99px;padding:.02rem .38rem;background:var(--paper);
+  transition:opacity .12s}
+.sheet h3:hover .cmt-dot,.sect h2:hover .cmt-dot,.cmt-dot:focus-visible{opacity:1}
+.cmt-dot:hover{border-color:var(--accent);color:var(--accent-2);background:var(--accent-bg)}
+.cmt-dot.has{opacity:1;border-color:var(--accent);color:var(--accent-2);background:var(--accent-bg)}
+.cmt-obj{position:absolute;right:.6rem;top:.3rem;font-size:.66rem;font-weight:600;
+  border:1px solid var(--line);border-radius:6px;padding:.1rem .45rem;
+  color:var(--ink-3);background:var(--paper)}
+.cmt-obj:hover,.cmt-obj.has{border-color:var(--accent);color:var(--accent-2);background:var(--accent-bg)}
+@media(max-width:1100px){.cmt-obj{right:2.3rem}}
+.cmt-flash{animation:cmtflash 1.6s ease-out}
+@keyframes cmtflash{0%,50%{background:var(--accent-bg);box-shadow:0 0 0 5px var(--accent-bg)}
+  100%{background:transparent;box-shadow:none}}
+
+.cmt-scrim{position:fixed;inset:0;background:rgba(4,12,11,.55);z-index:70;display:flex;
+  align-items:flex-start;justify-content:center;padding:4vh 1rem}
+.cmt-card{width:100%;max-width:640px;max-height:92vh;display:flex;flex-direction:column;
+  background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  box-shadow:0 24px 70px rgba(0,0,0,.4)}
+.cmt-card.wide{max-width:860px}
+.cmt-head{padding:.7rem .95rem;border-bottom:1px solid var(--line);background:var(--paper-2)}
+.cmt-head .k{font-size:.61rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;
+  color:var(--ink-3)}
+.cmt-head b{display:block;font-size:.92rem;letter-spacing:-.015em;margin-top:.08rem}
+.cmt-body{padding:.85rem .95rem;overflow-y:auto}
+.cmt-foot{padding:.65rem .95rem;border-top:1px solid var(--line);background:var(--paper-2);
+  display:flex;gap:.45rem;align-items:center;flex-wrap:wrap}
+.cmt-foot .sp{flex:1}
+.cmt-btn{border:1px solid var(--line);border-radius:7px;padding:.28rem .8rem;font-size:.78rem;
+  color:var(--ink-2);background:var(--paper)}
+.cmt-btn:hover{border-color:var(--ink-3);color:var(--ink)}
+.cmt-btn:disabled{opacity:.4;cursor:default}
+.cmt-btn.pri{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:600}
+.cmt-btn.pri:hover{background:var(--accent-2);border-color:var(--accent-2);color:var(--paper)}
+.cmt-lbl{font-size:.61rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;
+  color:var(--ink-3);margin:0 0 .3rem}
+.cmt-int{display:flex;gap:.35rem;flex-wrap:wrap;margin:0 0 .35rem}
+.cmt-int button{border:1px solid var(--line);border-radius:99px;padding:.16rem .68rem;
+  font-size:.74rem;color:var(--ink-3);background:var(--paper)}
+.cmt-int button:hover{border-color:var(--ink-3);color:var(--ink)}
+.cmt-int button.on{background:var(--accent);border-color:var(--accent);color:var(--paper);
+  font-weight:600}
+.cmt-int button.on[data-int="architectural"]{background:var(--risk);border-color:var(--risk);
+  color:#fff}
+.cmt-hint{font-size:.72rem;color:var(--ink-3);margin:0 0 .85rem;line-height:1.45}
+/* An element-scoped rule. `.cmt-card textarea` would be stylesheet-wide and hit
+   every textarea the host page owns. */
+textarea.cmt-ta{display:block;width:100%;min-height:128px;resize:vertical;font:inherit;
+  font-size:.85rem;line-height:1.55;color:var(--ink);background:var(--paper-2);
+  border:1px solid var(--line);border-radius:8px;padding:.55rem .65rem}
+textarea.cmt-ta:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+.cmt-ctx{margin-top:.85rem;border:1px dashed var(--line);border-radius:8px;background:var(--paper-2)}
+.cmt-ctx summary{font-size:.61rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;
+  color:var(--ink-3);padding:.45rem .65rem;cursor:pointer}
+.cmt-ctx pre{margin:0;padding:0 .65rem .6rem;font-family:var(--mono);font-size:.68rem;
+  line-height:1.5;color:var(--ink-2);white-space:pre-wrap;max-height:220px;overflow:auto}
+
+.cmt-grp{font-size:.63rem;text-transform:uppercase;letter-spacing:.09em;font-weight:700;
+  color:var(--ink-3);margin:1.1rem 0 .45rem;padding-bottom:.25rem;border-bottom:1px solid var(--line)}
+.cmt-grp:first-child{margin-top:0}
+.cmt-item{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:9px;
+  background:var(--paper-2);padding:.5rem .7rem;margin-bottom:.45rem}
+.cmt-item.un{border-left-color:var(--accent)}
+.cmt-item .top{display:flex;gap:.45rem;align-items:baseline;flex-wrap:wrap}
+.cmt-item .path{flex:1;min-width:0;font-size:.78rem;font-weight:650;letter-spacing:-.01em}
+.cmt-item .when{font-family:var(--mono);font-size:.65rem;color:var(--ink-3)}
+.cmt-item p{margin:.35rem 0 .45rem;font-size:.81rem;line-height:1.55;color:var(--ink-2);
+  white-space:pre-wrap}
+.cmt-item .acts{display:flex;gap:.7rem;align-items:baseline}
+.cmt-item .acts button{font-size:.72rem;color:var(--accent-2)}
+.cmt-item .acts button:hover{text-decoration:underline}
+.cmt-item .acts button.del{color:var(--ink-3)}
+.cmt-item .acts button.del:hover{color:var(--risk)}
+.cmt-item .acts .tag{margin-left:auto;font-size:.65rem;color:var(--ink-3)}
+.ipill{font-size:.57rem;text-transform:uppercase;letter-spacing:.07em;font-weight:700;
+  padding:.1rem .4rem;border-radius:99px;white-space:nowrap;
+  background:var(--paper-3);color:var(--ink-3)}
+.ipill.question{background:var(--accent-bg);color:var(--accent-2)}
+.ipill.defect{background:var(--warn-bg);color:var(--warn)}
+.ipill.change{background:var(--prod-bg);color:var(--prod-2)}
+.ipill.architectural{background:var(--risk-bg);color:var(--risk)}
+
+/* Set on <html> for the duration of one innerText read, never painted. innerText
+   runs adjacent inline chips together — five chips come out as one word — and a
+   flex gap is not a space to it. Blocking them puts one per line in the export. */
+.cmt-capture .cmt-dot,.cmt-capture .cmt-obj,.cmt-capture .insp-close{display:none}
+.cmt-capture .pill,.cmt-capture .ipill,.cmt-capture .tbl,
+.cmt-capture .filters button,.cmt-capture .crud button{display:block}
+
+/* ── inline thread ─────────────────────────────────────────────────────────
+   The composer inside the thing it is about. Same items as the review panel,
+   so the path and the jump-to are noise here — the reader is already standing
+   in the anchor. The last rule keeps the thread out of its own capture. */
+.cmt-inline{margin-top:1.1rem;padding-top:.85rem;border-top:1px dashed var(--line)}
+.cmt-inline .cmt-lbl{margin-top:0}
+.cmt-inline .cmt-item{background:var(--paper)}
+.cmt-inline .cmt-item .path{display:none}
+.cmt-inline .cmt-item .when{margin-left:auto}
+.cmt-inline .cmt-item .acts [data-cmt-jump]{display:none}
+.cmt-inline textarea.cmt-ta{min-height:84px}
+.cmt-inline-foot{display:flex;gap:.7rem;align-items:center;margin-top:.55rem}
+.cmt-inline-foot .sp{flex:1}
+.cmt-inline-foot .cmt-hint{margin:0}
+.cmt-capture .cmt-inline{display:none}

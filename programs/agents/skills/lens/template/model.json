@@ -1,0 +1,607 @@
+{
+  "schemaVersion": 2,
+  "title": "Acme Notes",
+  "updated": "2026-11-01",
+  "owner": "p-owner",
+  "purpose": {
+    "id": "purpose",
+    "text": "Acme Notes helps people who write in spare minutes catch every idea and find it again when they sit down to write.",
+    "kind": "view",
+    "evidence": [
+      {
+        "source": "s-owner-notes",
+        "at": "whole source"
+      }
+    ]
+  },
+  "renamed": {},
+  "nodes": [
+    {
+      "id": "l-capture",
+      "kind": "loop-step",
+      "title": "Capture",
+      "body": "Get a thought down in seconds, wherever you are.",
+      "order": 1,
+      "claim": {
+        "id": "l-capture-c",
+        "text": "Capture has to take under five seconds or the thought is gone.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "l-recall",
+      "kind": "loop-step",
+      "title": "Recall",
+      "body": "Find the note again when it matters.",
+      "order": 2,
+      "claim": {
+        "id": "l-recall-c",
+        "text": "People search by when and where they wrote a note, not by title.",
+        "kind": "hypothesis",
+        "evidence": [],
+        "next": "How did you look for the last note you could not find?"
+      }
+    },
+    {
+      "id": "a-commuter",
+      "kind": "avatar",
+      "title": "Commuting writer",
+      "body": "Writes in short bursts on a phone between other things.",
+      "personaMap": {
+        "background": {
+          "id": "a-commuter-bg",
+          "text": "Works a full-time job and writes on the side.",
+          "kind": "observed",
+          "evidence": [
+            {
+              "source": "s-interview-a",
+              "at": "02:10"
+            }
+          ]
+        },
+        "context": {
+          "id": "a-commuter-ctx",
+          "text": "Most writing happens on a train or in a queue.",
+          "kind": "observed",
+          "evidence": [
+            {
+              "source": "s-interview-a",
+              "at": "04:30"
+            }
+          ]
+        },
+        "goals": [
+          {
+            "id": "a-commuter-g1",
+            "text": "Finish one long piece a month.",
+            "kind": "observed",
+            "evidence": [
+              {
+                "source": "s-interview-b",
+                "at": "06:00"
+              }
+            ],
+            "next": "What stopped the last piece you abandoned?"
+          }
+        ],
+        "frustrations": [
+          {
+            "id": "a-commuter-f1",
+            "text": "Ideas get lost across three different apps.",
+            "kind": "observed",
+            "evidence": [
+              {
+                "source": "s-interview-a",
+                "at": "07:45"
+              }
+            ]
+          }
+        ],
+        "behaviors": [
+          {
+            "id": "a-commuter-b1",
+            "text": "Emails notes to themselves as a fallback.",
+            "kind": "hypothesis",
+            "evidence": [],
+            "next": "Show me the last note you emailed yourself."
+          }
+        ]
+      }
+    },
+    {
+      "id": "p-owner",
+      "kind": "person",
+      "title": "Owner",
+      "body": "The person whose views this lens records. Rename to your own name.",
+      "background": [
+        {
+          "id": "p-owner-bg",
+          "text": "Builds Acme Notes.",
+          "kind": "view",
+          "evidence": [
+            {
+              "source": "s-owner-notes",
+              "at": "whole source"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p-interviewee-a",
+      "kind": "person",
+      "title": "Interviewee A",
+      "body": "A placeholder interviewee.",
+      "background": [
+        {
+          "id": "p-interviewee-a-bg",
+          "text": "Writes fiction on their commute.",
+          "kind": "observed",
+          "evidence": [
+            {
+              "source": "s-interview-a",
+              "at": "01:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "p-interviewee-b",
+      "kind": "person",
+      "title": "Interviewee B",
+      "body": "A placeholder interviewee.",
+      "background": [
+        {
+          "id": "p-interviewee-b-bg",
+          "text": "Keeps a daily journal.",
+          "kind": "observed",
+          "evidence": [
+            {
+              "source": "s-interview-b",
+              "at": "00:40"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n-lost-ideas",
+      "kind": "problem",
+      "title": "Ideas get lost",
+      "body": "A thought captured in the wrong place is as good as never captured.",
+      "claim": {
+        "id": "n-lost-ideas-c",
+        "text": "Both interviewees described losing an idea in the last month.",
+        "kind": "observed",
+        "evidence": [
+          {
+            "source": "s-interview-a",
+            "at": "07:45"
+          },
+          {
+            "source": "s-interview-b",
+            "at": "03:20"
+          }
+        ]
+      }
+    },
+    {
+      "id": "f-quick-capture",
+      "kind": "surface",
+      "title": "Quick capture",
+      "body": "A lock-screen widget that opens straight into a blank note.",
+      "unique": [
+        {
+          "id": "f-quick-capture-u1",
+          "text": "One tap from the lock screen to typing.",
+          "kind": "view",
+          "evidence": [
+            {
+              "source": "s-owner-notes",
+              "at": "whole source"
+            }
+          ]
+        }
+      ],
+      "situations": [
+        {
+          "id": "f-quick-capture-s1",
+          "text": "Used most while standing, one-handed.",
+          "kind": "hypothesis",
+          "evidence": [],
+          "next": "Where were you the last time you used it?"
+        }
+      ],
+      "heard": [
+        {
+          "id": "f-quick-capture-h1",
+          "text": "Interviewee A said the widget is the only reason they switched.",
+          "kind": "observed",
+          "evidence": [
+            {
+              "source": "s-interview-a",
+              "at": "12:15"
+            }
+          ]
+        }
+      ],
+      "screenshots": [
+        {
+          "file": "assets/example.png",
+          "caption": "Placeholder: replace with a real capture",
+          "capturedAt": "2026-11-01",
+          "origin": "app"
+        }
+      ],
+      "code": [],
+      "adrs": [],
+      "shipped": true
+    },
+    {
+      "id": "f-voice-notes",
+      "kind": "surface",
+      "title": "Voice notes",
+      "body": "Dictate a note and get it transcribed.",
+      "unique": [
+        {
+          "id": "f-voice-notes-u1",
+          "text": "Hands-free capture for when typing is impossible.",
+          "kind": "hypothesis",
+          "evidence": []
+        }
+      ],
+      "situations": [],
+      "heard": [
+        {
+          "id": "f-voice-notes-h1",
+          "text": "Interviewee B asked for a way to capture while walking.",
+          "kind": "observed",
+          "evidence": [
+            {
+              "source": "s-interview-b",
+              "at": "15:00"
+            }
+          ]
+        }
+      ],
+      "screenshots": [],
+      "code": [],
+      "adrs": [],
+      "shipped": false
+    },
+    {
+      "id": "alt-paper",
+      "kind": "alternative",
+      "title": "Paper notebook",
+      "body": "A pocket notebook and a pen.",
+      "wins": [
+        {
+          "id": "alt-paper-w1",
+          "text": "Acme wins when the note has to be found again later.",
+          "kind": "hypothesis",
+          "evidence": []
+        }
+      ],
+      "loses": [
+        {
+          "id": "alt-paper-l1",
+          "text": "Paper wins when the phone is the distraction.",
+          "kind": "hypothesis",
+          "evidence": []
+        }
+      ]
+    },
+    {
+      "id": "h-speed",
+      "kind": "hypothesis",
+      "title": "Capture speed decides whether people stay",
+      "body": "If capture is slower than a notebook, people go back to the notebook.",
+      "focus": 1,
+      "evidence": [
+        {
+          "source": "s-interview-a",
+          "at": "12:15",
+          "stance": "supports",
+          "note": "Switched for the widget"
+        }
+      ],
+      "next": [
+        "What did you use before, and why did you stop?"
+      ]
+    },
+    {
+      "id": "h-search",
+      "kind": "hypothesis",
+      "title": "People recall notes by context, not title",
+      "body": "Search by time and place beats search by text.",
+      "focus": 2,
+      "evidence": [
+        {
+          "source": "s-interview-b",
+          "at": "09:30",
+          "stance": "contradicts",
+          "note": "Searches by keyword"
+        }
+      ]
+    },
+    {
+      "id": "s-owner-notes",
+      "kind": "source",
+      "title": "Owner notes",
+      "body": "The owner’s own working notes on the product.",
+      "tag": "Owner view",
+      "author": "Owner",
+      "date": "2026-11-01",
+      "people": [
+        "p-owner"
+      ]
+    },
+    {
+      "id": "s-interview-a",
+      "kind": "source",
+      "title": "Interview A",
+      "body": "A 30-minute call.",
+      "tag": "Interview",
+      "author": "Transcript",
+      "date": "2026-10-20",
+      "people": [
+        "p-interviewee-a"
+      ],
+      "takeaways": [
+        "Lost ideas are the main pain.",
+        "The lock-screen widget made them switch."
+      ]
+    },
+    {
+      "id": "s-interview-b",
+      "kind": "source",
+      "title": "Interview B",
+      "body": "A 30-minute call.",
+      "tag": "Interview",
+      "author": "Transcript",
+      "date": "2026-10-24",
+      "people": [
+        "p-interviewee-b"
+      ],
+      "takeaways": [
+        "Wants capture while walking.",
+        "Searches by keyword, not by date."
+      ]
+    },
+    {
+      "id": "q-walking",
+      "kind": "question",
+      "title": "Would voice capture replace typing?",
+      "body": "Before building voice notes.",
+      "ask": "a-commuter",
+      "prompt": "When did you last want to write something down but could not type?",
+      "answerShape": "A real moment and what they did instead."
+    },
+    {
+      "id": "d-mobile-first",
+      "kind": "decision",
+      "title": "Mobile first",
+      "body": "Build for the phone before the desktop.",
+      "current": "Phone app only",
+      "previous": "Desktop and phone",
+      "rationale": "Every interviewee writes on the phone.",
+      "revisitWhen": "Three people ask for desktop.",
+      "date": "2026-10-25",
+      "claim": {
+        "id": "d-mobile-first-c",
+        "text": "The phone is where capture happens.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      },
+      "evidenceNotes": [
+        {
+          "sourceId": "s-interview-a",
+          "note": "Writes only on the train."
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-a-fits",
+      "from": "p-interviewee-a",
+      "to": "a-commuter",
+      "relation": "fits",
+      "claim": {
+        "id": "e-a-fits-c",
+        "text": "Writes on the commute.",
+        "kind": "observed",
+        "evidence": [
+          {
+            "source": "s-interview-a",
+            "at": "04:30"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-b-fits",
+      "from": "p-interviewee-b",
+      "to": "a-commuter",
+      "relation": "fits",
+      "claim": {
+        "id": "e-b-fits-c",
+        "text": "Writes in short bursts.",
+        "kind": "observed",
+        "evidence": [
+          {
+            "source": "s-interview-b",
+            "at": "02:00"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-commuter-has",
+      "from": "a-commuter",
+      "to": "n-lost-ideas",
+      "relation": "has",
+      "claim": {
+        "id": "e-commuter-has-c",
+        "text": "Losing ideas is the pain both described.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-owner-reports",
+      "from": "p-owner",
+      "to": "n-lost-ideas",
+      "relation": "reports",
+      "claim": {
+        "id": "e-owner-reports-c",
+        "text": "The owner has the same problem.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-capture-serves",
+      "from": "f-quick-capture",
+      "to": "n-lost-ideas",
+      "relation": "serves",
+      "claim": {
+        "id": "e-capture-serves-c",
+        "text": "Fast capture means fewer lost ideas.",
+        "kind": "hypothesis",
+        "evidence": []
+      }
+    },
+    {
+      "id": "e-capture-implements",
+      "from": "f-quick-capture",
+      "to": "l-capture",
+      "relation": "implements",
+      "claim": {
+        "id": "e-capture-implements-c",
+        "text": "The widget is the capture step.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-voice-serves",
+      "from": "f-voice-notes",
+      "to": "n-lost-ideas",
+      "relation": "serves",
+      "claim": {
+        "id": "e-voice-serves-c",
+        "text": "Voice covers moments typing cannot.",
+        "kind": "hypothesis",
+        "evidence": []
+      }
+    },
+    {
+      "id": "e-paper-also",
+      "from": "alt-paper",
+      "to": "n-lost-ideas",
+      "relation": "also-serves",
+      "claim": {
+        "id": "e-paper-also-c",
+        "text": "A notebook also catches ideas.",
+        "kind": "hypothesis",
+        "evidence": []
+      }
+    },
+    {
+      "id": "e-speed-about",
+      "from": "h-speed",
+      "to": "f-quick-capture",
+      "relation": "about",
+      "claim": {
+        "id": "e-speed-about-c",
+        "text": "The widget tests the speed bet.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-search-about",
+      "from": "h-search",
+      "to": "l-recall",
+      "relation": "about",
+      "claim": {
+        "id": "e-search-about-c",
+        "text": "Recall is where context search would live.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-walking-tests",
+      "from": "q-walking",
+      "to": "f-voice-notes",
+      "relation": "tests",
+      "claim": {
+        "id": "e-walking-tests-c",
+        "text": "Answers decide whether to build voice notes.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    },
+    {
+      "id": "e-mobile-shapes",
+      "from": "d-mobile-first",
+      "to": "f-quick-capture",
+      "relation": "shapes",
+      "claim": {
+        "id": "e-mobile-shapes-c",
+        "text": "Mobile first is why capture is a widget.",
+        "kind": "view",
+        "evidence": [
+          {
+            "source": "s-owner-notes",
+            "at": "whole source"
+          }
+        ]
+      }
+    }
+  ]
+}
